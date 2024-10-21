@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { TouchableOpacity } from 'react-native';
 import { View, TextInput, Button, Text, StyleSheet } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Alert } from 'react-native';
+import {BASE_URL} from '../../ip_address'
 
 const AuthPage = ({ navigation }) => {
   const [username, setUsername] = useState('');
@@ -8,18 +11,40 @@ const AuthPage = ({ navigation }) => {
   const [token, setToken] = useState(null);
   const [message, setMessage] = useState('');
 
-  const BASE_URL = 'http://192.168.1.83:8000'; // Your backend URL
-
   const handleRegister = async () => {
     // Registration logic...
+    console.log("Go To Registration Page...")
   };
 
   const handleLogin = async () => {
-    // Login logic...
-    // If login is successful, navigate to Home screen
-    // if (response.ok) {
-    navigation.navigate('Home'); // Navigate to Home screen on success
-    // }
+    try {
+      // Send credentials to Django backend
+      const response = await fetch(`${BASE_URL}/backend/auth/login/`, {
+          method: 'POST',
+          headers: {
+              'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ username, password }),
+      });
+
+      if (response.status === 200) {
+          const data = await response.json();
+          const token = data.token; // Get token from response
+
+          // Store the token, username, and user ID in AsyncStorage
+          await AsyncStorage.setItem('userToken', data.token);
+          await AsyncStorage.setItem('userId', data.user_id.toString());  // Store user ID as string
+          await AsyncStorage.setItem('first_name', data.first_name);
+        
+          Alert.alert('Login successful!');
+          navigation.navigate('Home'); // Navigate to Home screen on success
+      } else {
+          Alert.alert('Invalid credentials, please try again.');
+      }
+    } catch (error) {
+      console.error(error);
+      Alert.alert('Login failed. Please try again later.');
+    }
   };
 
   return (

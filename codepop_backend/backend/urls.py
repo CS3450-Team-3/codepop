@@ -1,11 +1,11 @@
 from django.urls import path
 from rest_framework.authtoken.views import obtain_auth_token
-from .views import CreateUserAPIView, LogoutUserAPIView
+from .views import CreateUserAPIView, LogoutUserAPIView, CustomAuthToken
 from .views import UserPreferenceListAPIView, PreferenceListCreateAPIView, PreferenceRetrieveUpdateDestroyAPIView
 
 urlpatterns = [
     #Authentication related urls
-    path('auth/login/', obtain_auth_token, name='auth_user_login'),
+    path('auth/login/', CustomAuthToken.as_view(), name='auth_user_login'),
     path('auth/register/', CreateUserAPIView.as_view(), name='auth_user_create'),
     path('auth/logout/', LogoutUserAPIView.as_view(), name='auth_user_logout'),
 
