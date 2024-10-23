@@ -105,22 +105,48 @@ class InventoryReportAPIView(APIView):
         return Response(report_data, status=status.HTTP_200_OK)
 
 class InventoryUpdateAPIView(RetrieveUpdateAPIView):
-    """Update inventory when an item is used."""
+    """Update inventory based on what was ordered, with warnings for empty or low stock."""
     queryset = Inventory.objects.all()
     serializer_class = InventorySerializer
 
     def patch(self, request, *args, **kwargs):
-        item = self.get_object()
+        item = self.get_object()  # Retrieve the specific item based on ID
         used_quantity = request.data.get('used_quantity')
 
+        # Validate the used quantity
         if used_quantity is None or int(used_quantity) <= 0:
-            return Response({"detail": "Invalid used quantity."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"detail": "Invalid used quantity."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
+        # Check if the item is already out of stock
+        if item.Quantity == 0:
+            return Response(
+                {"detail": f"'{item.ItemName}' is already out of stock."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Check if the order quantity exceeds available stock
         if item.Quantity < int(used_quantity):
-            return Response({"detail": "Not enough stock available."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"detail": f"Not enough stock available for '{item.ItemName}'."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
-        # Update the inventory quantity
+        # Subtract the used quantity from the current stock
         item.Quantity -= int(used_quantity)
         item.save()
 
-        return Response(self.get_serializer(item).data, status=status.HTTP_200_OK)
+        # Generate a warning if stock falls below the threshold level
+        warning = None
+        if item.Quantity <= item.ThresholdLevel:
+            warning = f"'{item.ItemName}' stock is below the threshold level."
+
+        # Prepare the response data
+        response_data = self.get_serializer(item).data
+        if warning:
+            response_data['warning'] = warning
+
+        return Response(response_data, status=status.HTTP_200_OK)
+    

@@ -19,5 +19,5 @@ urlpatterns = [
 
     path('inventory/', InventoryListAPIView.as_view(), name='inventory_list'),
     path('inventory/report/', InventoryReportAPIView.as_view(), name='inventory_report'),
-    path('inventory/<int:pk>/update/', InventoryUpdateAPIView.as_view(), name='inventory_update'),
+    path('inventory/<int:pk>/', InventoryUpdateAPIView.as_view(), name='inventory_update'),
 ]

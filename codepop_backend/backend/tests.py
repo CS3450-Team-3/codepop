@@ -174,42 +174,88 @@ class InventoryTests(TestCase):
         self.authenticate(self.token1.key)
 
         # Make a request to retrieve the inventory report
-        response = self.client.get('/backend/inventory/report/')  # Adjust the URL as necessary
+        response = self.client.get('/backend/inventory/report/')
 
         # Check that the response status code is 200 OK
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         # Check that the report contains the correct items
         item_names = [item['ItemName'] for item in response.data['inventory_items']]
-        
-        # Assert that specific items are in the inventory report
         self.assertIn("Coke", item_names)
         self.assertIn("Syrup A", item_names)
         self.assertIn("Cup", item_names)
 
-
-    def test_update_inventory(self):
-        # Use token authentication for user1
+    def test_update_inventory_success(self):
+        # Authenticate the user
         self.authenticate(self.token1.key)
 
-        # Send a PUT request to update the inventory item
-        data = {'ItemName': "Coke", 'Quantity': 5}  # Assume we used 5 Cokes in an order
-        response = self.client.put('/backend/inventory/Coke/', data, format='json')
+        # Use the correct item ID (for Coke, which was created in setUp)
+        coke = Inventory.objects.get(ItemName="Coke")
 
-        # Check that the response status code is 200 OK
+        # Send a PATCH request to reduce the quantity by 5
+        data = {'used_quantity': 5}
+        response = self.client.patch(f'/backend/inventory/{coke.pk}/', data, format='json')
+
+        # Assert the status code is 200 OK
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        # Verify that the inventory item was updated correctly
-        inventory_item = Inventory.objects.get(ItemName="Coke")
-        self.assertEqual(inventory_item.Quantity, 5)
+        # Verify the quantity is updated correctly
+        coke.refresh_from_db()
+        self.assertEqual(coke.Quantity, 5)
+
+
+    def test_update_inventory_out_of_stock(self):
+        self.authenticate(self.token1.key)
+
+        # Use the correct ID for Syrup A (out of stock)
+        syrup = Inventory.objects.get(ItemName="Syrup A")
+
+        # Attempt to use 1 unit (should fail)
+        data = {'used_quantity': 1}
+        response = self.client.patch(f'/backend/inventory/{syrup.pk}/', data, format='json')
+
+        # Assert 400 Bad Request with appropriate error
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data['detail'], "'Syrup A' is already out of stock.")
+
+
+    def test_update_inventory_insufficient_stock(self):
+        self.authenticate(self.token1.key)
+
+        # Use the correct ID for Coke
+        coke = Inventory.objects.get(ItemName="Coke")
+
+        # Attempt to use more than available (20 units)
+        data = {'used_quantity': 20}
+        response = self.client.patch(f'/backend/inventory/{coke.pk}/', data, format='json')
+
+        # Assert 400 Bad Request with appropriate error
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data['detail'], "Not enough stock available for 'Coke'.")
+
+
+    def test_update_inventory_low_stock_warning(self):
+        self.authenticate(self.token1.key)
+
+        # Use the correct ID for Coke
+        coke = Inventory.objects.get(ItemName="Coke")
+
+        # Use 8 units, leaving only 2 (threshold level)
+        data = {'used_quantity': 8}
+        response = self.client.patch(f'/backend/inventory/{coke.pk}/', data, format='json')
+
+        # Assert 200 OK with warning
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('warning', response.data)
+        self.assertEqual(response.data['warning'], "'Coke' stock is below the threshold level.")
 
     def test_update_inventory_non_existent_item(self):
         # Use token authentication for user1
         self.authenticate(self.token1.key)
 
-        # Send a PUT request to update a non-existent inventory item
-        data = {'ItemName': "Non-existent Item", 'Quantity': 5}
-        response = self.client.put('/backend/inventory/Non-existent Item/', data, format='json')
+        # Send a PATCH request to update a non-existent inventory item
+        data = {'used_quantity': 5}
+        response = self.client.patch('/backend/inventory/999/', data, format='json')
 
         # Check that the response status code is 404 Not Found
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
