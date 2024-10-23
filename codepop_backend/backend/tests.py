@@ -3,7 +3,7 @@ from django.contrib.auth.models import User
 from rest_framework.test import APIClient
 from rest_framework import status
 from rest_framework.authtoken.models import Token  # Import for token authentication
-from .models import Preference
+from .models import Preference, Inventory
 
 class PreferenceTests(TestCase):
     def setUp(self):
@@ -131,3 +131,85 @@ class PreferenceTests(TestCase):
         # Check that the correct error message is returned (ensure the invalid value is mentioned)
         self.assertIn("mountain dew is not a valid preference", str(response.data))
 
+
+class InventoryTests(TestCase):
+    def setUp(self):
+        # Create two test users
+        self.user1 = User.objects.create_user(username='user1', password='password123')
+        self.user2 = User.objects.create_user(username='user2', password='password123')
+
+        # Create tokens for both users
+        self.token1 = Token.objects.create(user=self.user1)
+        self.token2 = Token.objects.create(user=self.user2)
+
+        # Create inventory items
+        Inventory.objects.create(ItemName="Coke", ItemType="Soda", Quantity=10, ThresholdLevel=2)
+        Inventory.objects.create(ItemName="Syrup A", ItemType="Syrup", Quantity=0, ThresholdLevel=5)
+        Inventory.objects.create(ItemName="Cup", ItemType="Physical", Quantity=50, ThresholdLevel=10)
+
+        # Set up the API client
+        self.client = APIClient()
+
+    def authenticate(self, token):
+        """Helper method to set up token authentication"""
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + token)
+
+    def test_get_inventory_list(self):
+        # Use token authentication for user1
+        self.authenticate(self.token1.key)
+
+        # Make a request to retrieve the inventory list
+        response = self.client.get('/backend/inventory/')
+
+        # Check that the response status code is 200 OK
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Check that the returned data contains the items that are not out of stock
+        self.assertEqual(len(response.data), 2)  # There should be 2 items in stock (Coke and Cup)
+        self.assertTrue(any(item['ItemName'] == "Coke" for item in response.data))
+        self.assertTrue(any(item['ItemName'] == "Cup" for item in response.data))
+
+    def test_get_inventory_report(self):
+        # Use token authentication for user1
+        self.authenticate(self.token1.key)
+
+        # Make a request to retrieve the inventory report
+        response = self.client.get('/backend/inventory/report/')  # Adjust the URL as necessary
+
+        # Check that the response status code is 200 OK
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Check that the report contains the correct items
+        item_names = [item['ItemName'] for item in response.data['inventory_items']]
+        
+        # Assert that specific items are in the inventory report
+        self.assertIn("Coke", item_names)
+        self.assertIn("Syrup A", item_names)
+        self.assertIn("Cup", item_names)
+
+
+    def test_update_inventory(self):
+        # Use token authentication for user1
+        self.authenticate(self.token1.key)
+
+        # Send a PUT request to update the inventory item
+        data = {'ItemName': "Coke", 'Quantity': 5}  # Assume we used 5 Cokes in an order
+        response = self.client.put('/backend/inventory/Coke/', data, format='json')
+
+        # Check that the response status code is 200 OK
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Verify that the inventory item was updated correctly
+        inventory_item = Inventory.objects.get(ItemName="Coke")
+        self.assertEqual(inventory_item.Quantity, 5)
+
+    def test_update_inventory_non_existent_item(self):
+        # Use token authentication for user1
+        self.authenticate(self.token1.key)
+
+        # Send a PUT request to update a non-existent inventory item
+        data = {'ItemName': "Non-existent Item", 'Quantity': 5}
+        response = self.client.put('/backend/inventory/Non-existent Item/', data, format='json')
+
+        # Check that the response status code is 404 Not Found
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)

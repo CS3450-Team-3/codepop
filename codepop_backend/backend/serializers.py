@@ -1,6 +1,6 @@
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
-from .models import Preference
+from .models import Preference, Inventory
 
 
 class CreateUserSerializer(serializers.ModelSerializer):
@@ -54,3 +54,11 @@ class PreferenceSerializer(serializers.ModelSerializer):
 
         # Return the lowercase value for saving
         return value
+    
+class InventorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Inventory
+        fields = [
+            'InventoryID', 'ItemName', 'ItemType', 
+            'Quantity', 'ThresholdLevel', 'LastUpdated'
+        ]
