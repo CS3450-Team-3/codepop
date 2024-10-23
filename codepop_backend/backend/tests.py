@@ -259,3 +259,24 @@ class InventoryTests(TestCase):
 
         # Check that the response status code is 404 Not Found
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_update_inventory_subtract_quantity(self):
+        # Authenticate the user
+        self.authenticate(self.token1.key)
+
+        # Use the correct item ID (for Coke, which was created in setUp)
+        coke = Inventory.objects.get(ItemName="Coke")
+
+        # Current quantity of Coke before the update
+        initial_quantity = coke.Quantity
+
+        # Send a PATCH request to reduce the quantity by 2
+        data = {'used_quantity': 2}
+        response = self.client.patch(f'/backend/inventory/{coke.pk}/', data, format='json')
+
+        # Assert the status code is 200 OK
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Verify the quantity is updated correctly
+        coke.refresh_from_db()  # Refresh the object from the database
+        self.assertEqual(coke.Quantity, initial_quantity - 2)  # Check if 2 is subtracted
