@@ -1,48 +1,49 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, FlatList, Modal } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import Icon from 'react-native-vector-icons/Ionicons';
 
-const DropDown = ({ options, onSelect }) => {
-  const [isVisible, setIsVisible] = useState(false); // Control drop-down visibility
-  const [selectedValue, setSelectedValue] = useState(null); // Hold the selected value
+const DropDown = ({ title, options = [], onSelect, isOpen, setOpen}) => {
+  // const [isOpen, setIsOpen] = useState(false);
+  const [selectedItems, setSelectedItems] = useState({});
 
-  const handleSelect = (option) => {
-    setSelectedValue(option);
-    onSelect(option);
-    setIsVisible(false); // Close the drop-down after selecting
+  const toggleDropdown = () => {
+    setIsOpen(!isOpen);
+  };
+
+  const toggleItemSelection = (item) => {
+    setSelectedItems((prevSelectedItems) => ({
+      ...prevSelectedItems,
+      [item]: !prevSelectedItems[item],
+    }));
+    onSelect(item);
   };
 
   return (
     <View style={styles.container}>
-      {/* Button to open dropdown */}
-      <TouchableOpacity style={styles.dropdownButton} onPress={() => setIsVisible(!isVisible)}>
-        <Text style={styles.dropdownButtonText}>
-          {selectedValue ? selectedValue.label : 'Select an option'}
-        </Text>
+      <TouchableOpacity onPress={setOpen} style={[
+        styles.collapsible,
+        isOpen && styles.collapsibleOpen,
+      ]}>
+        <Text style={styles.collapsibleText}>{title}</Text>
+        <Icon name={isOpen ? "caret-up-outline" : "caret-down-outline"} size={24} color="#000" />
       </TouchableOpacity>
-
-      {/* Modal to display dropdown options */}
-      {isVisible && (
-        <Modal transparent={true} animationType="fade">
-          <TouchableOpacity
-            style={styles.overlay}
-            onPress={() => setIsVisible(false)} // Close modal if user taps outside
-          >
-            <View style={styles.dropdownMenu}>
-              <FlatList
-                data={options}
-                keyExtractor={(item) => item.value.toString()}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={styles.dropdownItem}
-                    onPress={() => handleSelect(item)}
-                  >
-                    <Text style={styles.dropdownItemText}>{item.label}</Text>
-                  </TouchableOpacity>
-                )}
-              />
-            </View>
-          </TouchableOpacity>
-        </Modal>
+      {isOpen && options.length > 0 && (
+        <View style={styles.content}>
+          <View style={styles.buttonContainer}>
+            {options.map((option) => (
+              <TouchableOpacity
+                key={option.value}
+                style={[
+                  styles.circularButton,
+                  selectedItems[option.label] && styles.circularButtonSelected,
+                ]}
+                onPress={() => toggleItemSelection(option.label)}
+              >
+                <Text style={styles.buttonText}>{option.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
       )}
     </View>
   );
@@ -50,33 +51,55 @@ const DropDown = ({ options, onSelect }) => {
 
 const styles = StyleSheet.create({
   container: {
-    margin: 20,
+    width: '100%',
   },
-  dropdownButton: {
-    padding: 15,
-    backgroundColor: '#ddd',
-    borderRadius: 5,
-  },
-  dropdownButtonText: {
-    fontSize: 16,
-  },
-  overlay: {
-    flex: 1,
-    justifyContent: 'center',
+  collapsible: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    borderColor: '#8DF1D3',
+    backgroundColor: '#E8F5E9',
+    padding: 18,
+    width: '100%',
+    borderWidth: 1,
   },
-  dropdownMenu: {
-    width: '80%',
-    backgroundColor: 'white',
-    borderRadius: 8,
-    padding: 10,
+  collapsibleText: {
+    color: '#444',
+    fontSize: 15,
+    textAlign: 'left',
   },
-  dropdownItem: {
-    padding: 15,
+  collapsibleOpen: {
+    backgroundColor: '#C6C8EE',
   },
-  dropdownItemText: {
-    fontSize: 16,
+  content: {
+    padding: 18,
+    backgroundColor: '#F92758',
+  },
+  buttonContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  circularButton: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 2,
+    borderColor: '#ddd',
+    alignItems: 'center',
+    justifyContent: 'center',
+    margin: 5,
+    backgroundColor: '#fff',
+  },
+  circularButtonSelected: {
+    borderColor: '#8DF1D3',
+    backgroundColor: '#E8F5E9',
+  },
+  buttonText: {
+    color: '#444',
+    fontSize: 12,
+  },
+  carat: {
+    marginLeft: 10,
   },
 });
 
