@@ -42,31 +42,67 @@ order_detail = OrderOperations.as_view({
 })
 
 urlpatterns = [
-    #Authentication related urls
+    # Authentication related URLs
+    # Endpoint for user login
+    # - POST: Authenticates a user and returns an auth token.
     path('auth/login/', CustomAuthToken.as_view(), name='auth_user_login'),
+
+    # Endpoint for user registration
+    # - POST: Registers a new user and returns the user details.
     path('auth/register/', CreateUserAPIView.as_view(), name='auth_user_create'),
+
+    # Endpoint for user logout
+    # - POST: Logs out the user by invalidating the auth token.
     path('auth/logout/', LogoutUserAPIView.as_view(), name='auth_user_logout'),
 
     # Preference-related URLs
+    # Endpoint to list all preferences or create a new preference
+    # - GET: Retrieve a list of all preferences.
+    # - POST: Create a new preference. Requires authentication and preference details in the request body.
     path('preferences/', preferences_list, name='preference_list_create'),  # List and create preferences
+
+    # Endpoint to retrieve, update, or delete a specific preference by its primary key (ID)
+    # - GET: Retrieve details of a specific preference.
+    # - PUT: Update the specific preference.
+    # - DELETE: Remove the specific preference from the database.
     path('preferences/<int:pk>/', preferences_detail, name='preference_detail'),  # Retrieve, update, or delete a preference
 
     # Retrieve preferences by UserID
+    # Endpoint to list all preferences for a specific user identified by their user ID.
+    # - GET: Retrieve a list of preferences for the specified user.
     path('users/<int:user_id>/preferences/', UserPreferenceLookup.as_view(), name='user_preferences_list'),
 
-    #Drink URLs
-    #1. The /backend/drinks/ endpoint will return a list of
-    #2. only the drinks that are not User created if you call it
-    #3. with a basic GET request
+    # Drink URLs
+    # Endpoint to list all drinks or create a new drink
+    # - GET: Retrieve a list of drinks that are not user-created.
+    # - POST: Create a new drink. Requires authentication and drink details in the request body.
     path('drinks/', drink_list, name='drink list and create'),
+
+    # Endpoint to retrieve, update, or delete a specific drink by its primary key (ID)
+    # - GET: Retrieve details of a specific drink.
+    # - PUT: Update the specific drink.
+    # - DELETE: Remove the specific drink from the database.
     path('drinks/<int:pk>/', drink_detail, name='drink operations'),
 
     # Retrieve Drinks by UserID
+    # Endpoint to list all drinks created by a specific user identified by their user ID.
+    # - GET: Retrieve a list of drinks for the specified user.
     path('users/<int:user_id>/drinks/', UserDrinksLookup.as_view(), name='user_preferences_list'),
 
-
+    # Inventory URLs
+    # Endpoint to list all inventory items
+    # - GET: Retrieve a list of all inventory items.
+    # - POST: Create a new inventory item. Requires authentication and item details.
     path('inventory/', InventoryListAPIView.as_view(), name='inventory_list'),
+
+    # Endpoint to generate an inventory report
+    # - GET: Retrieve an inventory report.
     path('inventory/report/', InventoryReportAPIView.as_view(), name='inventory_report'),
+
+    # Endpoint to retrieve, update, or delete a specific inventory item by its primary key (ID)
+    # - GET: Retrieve details of a specific inventory item.
+    # - PATCH: Update the quantity of the specific inventory item.
+    # - DELETE: Remove the specific inventory item from the database.
     path('inventory/<int:pk>/', InventoryUpdateAPIView.as_view(), name='inventory_update'),
 
     #Order URLs
