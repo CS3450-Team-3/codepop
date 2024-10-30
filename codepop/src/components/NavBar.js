@@ -52,6 +52,7 @@ const styles = StyleSheet.create({
     position: 'absolute', 
     bottom: 0,
     left: 0,
+    marginTop: 10,
   },
   navItem: {
     // color: '#ff',

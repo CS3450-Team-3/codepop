@@ -4,45 +4,105 @@ import NavBar from '../components/NavBar';
 import DropDown from '../components/DropDown';
 import { useNavigation } from '@react-navigation/native';
 import { sodaOptions, syrupOptions, juiceOptions } from '../components/Ingredients';
+import {BASE_URL} from '../../ip_address'
+import axios from 'axios';
 
 const CreateDrinkPage = () => {
   const navigation = useNavigation();
   const [searchText, setSearchText] = useState('');
-  const [selectedSize, setSize] = useState(null);
-  const [selectedIce, setIce] = useState(null);
   const [openDropdown, setOpenDropdown] = useState({
     sodas: false,
     syrups: false,
     juices: false,
   });
 
+  // variables to add to drink object
+  const [SodaUsed, setSoda] = useState(null);
+  const [SyrupsUsed, setSyrups] = useState(null);
+  const [AddIns, setAddIns] = useState(null);
+  const [Price, setPrice] = useState(null);
+  const [User, setUser] = useState(null);
+  const [selectedSize, setSize] = useState(null);
+  const [selectedIce, setIce] = useState(null);
+  
+  
+  // create drink object in database and navigate to cart page
+  const addToCart = async () => {
+    try {
+      const response = await fetch(`${BASE_URL}/backend/drinks/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          SodaUsed, 
+          SyrupsUsed, 
+          AddIns, 
+          Price, 
+          User, 
+          Size: selectedSize, 
+          Ice: selectedIce,
+        })
+      });
+
+      if (!response.ok) {
+        // Log the error if the response is not ok (status code outside 2xx)
+        throw new Error(`Failed to add drink. Status: ${response.status}`);
+      }
+      // if sucessful navigate to cart page
+      navigation.navigate('Cart');
+    } catch (error) {
+      console.error('Error adding drink to cart:', error);
+    }
+  };
+
+  // // functions to add ingredients to drink object lists
+  // const addItemToDrinkObject = () => {
+  //   // Your logic here
+  // };
+
+  const handleSizeSelection = (size) => {
+    setSize(size);
+  };
+  
+  const handleIceSelection = (ice) => {
+    setIce(ice);
+  };
+
+  const handleSodaSelection = (sodaList) => {
+    setSoda(sodaList);
+  };
+  
+  const handleSyrupSelection = (SyrupList) => {
+    setSyrups(SyrupList);
+  };
+
+  const handleAddInSelection = (AddInList) => {
+    setAddIns(AddInList);
+  };
+  const HandleUser = (user) => {
+    setUser(user);
+  }
+
+
+  // search and list stiff
   const filterOptions = (options = []) => {
     return options.filter((option) =>
       option.label.toLowerCase().includes(searchText.toLowerCase())
     );
   };
 
-  const addItemToDrinkObject = () => {
-    // Your logic here
-  };
+  
 
-  const addToCart = (selectedOption) => {
-    console.log(selectedOption, ' added to drink object');
-  };
-
-  const generateDrinks = () => {
-    console.log('generating drinks...');
-  };
-
-  const saveDrink = async () => {
-    console.log('Generating drinks...');
-    await createDrinkObject(); // Replace with your actual function for saving to the database
-  };
-
-  const handleSaveDrinks = async () => {
-    await saveDrink(); // Wait for the drink to be generated
-    navigation.navigate('Cart'); // Then navigate to the cart page
-  };
+  // const updateSelections = (ingredient) => {
+  //   setSelectedIngredients((prev) => {
+  //     if (prev.includes(ingredient)) {
+  //       return prev.filter((item) => item !== ingredient);
+  //     }
+  //     return [...prev, ingredient];
+  //   });
+  // };
+  
 
   const handleSearch = (text) => {
     setSearchText(text);
@@ -52,13 +112,10 @@ const CreateDrinkPage = () => {
       juices: !!text,
     });
   };
-
-  const handleSizeSelection = (size) => {
-    setSize(size);
-  };
   
-  const handleIceSelection = (ice) => {
-    setIce(ice);
+  // function for generate drink button which generates a drink with AI
+  const GenerateAI = () => {
+    // logic to generate an AI drink
   };
 
   return (
@@ -83,11 +140,14 @@ const CreateDrinkPage = () => {
           ))}
         </View>
 
-        {/* Drink graphic in the center */}
+        
         <View style={styles.graphicContainer}>
+          {/* Drink graphic in the center */}
           <Text style={styles.drinkGraphicText}>Drink GIF goes here</Text>
+          {/* {gifUrl && <Image source={{ uri: gifUrl }} style={styles.gifImage} />} */}
+
           {/* Button to generate drinks */}
-          <TouchableOpacity onPress={handleSaveDrinks} style={styles.button}>
+          <TouchableOpacity onPress={GenerateAI} style={styles.button}>
             <Text style={styles.buttonText}>Generate Drink</Text>
           </TouchableOpacity>
         </View>
@@ -109,11 +169,6 @@ const CreateDrinkPage = () => {
         </View>
       </View>
 
-      {/* Button to generate drinks */}
-      {/* <TouchableOpacity onPress={handleSaveDrinks} style={styles.button}>
-        <Text style={styles.buttonText}>Generate Drinks</Text>
-      </TouchableOpacity> */}
-
       {/* Button to add to cart */}
       <TouchableOpacity onPress={addToCart} style={styles.button}>
         <Text style={styles.buttonText}>Add to Cart</Text>
@@ -128,29 +183,31 @@ const CreateDrinkPage = () => {
       />
 
       {/* Dropdowns */}
-      <DropDown 
-        title="Sodas" 
-        options={filterOptions(sodaOptions)} 
-        onSelect={addItemToDrinkObject} 
-        isOpen={openDropdown.sodas}
-        setOpen={() => setOpenDropdown(prev => ({ ...prev, sodas: !prev.sodas }))}
-      />
-      <DropDown 
-        title="Syrups" 
-        options={filterOptions(syrupOptions)} 
-        onSelect={addItemToDrinkObject} 
-        isOpen={openDropdown.syrups}
-        setOpen={() => setOpenDropdown(prev => ({ ...prev, syrups: !prev.syrups }))}
-      />
-      <DropDown 
-        title="Juices" 
-        options={filterOptions(juiceOptions)} 
-        onSelect={addItemToDrinkObject} 
-        isOpen={openDropdown.juices}
-        setOpen={() => setOpenDropdown(prev => ({ ...prev, juices: !prev.juices }))}
-      />
+      <View style={styles.navBarSpace}>
+        <DropDown 
+          title="Sodas" 
+          options={filterOptions(sodaOptions)} 
+          onSelect={handleSodaSelection} 
+          isOpen={openDropdown.sodas}
+          setOpen={() => setOpenDropdown(prev => ({ ...prev, sodas: !prev.sodas }))}
+        />
+        <DropDown 
+          title="Syrups" 
+          options={filterOptions(syrupOptions)} 
+          onSelect={handleSyrupSelection} 
+          isOpen={openDropdown.syrups}
+          setOpen={() => setOpenDropdown(prev => ({ ...prev, syrups: !prev.syrups }))}
+        />
+        <DropDown 
+          title="Juices" 
+          options={filterOptions(juiceOptions)} 
+          onSelect={handleAddInSelection} 
+          isOpen={openDropdown.juices}
+          setOpen={() => setOpenDropdown(prev => ({ ...prev, juices: !prev.juices }))}
+        />
+      </View>
 
-      <NavBar />
+      <NavBar/>
     </View>
   );
 };
@@ -160,6 +217,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFA686',
     padding: 10,
+  },
+  navBarSpace: {
+    marginBottom: 80,
   },
   rowContainer: {
     flexDirection: 'row',

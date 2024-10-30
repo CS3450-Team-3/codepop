@@ -8,6 +8,7 @@ import CreateDrinkPage from './src/pages/CreateDrinkPage';
 import PreferencesPage from './src/pages/PreferencesPage';
 import GeneralHomePage from './src/pages/GeneralHomePage';
 import CreateAccountPage from './src/pages/CreateAccountPage';
+import PaymentPage from './src/pages/PaymentPage';
 
 const Stack = createNativeStackNavigator();
 const title = 'CodePop' 
@@ -49,6 +50,11 @@ const App = () => {
           name="GeneralHome"
           component={GeneralHomePage}
           options={{ title: 'General Home' }}
+        />
+        <Stack.Screen
+          name="payment"
+          component={PaymentPage}
+          options={{ title: 'Payment' }}
         />
       </Stack.Navigator>
     </NavigationContainer>
