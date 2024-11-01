@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.contrib.postgres.fields import ArrayField
+from django.utils import timezone
 
 class Preference(models.Model):
     # Primary key will be automatically created as 'id' unless you specify otherwise
@@ -24,6 +25,8 @@ class Drink(models.Model):
     AddIns = ArrayField(models.CharField(max_length=255), blank=True, null=True)
     Rating = models.FloatField(null=True, blank=True)
     Price = models.FloatField()
+    Size = models.CharField(default="m")
+    Ice = models.CharField(default="normal")
     User_Created = models.BooleanField()
     Favorite = models.ForeignKey('auth.User', on_delete=models.CASCADE, null=True, blank=True)
 
@@ -51,3 +54,53 @@ class Inventory(models.Model):
 
     def __str__(self):
         return f"{self.ItemName} - {self.ItemType} (Qty: {self.Quantity})"
+
+class Notification(models.Model):
+    NotificationID = models.AutoField(primary_key=True)
+    UserID = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
+    Message = models.CharField(max_length=500)  # Adjust max_length as needed
+    Timestamp = models.DateTimeField(default=timezone.now)  # Sets timestamp to the creation date/time
+    Type = models.CharField(max_length=50)  # Adjust max_length as needed
+    Global = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"Notification for {self.UserID.username}: {self.Message[:50]} at time {self.Timestamp}"
+
+class Order(models.Model):
+    ORDER_STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('processing', 'Processing'),
+        ('completed', 'Completed'),
+        ('cancelled', 'Cancelled'),
+    ]
+
+    PAYMENT_STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('paid', 'Paid'),
+        ('failed', 'Failed'),
+    ]
+
+    OrderID = models.AutoField(primary_key=True)
+    UserID = models.ForeignKey(User, on_delete=models.CASCADE)
+    Drinks = models.ManyToManyField(Drink)
+    OrderStatus = models.CharField(max_length=50, choices=ORDER_STATUS_CHOICES, default='pending')
+    PaymentStatus = models.CharField(max_length=50, choices=PAYMENT_STATUS_CHOICES, default='pending')
+    PickupTime = models.DateTimeField(null=True, blank=True)
+    CreationTime = models.DateTimeField(auto_now_add=True)
+    
+    def add_drinks(self, drink_ids):
+        # Assuming you have a ManyToMany field for drinks in your Order model
+        for drink_id in drink_ids:
+            drink = Drink.objects.get(DrinkID=drink_id)  # Assuming you have a Drink model
+            self.Drinks.add(drink)  # Add the drink to the order
+        self.save()  # Save the changes to the order
+            
+    def remove_drinks(self, drink_ids):
+        """Remove drinks from the order."""
+        for drink_id in drink_ids:
+            drink = Drink.objects.get(DrinkID=drink_id)
+            self.Drinks.remove(drink)  # Remove the drink from the order
+        self.save()
+        
+    def __str__(self):
+        return f"Order {self.OrderID} by User {self.UserID.username}"
