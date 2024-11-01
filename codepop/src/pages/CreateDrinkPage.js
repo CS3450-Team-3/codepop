@@ -9,7 +9,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // to do:
 // create drink gif
-// finish price calculator
 // generate drink from AI
 
 const CreateDrinkPage = () => {
@@ -25,7 +24,6 @@ const CreateDrinkPage = () => {
   const [SodaUsed, setSoda] = useState([]);
   const [SyrupsUsed, setSyrups] = useState([]);
   const [AddIns, setAddIns] = useState([]);
-  const [Price, setPrice] = useState(null);
   const [selectedSize, setSize] = useState(null);
   const [selectedIce, setIce] = useState(null);
   
@@ -70,7 +68,7 @@ const CreateDrinkPage = () => {
       }catch (error){
         console.log(error)
       }
-      
+
       navigation.navigate('Cart');
     } catch (error) {
       console.error('Error adding drink to cart:', error);
@@ -122,13 +120,6 @@ const CreateDrinkPage = () => {
       }
     });
   };
-
-  const calculatePrice = (drink) => {
-    // $2 base price + $0.30 per ingredient
-    sodaLen = sodaList
-    price = 2 + drink.ingredients.length * 0.3;
-    setPrice();
-  };
   
   // search and list stiff
   const filterOptions = (options = []) => {
@@ -154,7 +145,7 @@ const CreateDrinkPage = () => {
   return (
     <View style={styles.wholePage}>
 
-      <ScrollView>
+      <ScrollView style={styles.padding}>
       <View style={styles.rowContainer}>
         {/* Size buttons on the left */}
         <View style={styles.buttonContainerLeft}>
@@ -250,6 +241,9 @@ const styles = StyleSheet.create({
   wholePage: {
     flex: 1,
     backgroundColor: '#FFA686',
+    // padding: 10,
+  },
+  padding: {
     padding: 10,
   },
   navBarSpace: {
@@ -307,7 +301,7 @@ const styles = StyleSheet.create({
     height: 60,
     borderRadius: 30,
     borderWidth: 2,
-    borderColor: '#ddd',
+    borderColor: '#D30C7B',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#F92758',
@@ -323,7 +317,7 @@ const styles = StyleSheet.create({
   searchInput: {
     height: 40,
     borderColor: '#ddd',
-    borderWidth: 1,
+    borderWidth: 3,
     paddingHorizontal: 10,
     width: '80%',
     marginVertical: 15,
