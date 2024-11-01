@@ -1,9 +1,12 @@
 from django.test import TestCase
+from django.urls import reverse
 from django.contrib.auth.models import User
-from rest_framework.test import APIClient
+from rest_framework.test import APIClient, APITestCase
 from rest_framework import status
 from rest_framework.authtoken.models import Token  # Import for token authentication
-from .models import Preference, Drink, Inventory
+from .models import Preference, Drink, Inventory, Notification, Order
+from django.utils import timezone
+from datetime import timedelta
 
 class PreferenceTests(TestCase):
     def setUp(self):
@@ -142,9 +145,9 @@ class DrinkTests(TestCase):
         self.token2 = Token.objects.create(user=self.user2)
 
         # Create sample drinks for both users (dirty sodas)
-        Drink.objects.create(Name="Cola Vanilla", SodaUsed=["Cola"], SyrupsUsed=["Vanilla"], User_Created=False, Price=1.99, Favorite=self.user1)
-        Drink.objects.create(Name="Lemonade Mint", SodaUsed=["Lemonade"], AddIns=["Mint"], User_Created=False, Price=2.50, Favorite=self.user2)
-        Drink.objects.create(Name="Custom Cherry Soda", SodaUsed=["Cherry Soda"], User_Created=True, Price=3.50, Favorite=self.user2)
+        Drink.objects.create(Name="Cola Vanilla", SodaUsed=["Cola"], SyrupsUsed=["Vanilla"], Ice="Regular", Size="24oz", User_Created=False, Price=1.99, Favorite=self.user1)
+        Drink.objects.create(Name="Lemonade Mint", SodaUsed=["Lemonade"], AddIns=["Mint"], Ice="None", Size="16oz", User_Created=False, Price=2.50, Favorite=self.user2)
+        Drink.objects.create(Name="Custom Cherry Soda", SodaUsed=["Cherry Soda"], Ice="Light", Size="32oz", User_Created=True, Price=3.50, Favorite=self.user2)
 
         # Set up the API client
         self.client = APIClient()
@@ -154,8 +157,8 @@ class DrinkTests(TestCase):
         self.client.credentials(HTTP_AUTHORIZATION='Token ' + token)
 
     def test_get_drinks_for_user_created_false(self):
-        self.authenticate(self.token1.key)
         """Test that only drinks where User_Created=False are listed"""
+        self.authenticate(self.token1.key)
         response = self.client.get('/backend/drinks/')
         
         # Check that the response status code is 200 OK
@@ -167,8 +170,7 @@ class DrinkTests(TestCase):
             self.assertFalse(drink['User_Created'])
 
     def test_create_new_drink(self):
-        """Test creating a new drink for the logged-in user"""
-        # Authenticate with user1's token
+        """Test creating a new drink for the logged-in user with Ice and Size"""
         self.authenticate(self.token1.key)
 
         # Data for the new dirty soda (drink)
@@ -176,6 +178,8 @@ class DrinkTests(TestCase):
             "Name": "Strawberry Soda",
             "SodaUsed": ["Strawberry Soda"],
             "SyrupsUsed": ["Vanilla"],
+            "Ice": "Light",
+            "Size": "32oz",
             "User_Created": False,
             "Price": 2.99,
             "Favorite": self.user1.id
@@ -186,14 +190,13 @@ class DrinkTests(TestCase):
 
         # Check that the response status code is 201 Created
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-
-        # Verify that the new drink was added to the database
-        self.assertEqual(Drink.objects.count(), 4)  # There were 3 drinks initially, now 4
-        self.assertEqual(Drink.objects.get(Name="Strawberry Soda").Price, 2.99)
+        drink = Drink.objects.get(Name="Strawberry Soda")
+        self.assertEqual(drink.Price, 2.99)
+        self.assertEqual(drink.Ice, "light")
+        self.assertEqual(drink.Size, "32oz")
 
     def test_update_existing_drink(self):
-        """Test updating the price of an existing drink"""
-        # Authenticate with user1's token
+        """Test updating the price of an existing drink, and set Ice and Size"""
         self.authenticate(self.token1.key)
 
         # Retrieve a drink to update
@@ -204,6 +207,8 @@ class DrinkTests(TestCase):
             "Name": drink.Name,
             "SodaUsed": drink.SodaUsed,
             "SyrupsUsed": drink.SyrupsUsed,
+            "Ice": "None",
+            "Size": "16oz",
             "Price": 4.50,  # Updated price
             "User_Created": drink.User_Created,
             "Favorite": self.user1.id
@@ -214,13 +219,13 @@ class DrinkTests(TestCase):
 
         # Check that the response status code is 200 OK
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        # Verify that the drink's price was updated
-        self.assertEqual(Drink.objects.get(DrinkID=drink.DrinkID).Price, 4.50)
+        drink.refresh_from_db()
+        self.assertEqual(drink.Price, 4.50)
+        self.assertEqual(drink.Ice, "none")
+        self.assertEqual(drink.Size, "16oz")
 
     def test_delete_drink(self):
         """Test deleting a drink"""
-        # Authenticate with user1's token
         self.authenticate(self.token1.key)
 
         # Get a drink to delete (any drink created by user1)
@@ -231,8 +236,6 @@ class DrinkTests(TestCase):
 
         # Check that the response status code is 204 No Content
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-
-        # Verify that the drink was deleted from the database
         self.assertEqual(Drink.objects.filter(DrinkID=drink.DrinkID).count(), 0)
 
     def test_create_drink_without_auth(self):
@@ -241,34 +244,71 @@ class DrinkTests(TestCase):
             "Name": "Unauthorized Drink",
             "SodaUsed": ["Cola"],
             "User_Created": False,
-            "Price": 2.00
+            "Price": 2.00,
+            "Ice": "Regular",
+            "Size": "24oz"
         }
 
         # Send a POST request without authentication
         response = self.client.post('/backend/drinks/', data, format='json')
-
-        # Expect a 401 Unauthorized response since the user is not authenticated
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_get_drinks_for_specific_user(self):
         """Test retrieving drinks based on a specific user's favorites"""
-        # Authenticate with user2's token
         self.authenticate(self.token2.key)
-
-        # Send a GET request to retrieve user2's favorite drinks
         response = self.client.get(f'/backend/users/{self.user2.id}/drinks/')
-
+        
         # Check that the response status code is 200 OK
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        # Check that user2's drinks are returned
         self.assertEqual(len(response.data), 2)  # User2 has 2 favorite drinks
-
-        # Check the drink names
         drink_names = [drink['Name'] for drink in response.data]
         self.assertIn("Lemonade Mint", drink_names)
         self.assertIn("Custom Cherry Soda", drink_names)
 
+    # New tests for Ice and Size validation
+    def test_create_drink_with_invalid_ice_size(self):
+        """Test creating a drink with invalid Ice and Size fields."""
+        self.authenticate(self.token1.key)
+        data = {
+            "Name": "Invalid Drink",
+            "SodaUsed": ["Cola"],
+            "Ice": "Extra Heavy",  # Invalid Ice option
+            "Size": "Super Large",  # Invalid Size option
+            "User_Created": True,
+            "Price": 2.00,
+            "Favorite": self.user1.id
+        }
+        response = self.client.post('/backend/drinks/', data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Ice", response.data)
+        self.assertIn("Size", response.data)
+
+    def test_update_drink_with_invalid_ice_size(self):
+        """Test updating a drink with invalid Ice and Size fields."""
+        self.authenticate(self.token1.key)
+        drink = Drink.objects.create(
+            Name="Orange Soda",
+            SodaUsed=["Fanta"],
+            Ice="Regular",
+            Size="24oz",
+            User_Created=True,
+            Price=2.00,
+            Favorite=self.user1
+        )
+        data = {
+            "Name": "Updated Orange Soda",
+            "SodaUsed": ["Fanta"],
+            "Ice": "Boiling",  # Invalid Ice option
+            "Size": "Huge",  # Invalid Size option
+            "User_Created": True,
+            "Price": 2.50,
+            "Favorite": self.user1.id
+        }
+
+        response = self.client.put(f'/backend/drinks/{drink.DrinkID}/', data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Ice", response.data)
+        self.assertIn("Size", response.data)
 
 class InventoryTests(TestCase):
     def setUp(self):
@@ -418,3 +458,367 @@ class InventoryTests(TestCase):
         # Verify the quantity is updated correctly
         coke.refresh_from_db()  # Refresh the object from the database
         self.assertEqual(coke.Quantity, initial_quantity - 2)  # Check if 2 is subtracted
+
+class NotificationTests(APITestCase):
+    def setUp(self):
+        # Create test users and tokens
+        self.user1 = User.objects.create_user(username='user1', password='password123')
+        self.user2 = User.objects.create_user(username='user2', password='password123')
+        self.token1 = Token.objects.create(user=self.user1)
+        self.token2 = Token.objects.create(user=self.user2)
+        self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token1.key}')
+
+        # Create sample notifications for each user
+        self.notification1 = Notification.objects.create(
+            UserID=self.user1,
+            Message="User1 notification",
+            Timestamp=timezone.now() - timedelta(days=2),
+            Type="info",
+            Global=True
+        )
+        self.notification2 = Notification.objects.create(
+            UserID=self.user1,
+            Message="Another user1 notification",
+            Timestamp=timezone.now() - timedelta(hours=5),
+            Type="alert",
+            Global=False
+        )
+        self.notification3 = Notification.objects.create(
+            UserID=self.user2,
+            Message="User2 notification",
+            Timestamp=timezone.now() - timedelta(hours=1),
+            Type="reminder",
+            Global=False
+        )
+
+    def authenticate(self, token):
+        """Helper function to set the token for authentication."""
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + token)
+
+    def test_list_notifications(self):
+        """Test that authenticated users can list their notifications."""
+        self.authenticate(self.token1.key)
+        response = self.client.get(reverse('notification list and create'))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+        for notification in response.data:
+            self.assertEqual(notification['UserID'], self.user1.id)
+
+    def test_create_notification(self):
+        """Test creating a new notification."""
+        self.authenticate(self.token1.key)
+        data = {
+            "UserID": self.user1.id,
+            "Message": "New notification for user1",
+            "Type": "alert",
+            "Global": False
+        }
+        response = self.client.post(reverse('notification list and create'), data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(Notification.objects.count(), 4)
+        new_notification = Notification.objects.get(Message="New notification for user1")
+        self.assertEqual(new_notification.UserID, self.user1)
+
+    def test_retrieve_notification(self):
+        """Test retrieving a specific notification by ID."""
+        self.authenticate(self.token1.key)
+        response = self.client.get(reverse('notification operations', kwargs={"pk": self.notification1.NotificationID}))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['Message'], "User1 notification")
+        self.assertEqual(response.data['UserID'], self.user1.id)
+
+    def test_update_notification(self):
+        """Test updating an existing notification."""
+        self.authenticate(self.token1.key)
+        data = {
+        "UserID": self.user1.id,  # Include the user ID if required
+        "Message": "Updated message",
+        "Type": "info",
+        "Timestamp": self.notification1.Timestamp  # Include Timestamp if required
+        }
+        response = self.client.put(reverse('notification operations', kwargs={"pk": self.notification1.NotificationID}), data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.notification1.refresh_from_db()
+        self.assertEqual(self.notification1.Message, "Updated message")
+
+    def test_delete_notification(self):
+        """Test deleting a notification."""
+        self.authenticate(self.token1.key)
+        response = self.client.delete(reverse('notification operations', kwargs={"pk": self.notification1.NotificationID}))
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertEqual(Notification.objects.filter(NotificationID=self.notification1.NotificationID).count(), 0)
+
+    def test_filter_notifications_by_time_range(self):
+        """Test filtering notifications by a specific time range."""
+        self.authenticate(self.token1.key)
+        start = (timezone.now() - timedelta(days=1)).isoformat()
+        end = timezone.now().isoformat()
+
+        response = self.client.get(reverse('notification filter by time'), {'start': start, 'end': end})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['Message'], "Another user1 notification")
+
+    def test_access_notification_of_another_user(self):
+        """Test that a user cannot access another user's notification."""
+        self.authenticate(self.token1.key)
+        response = self.client.get(reverse('notification operations', kwargs={"pk": self.notification3.NotificationID}))
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_user_notifications_list_isolated_by_user(self):
+        """Test that each user only sees their own notifications."""
+        self.authenticate(self.token1.key)
+        response = self.client.get(reverse('user notifications list', kwargs={"user_id": self.user1.id}))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+        for notification in response.data:
+            self.assertEqual(notification['UserID'], self.user1.id)
+
+        self.authenticate(self.token2.key)
+        response = self.client.get(reverse('user notifications list', kwargs={"user_id": self.user2.id}))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['UserID'], self.user2.id)
+
+    def test_invalid_time_range(self):
+        """Test invalid time range in filter by time endpoint."""
+        self.authenticate(self.token1.key)
+        response = self.client.get(reverse('notification filter by time'), {'start': 'invalid', 'end': 'invalid'})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_create_notification_without_auth(self):
+        """Test creating a notification without authentication (should fail)."""
+        self.client.credentials()  # Clear authentication
+        data = {
+            "UserID": self.user1.id,
+            "Message": "Unauthenticated notification",
+            "Type": "alert",
+            "Global": False
+        }
+        response = self.client.post(reverse('notification list and create'), data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+class OrderTests(TestCase):
+    def setUp(self):
+        # Create two test users
+        self.user1 = User.objects.create_user(username='user1', password='password123')
+        self.user2 = User.objects.create_user(username='user2', password='password123')
+
+        # Create tokens for both users
+        self.token1 = Token.objects.create(user=self.user1)
+        self.token2 = Token.objects.create(user=self.user2)
+
+        # Create sample drinks
+        self.drink1 = Drink.objects.create(Name="Cola Vanilla", SodaUsed=["Cola"], SyrupsUsed=["Vanilla"], User_Created=False, Price=1.99)
+        self.drink2 = Drink.objects.create(Name="Lemonade Mint", SodaUsed=["Lemonade"], AddIns=["Mint"], User_Created=False, Price=2.50)
+
+        # Set up the API client
+        self.client = APIClient()
+
+    def authenticate(self, token):
+        """Helper method to set up token authentication"""
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + token)
+
+    def test_create_order(self):
+        """Test creating a new order for user1"""
+        self.authenticate(self.token1.key)
+
+        data = {
+            "UserID": self.user1.id,
+            "Drinks": [self.drink1.DrinkID, self.drink2.DrinkID],  # Include drink IDs
+            "OrderStatus": "pending",
+            "PaymentStatus": "pending",
+        }
+
+        response = self.client.post('/backend/orders/', data, format='json')
+
+        # Check that the response status code is 201 Created
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # Verify that the order was created
+        self.assertEqual(Order.objects.count(), 1)
+        order = Order.objects.first()
+        self.assertEqual(order.UserID, self.user1)
+        self.assertEqual(list(order.Drinks.values_list('DrinkID', flat=True)), [self.drink1.DrinkID, self.drink2.DrinkID])
+
+    def test_get_all_orders(self):
+        """Test retrieving a list of all orders."""
+        self.authenticate(self.token1.key)  # Authenticate the user
+
+        # Create two orders for user1
+        order1 = Order.objects.create(UserID=self.user1, OrderStatus="pending", PaymentStatus="pending")
+        order2 = Order.objects.create(UserID=self.user1, OrderStatus="completed", PaymentStatus="paid")
+        
+        # Assign drinks to the orders
+        order1.Drinks.set([self.drink1])  # Assign drink1 to order1
+        order2.Drinks.set([self.drink2])  # Assign drink2 to order2
+
+        # Make a GET request to retrieve all orders
+        response = self.client.get('/backend/orders/')
+
+        # Check that the response status code is 200 OK
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Verify that the number of orders returned matches the number created
+        self.assertEqual(len(response.data), 2)  # Should return both orders
+
+        # Verify the content of the returned data
+        order_ids = [order['OrderID'] for order in response.data]
+        self.assertIn(order1.OrderID, order_ids)  # Check if order1 is in the response
+        self.assertIn(order2.OrderID, order_ids)  # Check if order2 is in the response
+
+    def test_get_order(self):
+        """Test retrieving an order"""
+        self.authenticate(self.token1.key)
+
+        # Create an order first
+        order = Order.objects.create(UserID=self.user1, OrderStatus="pending", PaymentStatus="pending")
+        order.Drinks.add(self.drink1)
+
+        response = self.client.get(f'/backend/orders/{order.OrderID}/')
+
+        # Check that the response status code is 200 OK
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Verify the returned order data
+        self.assertEqual(response.data['OrderID'], order.OrderID)
+        self.assertEqual(response.data['UserID'], self.user1.id)
+
+    def test_get_orders_for_user(self):
+        """Test retrieving orders for a specific user"""
+        self.authenticate(self.token1.key)
+
+        # Create two orders for user1 and assign drinks
+        order1 = Order.objects.create(UserID=self.user1, OrderStatus="pending", PaymentStatus="pending")
+        order1.Drinks.set([self.drink1, self.drink2])  # Assign drinks to the order
+
+        order2 = Order.objects.create(UserID=self.user1, OrderStatus="completed", PaymentStatus="paid")
+        order2.Drinks.set([self.drink1])  # Assign only one drink to this order
+
+        response = self.client.get(f'/backend/users/{self.user1.id}/orders/')
+
+        # Check that the response status code is 200 OK
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Verify the number of orders returned
+        self.assertEqual(len(response.data), 2)
+
+        # Verify the content of the returned data (optional but helpful)
+        order_ids = [order['OrderID'] for order in response.data]
+        self.assertIn(order1.OrderID, order_ids)
+        self.assertIn(order2.OrderID, order_ids)
+
+
+    def test_delete_order(self):
+        """Test deleting an order"""
+        self.authenticate(self.token1.key)
+
+        # Create an order first
+        order = Order.objects.create(UserID=self.user1, OrderStatus="pending", PaymentStatus="pending")
+        order.Drinks.add(self.drink1)
+
+        response = self.client.delete(f'/backend/orders/{order.OrderID}/')
+
+        # Check that the response status code is 204 No Content
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+
+        # Verify that the order has been deleted from the database
+        self.assertEqual(Order.objects.filter(OrderID=order.OrderID).count(), 0)
+
+    def test_create_order_without_auth(self):
+        """Test creating an order without authentication"""
+        data = {
+            "UserID": self.user1.id,
+            "Drinks": [self.drink1.DrinkID],
+            "OrderStatus": "pending",
+            "PaymentStatus": "pending",
+        }
+
+        response = self.client.post('/backend/orders/', data, format='json')
+
+        # Expect a 401 Unauthorized response
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_create_order_with_invalid_drink(self):
+        """Test creating an order with a non-existent drink ID."""
+        self.authenticate(self.token1.key)
+
+        data = {
+            "UserID": self.user1.id,
+            "Drinks": [999],  # Invalid drink ID
+            "OrderStatus": "pending",
+            "PaymentStatus": "pending",
+        }
+
+        response = self.client.post('/backend/orders/', data, format='json')
+
+        # Expect a 400 Bad Request response
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # Adjust the error message assertion based on the actual API response
+        self.assertIn("invalid pk", str(response.data).lower())
+        self.assertIn("does not exist", str(response.data).lower())
+
+    def test_create_order_and_add_drink(self):
+        """Test creating an order with one drink, then adding another drink."""
+        self.authenticate(self.token1.key)
+
+        # Create an initial order with one drink
+        initial_data = {
+            "UserID": self.user1.id,
+            "Drinks": [self.drink1.DrinkID],  # Assuming drink1 exists
+            "OrderStatus": "pending",
+            "PaymentStatus": "pending",
+        }
+        
+        response = self.client.post('/backend/orders/', initial_data, format='json')
+
+        # Check if the order was created successfully
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        order_id = response.data['OrderID']  # Assuming the order response contains an 'OrderID'
+
+        # Now add another drink to the created order
+        add_drink_data = {
+            "AddDrinks": [self.drink2.DrinkID]  # Assuming drink2 exists
+        }
+        
+        # Use the appropriate endpoint to add drinks with PATCH
+        response = self.client.patch(f'/backend/orders/{order_id}/', add_drink_data, format='json')  # Updated to PATCH
+
+        # Check if the drink was added successfully
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn(self.drink2.DrinkID, response.data['Drinks'])  # Check if drink2 is now in the order
+
+
+    def test_add_two_drinks_and_delete_one(self):
+        """Test adding two drinks to an order, then deleting one of the drinks."""
+        self.authenticate(self.token1.key)
+
+        # Create an order with two drinks
+        initial_data = {
+            "UserID": self.user1.id,
+            "Drinks": [self.drink1.DrinkID, self.drink2.DrinkID],  # Use "AddDrinks" to match the view
+            "OrderStatus": "pending",
+            "PaymentStatus": "pending",
+        }
+        
+        response = self.client.post('/backend/orders/', initial_data, format='json')
+        
+        # Check if the order was created successfully
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        order_id = response.data['OrderID']  # Assuming the order response contains an 'id'
+
+        # Now delete one of the drinks from the order
+        delete_drink_data = {
+            "RemoveDrinks": [self.drink1.DrinkID]  # Use "RemoveDrinks" to match the view
+        }
+        
+        response = self.client.patch(f'/backend/orders/{order_id}/', delete_drink_data, format='json')
+        
+        # Check if drink1 was removed successfully
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertNotIn(self.drink1.DrinkID, response.data['Drinks'])  # Ensure drink1 is no longer in the order
+        self.assertIn(self.drink2.DrinkID, response.data['Drinks'])  # Ensure drink2 is still in the order
+
+    
