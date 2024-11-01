@@ -2,6 +2,7 @@ from django.urls import path
 from rest_framework.authtoken.views import obtain_auth_token
 from .views import CreateUserAPIView, LogoutUserAPIView, CustomAuthToken
 from .views import UserPreferenceListAPIView, PreferenceListCreateAPIView, PreferenceRetrieveUpdateDestroyAPIView
+from .views import StripePaymentIntentView
 
 urlpatterns = [
     #Authentication related urls
@@ -15,4 +16,7 @@ urlpatterns = [
 
     # Retrieve preferences by UserID
     path('users/<int:user_id>/preferences/', UserPreferenceListAPIView.as_view(), name='user_preferences_list'),
+
+    # Stripe payment
+    path('create-payment-intent/', StripePaymentIntentView.as_view(), name='create-payment-intent'),
 ]
