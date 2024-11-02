@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import { StripeProvider, CardField, useConfirmPayment } from '@stripe/stripe-react-native';
 import { BASE_URL } from '../../ip_address';
 
 export default function CheckoutForm({ navigation }) {
   const [clientSecret, setClientSecret] = useState(null);
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [address, setAddress] = useState('');
   const [cardComplete, setCardComplete] = useState(false);
   const { confirmPayment, loading } = useConfirmPayment();
 
@@ -32,8 +36,19 @@ export default function CheckoutForm({ navigation }) {
           console.error("Card details are incomplete.");
           return;
     }
+    const billingDetails = {
+          name,
+          email,
+          phone,
+          address: {
+            line1: address,
+          },
+    };
     const { error, paymentIntent } = await confirmPayment(clientSecret, {
         paymentMethodType: 'Card',
+        billingDetails,
+        paymentIntentId: intentId, // The ID of the Payment Intent you want to confirm
+        paymentMethodId: paymentMethodId, // The ID of the Payment Method being used
     });
     if (error) {
       console.error('Payment confirmation error:', error.message);
@@ -47,6 +62,27 @@ export default function CheckoutForm({ navigation }) {
       <View style={styles.container}>
         {clientSecret && (
           <>
+            <Text>Name</Text>
+              <TextInput
+                placeholder="Name"
+                value={name}
+                onChangeText={setName}
+                style={{ borderBottomWidth: 1, marginBottom: 10 }}
+              />
+            <Text>Email</Text>
+              <TextInput
+                placeholder="Email"
+                value={email}
+                onChangeText={setEmail}
+                style={{ borderBottomWidth: 1, marginBottom: 10 }}
+              />
+            <Text>Address</Text>
+              <TextInput
+                placeholder="Address"
+                value={address}
+                onChangeText={setAddress}
+                style={{ borderBottomWidth: 1, marginBottom: 10 }}
+              />
             <CardField
               postalCodeEnabled={true}
               placeholder={{ number: '4242 4242 4242 4242' }}
