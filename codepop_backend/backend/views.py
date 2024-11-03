@@ -89,22 +89,34 @@ class UserPreferenceListAPIView(ListAPIView):
 class StripePaymentIntentView(View):
     def post(self, request, *args, **kwargs):
         try:
-            # Parse the incoming JSON request body
             data = json.loads(request.body)
             amount = int(data.get("amount") * 100)  # Stripe uses cents, so multiply dollars by 100
-
             if amount is None:
                 return JsonResponse({'error': 'Amount is required.'}, status=400)
 
-            # Create a payment intent with the specified amount
-            intent = stripe.PaymentIntent.create(
-                amount=amount,
-                currency='usd',  # Set currency
-                payment_method_types=['card']  # Accept only card payments
+            # Create a new customer
+            customer = stripe.Customer.create()
+
+            # Create an ephemeral key for the customer
+            ephemeral_key = stripe.EphemeralKey.create(
+                customer=customer['id'],
+                stripe_version='2024-09-30.acacia',
             )
 
-            # Send the client secret back to the frontend to complete payment
-            return JsonResponse({'clientSecret': intent['client_secret']})
+            # Create a payment intent
+            payment_intent = stripe.PaymentIntent.create(
+                amount=amount,
+                currency='usd',
+                customer=customer['id'],
+                payment_method_types=['card'],  # Accept only card payments
+            )
 
+            # Respond with the required information
+            return JsonResponse({
+                'paymentIntent': payment_intent.client_secret,
+                'ephemeralKey': ephemeral_key.secret,
+                'customer': customer.id,
+                'publishableKey': 'TODO: get a new publishable stripe key'
+            })
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=400)
