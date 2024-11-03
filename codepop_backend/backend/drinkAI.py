@@ -20,6 +20,12 @@ import csv
 import numpy as n
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
+import os
+from django.conf import settings
+
+# Required for django
+syrup_file_path = os.path.join(settings.BASE_DIR, 'backend/Syrups.csv')
+soda_file_path = os.path.join(settings.BASE_DIR, 'backend/Sodas.csv')
 
 # CSV related functions
 def get_name_from_index(file, index):
@@ -31,7 +37,7 @@ def get_index_from_name(file, name):
 
 # Return a list of syrups most similar to user_preference
 def generate_similar_syrup_preferences(user_preference):
-    syrups = p.read_csv("Syrups.csv")
+    syrups = p.read_csv(syrup_file_path)
 
     cv = CountVectorizer()
     count_matrix = cv.fit_transform(syrups["type"])
@@ -58,8 +64,8 @@ def generate_similar_syrup_preferences(user_preference):
 
 # Generate best soda option based on chosen syrup flavors
 def generate_best_soda(syrups, prefs):
-    sodas = p.read_csv("Sodas.csv")
-    syrupList = p.read_csv("Syrups.csv")
+    sodas = p.read_csv(soda_file_path)
+    syrupList = p.read_csv(syrup_file_path)
 
     def get_type_from_name(name):
         return syrupList[syrupList.name == name]["type"].values[0]
@@ -77,7 +83,7 @@ def generate_best_soda(syrups, prefs):
 
     # Credit: chatgpt
     # Add a new row to the csv file -- need to do this since the AI can only compare things within the same file
-    with open('Sodas.csv', mode='r', newline='') as file:
+    with open(soda_file_path, mode='r', newline='') as file:
         reader = csv.reader(file)
         rows = list(reader)  # Read all existing rows into a list
         file.close()
@@ -88,13 +94,13 @@ def generate_best_soda(syrups, prefs):
     rows.append(new_row)
 
     # Write all rows back to the file, including the new row
-    with open('Sodas.csv', mode='w', newline='') as file:
+    with open(soda_file_path, mode='w', newline='') as file:
         writer = csv.writer(file)
         writer.writerows(rows)  # Write all rows back to the file
         file.close()
     # end of chatgpt section
 
-    sodas = p.read_csv("Sodas.csv") # Reread now that new row is added
+    sodas = p.read_csv(soda_file_path) # Reread now that new row is added
     cv = CountVectorizer()
     count_matrix = cv.fit_transform(sodas["best-match-flavors"])
     similarity = cosine_similarity(count_matrix)
@@ -104,7 +110,7 @@ def generate_best_soda(syrups, prefs):
 
     # Credit: chatgpt
     # Remove row we added to csv file, this way the sodas file wont get infinitely huge
-    with open('Sodas.csv', mode='r', newline='') as file:
+    with open(soda_file_path, mode='r', newline='') as file:
         reader = csv.reader(file)
         rows = list(reader)
         file.close()
@@ -113,7 +119,7 @@ def generate_best_soda(syrups, prefs):
     if 0 <= len(rows) - 1 < len(rows):
         rows.pop(len(rows) - 1)  # Remove the row at the specified index
 
-    with open('Sodas.csv', mode='w', newline='') as file:
+    with open(soda_file_path, mode='w', newline='') as file:
         writer = csv.writer(file)
         writer.writerows(rows)
         file.close()
@@ -168,10 +174,8 @@ def create_list(csv_file_name):
 # b) list of (syrup) flavors, sodas, and add-ins from popular / highly rated drinks
 def generate_soda(user_preferences):
     drink = {}
-    syrupFile = "Syrups.csv"
-    sodaFile = "Sodas.csv"
-    validSyrups = create_list(syrupFile)
-    validSodas = create_list(sodaFile)
+    validSyrups = create_list(syrup_file_path)
+    validSodas = create_list(soda_file_path)
 
     syrupPrefs = []
     sodaPrefs = []
@@ -181,7 +185,7 @@ def generate_soda(user_preferences):
         elif item in validSodas:
             sodaPrefs.append(item)
 
-    if len(syrupPrefs) == 0:
+    if len(syrupPrefs) == 0: # if user has no syrup prefs we can send the popular flavors instead
         return drink # empty
     else:
         # Randomly picking 1-2 of the syrup preferences to create a drink with
@@ -209,14 +213,14 @@ def generate_soda(user_preferences):
         # for syrup in syrupsToUse:
         #     print(syrup)
         # print()
-        drink['syrups'] = syrupsToUse
+        drink["syrups"] = syrupsToUse
 
         # Pick a preffered soda that best matches the generated syrups
         # Auto pick soda if there is only 1 soda in preferences
         if len(sodaPrefs) == 1:
-            drink["soda"] = sodaPrefs[0]
+            drink["soda"] = [sodaPrefs[0]]
         else:
-            drink["soda"] = generate_best_soda(syrupsToUse, sodaPrefs)
+            drink["soda"] = [generate_best_soda(syrupsToUse, sodaPrefs)]
 
         # TODO: Pick a preffered add-in that best matches the generated syrups
 
@@ -225,5 +229,5 @@ def generate_soda(user_preferences):
 
 
 # Filler, generate_soda() would get called elsewhere. Feel free to mess around with the list
-user_preferences = ["Mango", "Watermelon", "Vanilla", "Sour", "Peach", "Strawberry", "Lavender"]
-print(generate_soda(user_preferences))
+# user_preferences = ["mango", "watermelon", "vanilla", "sour", "peach", "strawberry", "lavender"]
+# print(generate_soda(user_preferences))
