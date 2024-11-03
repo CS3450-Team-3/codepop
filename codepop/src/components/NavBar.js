@@ -19,8 +19,8 @@ const NavBar = () => {
   return (
     <View style={styles.navbar}>
       <TouchableOpacity onPress={() => navigation.navigate('GeneralHome')}>
-        <Icon name="home" size={24} color="#000" />
-        {/* <Text style={styles.navItem}>Cart</Text> */}
+        <Icon name="home-outline" size={24} color="#000" />
+        {/* <Text style={styles.navItem}>Home</Text> */}
       </TouchableOpacity>
 
       <TouchableOpacity onPress={() => navigation.navigate('CreateDrink')}>
@@ -59,7 +59,6 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   navItem: {
-    // color: '#ff',
     fontSize: 18,
   },
 });
