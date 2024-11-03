@@ -1,115 +1,76 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
-import { StripeProvider, CardField, useConfirmPayment } from '@stripe/stripe-react-native';
+import { Linking, View, Text, Button, Alert } from 'react-native';
+import { useStripe } from '@stripe/stripe-react-native';
 import { BASE_URL } from '../../ip_address';
 
 export default function CheckoutForm({ navigation }) {
-  const [clientSecret, setClientSecret] = useState(null);
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [address, setAddress] = useState('');
-  const [cardComplete, setCardComplete] = useState(false);
-  const { confirmPayment, loading } = useConfirmPayment();
+  const { initPaymentSheet, presentPaymentSheet } = useStripe();
+  const [loading, setLoading] = useState(false);
 
-  // Fetch the client secret from your backend when the component mounts
+  const fetchPaymentSheetParams = async () => {
+    const response = await fetch(`${BASE_URL}/backend/create-payment-intent/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ amount: 10 }),
+    });
+    const { paymentIntent, ephemeralKey, customer } = await response.json();
+
+    return {
+      paymentIntent,
+      ephemeralKey,
+      customer,
+    };
+  };
+
+  const initializePaymentSheet = async () => {
+    const {
+      paymentIntent,
+      ephemeralKey,
+      customer,
+    } = await fetchPaymentSheetParams();
+
+    const { error } = await initPaymentSheet({
+      merchantDisplayName: "Example, Inc.",
+      customerId: customer,
+      customerEphemeralKeySecret: ephemeralKey,
+      paymentIntentClientSecret: paymentIntent,
+      // Set `allowsDelayedPaymentMethods` to true if your business can handle payment
+      //methods that complete payment after a delay, like SEPA Debit and Sofort.
+      allowsDelayedPaymentMethods: true,
+      defaultBillingDetails: {
+        name: 'Jane Doe',
+      }
+    });
+    if (!error) {
+        setLoading(true);
+    }
+  };
+
+  const openPaymentSheet = async () => {
+    const { error } = await presentPaymentSheet();
+    if (error) {
+      Alert.alert(`Error code: ${error.code}`, error.message);
+    } else {
+      Alert.alert('Success', 'Your order is confirmed!');
+    }
+  };
+
   useEffect(() => {
-    fetchClientSecret();
+    initializePaymentSheet();
   }, []);
 
-  const fetchClientSecret = async () => {
-    try {
-      const response = await fetch(`${BASE_URL}/backend/create-payment-intent/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: 1000 }), // Set amount here
-      });
-      const { clientSecret } = await response.json();
-      setClientSecret(clientSecret);
-    } catch (error) {
-      console.error('Error fetching client secret:', error);
-    }
-  };
-
-  const handlePayment = async () => {
-    if (!clientSecret || !cardComplete) {
-          console.error("Card details are incomplete.");
-          return;
-    }
-    const billingDetails = {
-          name,
-          email,
-          phone,
-          address: {
-            line1: address,
-          },
-    };
-    const { error, paymentIntent } = await confirmPayment(clientSecret, {
-        paymentMethodType: 'Card',
-        billingDetails,
-        paymentIntentId: intentId, // The ID of the Payment Intent you want to confirm
-        paymentMethodId: paymentMethodId, // The ID of the Payment Method being used
-    });
-    if (error) {
-      console.error('Payment confirmation error:', error.message);
-    } else if (paymentIntent) {
-      navigation.navigate('Complete');
-    }
-  };
-
   return (
-    <StripeProvider publishableKey="pk_test_51QEDP7HwEWxwIyaLoeRGprLwnn6Fj7jZljzxglWudPSTSe6sMyFPAjHZsnMOy1HuwZhUYT9JGZbOsxhXxkFTJp9700JSZTZKIz">
-      <View style={styles.container}>
-        {clientSecret && (
-          <>
-            <Text>Name</Text>
-              <TextInput
-                placeholder="Name"
-                value={name}
-                onChangeText={setName}
-                style={{ borderBottomWidth: 1, marginBottom: 10 }}
-              />
-            <Text>Email</Text>
-              <TextInput
-                placeholder="Email"
-                value={email}
-                onChangeText={setEmail}
-                style={{ borderBottomWidth: 1, marginBottom: 10 }}
-              />
-            <Text>Address</Text>
-              <TextInput
-                placeholder="Address"
-                value={address}
-                onChangeText={setAddress}
-                style={{ borderBottomWidth: 1, marginBottom: 10 }}
-              />
-            <CardField
-              postalCodeEnabled={true}
-              placeholder={{ number: '4242 4242 4242 4242' }}
-              cardStyle={styles.cardField}
-              style={styles.cardContainer}
-//              onCardChange={(cardDetails) => console.log(cardDetails)}
-              onCardChange={(cardDetails) => setCardComplete(cardDetails.complete)}
-            />
-            <TouchableOpacity onPress={handlePayment} style={styles.button}>
-              <Text style={styles.buttonText}>
-                {loading ? 'Processing...' : 'Complete Payment'}
-              </Text>
-            </TouchableOpacity>
-          </>
-        )}
-      </View>
-    </StripeProvider>
+    <View>
+      <Button
+        variant="primary"
+        disabled={!loading}
+        title="Checkout"
+        onPress={openPaymentSheet}
+      />
+    </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', padding: 16 },
-  cardContainer: { height: 50, marginVertical: 30 },
-  cardField: { backgroundColor: '#FFFFFF' },
-  button: { backgroundColor: '#007AFF', padding: 12, borderRadius: 5 },
-  buttonText: { color: '#FFFFFF', fontWeight: 'bold', textAlign: 'center' },
-});
-
 
 //In Stripe, a client secret is a unique string generated by Stripe on the server when you create a payment intent or setup intent. This secret is sent to your frontend and acts as a secure identifier for the payment session. It helps Stripe's frontend library (like stripe.js or @stripe/stripe-react-native) securely handle payment confirmations without exposing sensitive information directly.

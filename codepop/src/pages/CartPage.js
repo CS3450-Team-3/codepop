@@ -13,14 +13,16 @@ const CartPage = () => {
       };
 
     return (
-        <View style={styles.container}>
-          <View style={styles.buttonContainer}>
-            <TouchableOpacity onPress={goToCheckout} style={styles.mediumButton}>
-              <Text style={styles.buttonText}>Checkout</Text>
-            </TouchableOpacity>
-          </View>
-          <NavBar />
-        </View>
+        <StripeProvider publishableKey="pk_test_51QEDP7HwEWxwIyaLoeRGprLwnn6Fj7jZljzxglWudPSTSe6sMyFPAjHZsnMOy1HuwZhUYT9JGZbOsxhXxkFTJp9700JSZTZKIz">
+              <View style={styles.container}>
+                    <View style={styles.buttonContainer}>
+                        <TouchableOpacity onPress={goToCheckout} style={styles.mediumButton}>
+                            <Text style={styles.buttonText}>Checkout</Text>
+                        </TouchableOpacity>
+                    </View>
+                    <NavBar />
+              </View>
+        </StripeProvider>
       );
 };
 
