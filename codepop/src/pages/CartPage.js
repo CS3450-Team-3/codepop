@@ -4,6 +4,7 @@ import NavBar from '../components/NavBar';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useNavigation, useFocusEffect, NavigationContainer } from '@react-navigation/native';
 import { useStripe, StripeProvider } from '@stripe/stripe-react-native';
+import CheckoutForm from './CheckoutForm';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import {BASE_URL} from '../../ip_address'
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -18,11 +19,15 @@ const CartPage = () => {
   const navigation = useNavigation();
   const [drinks, setDrinks] = useState([]);
   const [totalPrice, setTotalPrice] = useState(0);
+  const { initializePaymentSheet, openPaymentSheet, loading } = CheckoutForm(totalPrice);
 
   useFocusEffect(React.useCallback(() => {
     fetchDrinks();
   }, []));
 
+  useEffect(() => {
+    initializePaymentSheet(); // Initialize payment sheet on page load
+  }, [totalPrice]);
 
   const fetchDrinks = async () => {
     try {
@@ -145,7 +150,7 @@ const CartPage = () => {
         <View style={styles.padding}>
           <Text style={styles.totalText}>Cart Total: ${totalPrice.toFixed(2)}</Text>
 
-          <TouchableOpacity onPress={goToCheckout} style={styles.payButton}>
+          <TouchableOpacity onPress={openPaymentSheet} style={styles.payButton}>
             <Icon name="card-outline" size={24} color="#fff" />
             <Text style={styles.payButtonText}>Pay Now</Text>
           </TouchableOpacity>

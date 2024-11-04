@@ -7,6 +7,7 @@ from rest_framework.authtoken.models import Token  # Import for token authentica
 from .models import Preference, Drink, Inventory, Notification, Order
 from django.utils import timezone
 from datetime import timedelta
+from .drinkAI import generate_soda
 
 class PreferenceTests(TestCase):
     def setUp(self):
@@ -821,4 +822,200 @@ class OrderTests(TestCase):
         self.assertNotIn(self.drink1.DrinkID, response.data['Drinks'])  # Ensure drink1 is no longer in the order
         self.assertIn(self.drink2.DrinkID, response.data['Drinks'])  # Ensure drink2 is still in the order
 
+<<<<<<< codepop_backend/backend/tests.py
+# Some Inner-method comments follow this format:
+# Input: expected output
+class AITests(TestCase):
+    # Create users and add preferences
+    def setUp(self):
+        preferences = [ # here as a reference; delete later
+            "mtn. dew", "diet mtn. dew", "dr. pepper", "diet dr. pepper", "dr. pepper zero",
+            "dr pepper cream soda", "sprite", "sprite zero", "coke", "diet coke", "coke zero",
+            "pepsi", "diet pepsi", "rootbeer", "fanta", "big red", "powerade", "lemonade",
+            "light lemonade", "coconut", "pineapple", "strawberry", "raspberry", "blackberry",
+            "blue curacao", "passion fruit", "vanilla", "pomegranate", "peach", "grapefruit",
+            "green apple", "pear", "cherry", "cupcake", "orange", "blood orange", "mango",
+            "cranberry", "blue raspberry", "grape", "sour", "kiwi", "chocolate", "milano",
+            "huckleberry", "sweetened lime", "mojito", "lemon lime", "cinnamon", "watermelon",
+            "guava", "banana", "lavender", "cucumber", "salted caramel", "choc chip cookie dough",
+            "brown sugar cinnamon", "hazelnut", "pumpkin spice", "peppermint", "irish cream",
+            "gingerbread", "white chocolate", "butterscotch", "bubble gum", "cotton candy",
+            "butterbrew mix", "cream", "coconut cream", "whip", "lemon wedge", "lime wedge",
+            "french vanilla creamer", "candy sprinkles", "strawberry puree", "peach puree",
+            "mango puree", "raspberry puree"
+        ]
+        # Create users
+        self.user1 = User.objects.create_user(username='user1', password='password123')
+        self.user2 = User.objects.create_user(username='user2', password='password123')
+        self.user3 = User.objects.create_user(username='user3', password='password123')
+
+
+        self.user4 = User.objects.create_user(username='user4', password='password123')
+        self.user5 = User.objects.create_user(username='user5', password='password123')
+
+
+        self.user6 = User.objects.create_user(username='user6', password='password123')
+        self.user7 = User.objects.create_user(username='user7', password='password123')
+
+
+        # Create tokens for users
+        self.token1 = Token.objects.create(user=self.user1)
+        self.token2 = Token.objects.create(user=self.user2)
+        self.token3 = Token.objects.create(user=self.user3)
+
+
+        self.token4 = Token.objects.create(user=self.user4)
+        self.token5 = Token.objects.create(user=self.user5)
+
+
+        self.token6 = Token.objects.create(user=self.user6)
+        self.token7 = Token.objects.create(user=self.user7)
+
+
+        # Create preference list for every user (pref# corresponds to user#)
+        pref1 = ["user", "has", "no", "valid", "prefs", "somehow"]
+        pref2 = ["invalid", "prefs", "except", "mango"]
+        pref3 = ["mango", "cranberry", "blue raspberry", "grape", "sour", "kiwi", "chocolate", "milano"]
+
+
+        pref4 = ["vanilla", "butterscotch", "coke"]
+        pref5 =["mango", "strawberry", "vanilla", "butterscotch", "coke", "sprite"]
+
+
+        pref6 = ["coconut", "pineapple", "strawberry", "raspberry", "blackberry",
+            "blue curacao", "passion fruit", "vanilla", "pomegranate", "peach", "grapefruit",
+            "green apple", "pear", "cherry", "cupcake", "orange", "blood orange", "mango",
+            "cranberry", "blue raspberry", "grape", "sour", "kiwi", "chocolate", "milano",
+            "huckleberry", "sweetened lime", "mojito", "lemon lime", "cinnamon", "watermelon",
+            "guava", "banana", "lavender", "cucumber", "salted caramel", "choc chip cookie dough",
+            "brown sugar cinnamon", "hazelnut", "pumpkin spice", "peppermint", "irish cream",
+            "gingerbread", "white chocolate", "butterscotch", "bubble gum", "cotton candy",
+            "butterbrew mix"]
+        pref7 = ["mtn. dew", "diet mtn. dew", "dr. pepper", "diet dr. pepper", "dr. pepper zero",
+            "dr pepper cream soda", "sprite", "sprite zero", "coke", "diet coke", "coke zero",
+            "pepsi", "diet pepsi", "rootbeer", "fanta", "big red", "powerade", "lemonade",
+            "light lemonade", "coconut", "pineapple", "strawberry", "raspberry", "blackberry",
+            "blue curacao", "passion fruit", "vanilla", "pomegranate", "peach", "grapefruit",
+            "green apple", "pear", "cherry", "cupcake", "orange", "blood orange", "mango",
+            "cranberry", "blue raspberry", "grape", "sour", "kiwi", "chocolate", "milano",
+            "huckleberry", "sweetened lime", "mojito", "lemon lime", "cinnamon", "watermelon",
+            "guava", "banana", "lavender", "cucumber", "salted caramel", "choc chip cookie dough",
+            "brown sugar cinnamon", "hazelnut", "pumpkin spice", "peppermint", "irish cream",
+            "gingerbread", "white chocolate", "butterscotch", "bubble gum", "cotton candy",
+            "butterbrew mix"]
+
+
+        # Create preferences for every user (if your tests are running slow, this is why)
+        for pref in pref1:
+            Preference.objects.create(UserID=self.user1, Preference=pref)
+        for pref in pref2:
+            Preference.objects.create(UserID=self.user2, Preference=pref)
+        for pref in pref3:
+            Preference.objects.create(UserID=self.user3, Preference=pref)
+
+
+        for pref in pref4:
+            Preference.objects.create(UserID=self.user4, Preference=pref)
+        for pref in pref5:
+            Preference.objects.create(UserID=self.user5, Preference=pref)
+
+
+        for pref in pref6:
+            Preference.objects.create(UserID=self.user6, Preference=pref)
+        for pref in pref7:
+            Preference.objects.create(UserID=self.user7, Preference=pref)
+
+        # Set up the API client
+        self.client = APIClient()
+
+
+    def authenticate(self, token):
+        """Helper method to set up token authentication"""
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + token)
+       
+    # Authenticates user, gets preferences, and sends to AI (returns result)
+    def authGetPrefAndSendToAI(self, token, user):
+        # Use token authentication for user
+        self.authenticate(token.key)
+
+
+        # Make a request to retrieve preferences for user
+        response = self.client.get(f'/backend/users/{user.id}/preferences/')
+
+
+        # Check that the response status code is 200 OK
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+
+        # Get user's preferences and send to AI
+        preferences = list(Preference.objects.filter(UserID=user).values_list('Preference', flat=True))
+        return generate_soda(preferences) # Returns dictionary
+
+
+    # Ensure AI outputs a dictionary (assuming syrups are all valid) with an array of 2-4 syrups and 1 soda (TODO: + addins array when they get implemented)
+    # Ensures the soda is valid (not a string of 2+ sodas)
+    def checkOutput(self, result):
+        self.assertTrue(len(result["syrups"]) == 2 or len(result["syrups"]) == 4)
+        self.assertEqual(len(result["soda"]), 1)
+
+        sodaList = ["mtn. dew", "diet mtn. dew", "dr. pepper", "diet dr. pepper", "dr. pepper zero",
+        "dr pepper cream soda", "sprite", "sprite zero", "coke", "diet coke", "coke zero",
+        "pepsi", "diet pepsi", "rootbeer", "fanta", "big red", "powerade", "lemonade",
+        "light lemonade"]
+        self.assertTrue(result["soda"][0] in sodaList)
+
+
+    # Different cases for inputting invalid and valid syrups into the AI
+    def testCheckSyrupValidity(self):
+        # no valid syrups in pref: empty dictionary
+        result1 = self.authGetPrefAndSendToAI(self.token1, self.user1)
+        self.assertEqual(result1, {})
+
+
+        # 1 valid syrup in pref: not empty dictionary
+        result2 = self.authGetPrefAndSendToAI(self.token2, self.user2)
+        self.assertFalse(result2 == {})
+        self.checkOutput(result2)
+
+
+        # all syrups in pref are valid: not empty dictionary
+        result3 = self.authGetPrefAndSendToAI(self.token3, self.user3)
+        self.assertFalse(result3 == {})
+        self.checkOutput(result3)
+
+
+    # Different output cases depending on # of sodas in user preferences
+    def testDiffNumSodaPreferences(self):
+        # no test for 0 sodas in preferences since it could literally return any soda in the csv file
+        # 1 soda in pref: soda in output dictionary == that soda in pref
+        result4 = self.authGetPrefAndSendToAI(self.token4, self.user4)
+        self.assertEqual(result4["soda"][0], "coke")
+        self.checkOutput(result4)
+
+
+        # 2+ soda in pref: soda in output dictionary == any of the 2+ (aka, must equal one of the preference sodas)
+        result5 = self.authGetPrefAndSendToAI(self.token5, self.user5)
+        self.assertTrue(result5["soda"][0] == "coke" or result5["soda"][0] == "sprite")
+        self.checkOutput(result5)
+
+
+    # # TODO: def testDiffNumAddinPreferences(self):
+
+
+    # Ensure AI does not explode if it gets a list of every preference
+    def testPrefListSize(self):
+        # All syrups
+        result6 = self.authGetPrefAndSendToAI(self.token6, self.user6)
+        self.checkOutput(result6)
+
+
+        # All syrups and sodas -- I assume all sodas alone will work if this does
+        result7 = self.authGetPrefAndSendToAI(self.token7, self.user7)
+        self.checkOutput(result7)
+
+
+        # TODO: All syrups and add-ins
+        # Literally everything (TODO: add-ins)
+=======
     
+>>>>>>> codepop_backend/backend/tests.py
