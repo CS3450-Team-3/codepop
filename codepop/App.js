@@ -5,14 +5,39 @@ import React, { useEffect } from 'react';
 import AuthPage from './src/pages/AuthPage';
 import CartPage from './src/pages/CartPage';
 import CreateAccountPage from './src/pages/CreateAccountPage';
+import PaymentPage from './src/pages/PaymentPage';
+import ComplaintsPage from './src/pages/ComplaintsPage';
+import UpdateDrink from './src/pages/UpdateDrink';
+import ManagerDash from './src/pages/ManagerDash';
+import AdminDash from './src/pages/AdminDash';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import CreateDrinkPage from './src/pages/CreateDrinkPage';
 import GeneralHomePage from './src/pages/GeneralHomePage';
+import CompletePage from './src/pages/CompletePage';
+import CheckoutForm from './src/pages/CheckoutForm';
 import PreferencesPage from './src/pages/PreferencesPage';
 
 const Stack = createNativeStackNavigator();
 const title = 'CodePop' 
 
+
 const App = () => {
+  // initialize cart list 
+  const initCart = async () => {
+    try{
+      const checkoutList = await AsyncStorage.getItem('checkoutList')
+      if (checkoutList === null){
+        const initialList = [];
+        await AsyncStorage.setItem("checkoutList", JSON.stringify(initialList));
+      }
+    }catch(error){
+      console.error("error with initializing cart list", error);
+    }
+  };
+  
+  useEffect(() => {
+    initCart()
+  }, []);
   useEffect(() => {
     const loadFonts = async () => {
         await Font.loadAsync({
@@ -25,7 +50,7 @@ const App = () => {
 
   return (
     <NavigationContainer>
-      <Stack.Navigator initialRouteName="GeneralHome">
+      <Stack.Navigator initialRouteName="GeneralHome" screenOptions={{headerStyle: {backgroundColor: '#c8c8ee'}}}>
         <Stack.Screen 
           name="Auth" 
           component={AuthPage} 
@@ -63,6 +88,11 @@ const App = () => {
           },}}        
         />
         <Stack.Screen
+          name="ComplaintsPage"
+          component={ComplaintsPage}
+          options={{ title: 'ComplaintsPage' }}
+        />
+        <Stack.Screen
           name="Preferences"
           component={PreferencesPage}
           options={{ 
@@ -79,6 +109,36 @@ const App = () => {
             headerTitleStyle: {
               // fontFamily: 'CherryBombOne',
           },}}
+        />
+        <Stack.Screen
+          name="payment"
+          component={PaymentPage}
+          options={{ title: 'Payment' }}
+        />
+        <Stack.Screen
+          name="UpdateDrink"
+          component={PaymentPage}
+          options={{ title: 'UpdateDrink' }}
+        />
+        <Stack.Screen
+          name="ManagerDash"
+          component={PaymentPage}
+          options={{ title: 'ManagerDash' }}
+        />
+        <Stack.Screen
+          name="AdminDash"
+          component={PaymentPage}
+          options={{ title: 'AdminDash' }}
+        />
+        <Stack.Screen
+          name="Complete"
+          component={CompletePage}
+          options={{ title: 'Complete' }}
+        />
+        <Stack.Screen
+          name="Checkout"
+          component={CheckoutForm}
+          options={{ title: 'Checkout Form' }}
         />
       </Stack.Navigator>
     </NavigationContainer>

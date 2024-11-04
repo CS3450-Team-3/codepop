@@ -30,9 +30,12 @@ Follow these instructions to set up the CodePop project on your machine.
       Package             Version
       ------------------- -----------
       asgiref             3.8.1
+      certifi             2024.8.30
+      charset-normalizer  3.4.0
       Django              5.1.2
       django-cors-headers 4.4.0
       djangorestframework 3.15.2
+      idna                3.10
       joblib              1.4.2
       numpy               2.1.2
       pandas              2.2.3
@@ -40,14 +43,17 @@ Follow these instructions to set up the CodePop project on your machine.
       psycopg2            2.9.9
       python-dateutil     2.9.0.post0
       pytz                2024.2
+      requests            2.32.3
       scikit-learn        1.5.2
       scipy               1.14.1
       setuptools          63.2.0
       six                 1.16.0
       sqlparse            0.5.1
+      stripe              11.2.0
       threadpoolctl       3.5.0
       typing_extensions   4.12.2
       tzdata              2024.2
+      urllib3             2.2.3
       ```
     - to deactivate the virtual enviroment run the following command
       ```bash
@@ -87,7 +93,10 @@ Follow these instructions to set up the CodePop project on your machine.
      CREATE DATABASE codepop_database;
      ```
 
-5. **Run Migrations, Populate Database and Start the Server**
+5. **Install Stripe**
+   - pip install stripe (Windows)
+
+6. **Run Migrations, Populate Database and Start the Server**
    - Navigate to the codepop_backend directory that contains the manage.py file
    - Run the following script, this will clean the database and populate it with data to be used 
      ```bash
@@ -109,7 +118,11 @@ Follow these instructions to set up the CodePop project on your machine.
    - Download and install Android Studio, then set up a virtual Android device:
      [Android Studio Downloads](https://developer.android.com/studio)
 
-3. **Start the React Native App**
+3. **Install Stripe Library for React Native**
+   - npm install react@18.2.0
+   - npm install @stripe/stripe-react-native
+
+4. **Start the React Native App**
    - Navigate to the `codepop` directory and edit the base URL in `ip_address.js` to match your IP address and port.
    - Install dependancies by running the following command:
       ```bash
@@ -230,5 +243,4 @@ Each one of them has been given a random quatity between 50 and 100 that is curr
 They have also been given a random empty threshold between 1 and 10
 
 This randomization is subject to change as we go further but for testing purposes it's good enough for right now. 
-
 
