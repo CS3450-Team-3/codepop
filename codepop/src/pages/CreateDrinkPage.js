@@ -9,7 +9,6 @@ import {BASE_URL} from '../../ip_address'
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // to do:
-// create drink gif
 // generate drink from AI
 
 

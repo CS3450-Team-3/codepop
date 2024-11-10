@@ -11,7 +11,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // todo:
   // the options in the drop downs still dont preselect like the drink size and ice ammount do
     // probably something to do with the lowercase/spelling
-  // add in drink gif stuff
 
 const UpdateDrink = ({route, navigation}) => {
   

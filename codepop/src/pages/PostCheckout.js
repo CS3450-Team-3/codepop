@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Image } from 'react-native';
+import { View, Text, StyleSheet, Image, Button } from 'react-native';
 import NavBar from '../components/NavBar';
 
 // todo
@@ -9,6 +9,11 @@ import NavBar from '../components/NavBar';
 // add rating stars to add to drink object
 // add randomly generated code for locker combination
 // clear the cart list
+
+
+// test card number: 4242 4242 4242 4242
+  // enter a date in the future like 12/34
+  // for everything else, just add random numbers
 
 const PostCheckout = () => {
   const [lockerCombo, setLockerCombo] = useState('');
@@ -38,7 +43,6 @@ const PostCheckout = () => {
     }
     setLockerCombo(combo);
   };
-  
 
   // Convert timeLeft to minutes and seconds format
   const minutes = String(Math.floor(timeLeft / 60)).padStart(2, '0');
@@ -46,16 +50,36 @@ const PostCheckout = () => {
 
   return (
     <View style={styles.container}>
-      <Image 
-        source={require('../../assets/map.png')}
-        style={styles.image}
-        resizeMode="contain"
-      />
-      <Text>Timer until drink completion</Text>
-      <Text>{minutes}:{seconds}</Text>
-      {timeLeft === 0 && <Text>Your drink is ready!</Text>}
-      <Text>Option to rate drink</Text>
-      <Text>Locker combo: {lockerCombo}</Text>
+      {/* Map Image Box */}
+      <View style={[styles.section, styles.mapSection]}>
+        <Image 
+          source={require('../../assets/map.png')}
+          style={styles.image}
+          resizeMode="contain"
+        />
+      </View>
+
+      {/* Timer Box */}
+      <View style={[styles.section, styles.timerSection]}>
+        <Text style={styles.heading}>Timer until drink completion</Text>
+        <Text style={styles.timer}>
+          {minutes}:{seconds}
+        </Text>
+        {timeLeft === 0 && <Text style={styles.successMessage}>Your drink is ready!</Text>}
+      </View>
+
+      {/* Rating Box */}
+      <View style={[styles.section, styles.ratingSection]}>
+        <Text style={styles.ratingLabel}>Option to rate drink:</Text>
+        <Button title="Rate Drink" onPress={() => alert('Rate your drink')} />
+      </View>
+
+      {/* Locker Combo Box */}
+      <View style={[styles.section, styles.lockerComboSection]}>
+        <Text style={styles.lockerCombo}>Locker combo: {lockerCombo}</Text>
+      </View>
+
+      {/* NavBar */}
       <NavBar />
     </View>
   );
@@ -66,12 +90,63 @@ const styles = StyleSheet.create({
     flex: 1, 
     justifyContent: 'center', 
     alignItems: 'center',
+    backgroundColor: '#8DF1D3', // Light background for consistency
+    padding: 20,
+  },
+  section: {
+    width: '100%',
+    padding: 15,
+    marginBottom: 15,
+    borderRadius: 8,
+  },
+  mapSection: {
+    backgroundColor: '#DFF0D8', // Light green box for map
+  },
+  timerSection: {
+    backgroundColor: '#F92758', // Yellow box for timer
+  },
+  ratingSection: {
+    backgroundColor: '#FFA686', // Light peach for rating section
+  },
+  lockerComboSection: {
+    backgroundColor: '#C8E6C9', // Light mint green for locker combo
+  },
+  heading: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
+    marginVertical: 10,
+  },
+  timer: {
+    fontSize: 30,
+    fontWeight: 'bold',
+    color: '#FF7F50', // Consistent accent color for the timer
+    marginVertical: 10,
+  },
+  successMessage: {
+    fontSize: 18,
+    fontWeight: '500',
+    color: '#28A745', // Green color for success message
+    marginVertical: 10,
+  },
+  ratingLabel: {
+    fontSize: 18,
+    fontWeight: '500',
+    color: '#333',
+    marginTop: 20,
+  },
+  lockerCombo: {
+    fontSize: 18,
+    fontWeight: '500',
+    color: '#333',
+    marginTop: 20,
+    marginBottom: 30,
   },
   image: {
-    width: 150,
-    height: 150,
+    width: 200,
+    height: 200,
     alignSelf: 'center',
-    marginVertical: 10,
+    marginVertical: 20,
   },
 });
 
