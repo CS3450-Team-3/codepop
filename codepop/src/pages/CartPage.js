@@ -33,21 +33,38 @@ const CartPage = () => {
       const currentList = cartList ? JSON.parse(cartList) : [];
       const token = await AsyncStorage.getItem('userToken');
   
-      const fetchedDrinks = []; // Temporary array to collect drinks
+      // const fetchedDrinks = []; // Temporary array to collect drinks
   
+      // for (let i = 0; i < currentList.length; i++) {
+      //   const response = await fetch(`${BASE_URL}/backend/drinks/${currentList[i]}/`, {
+      //     method: 'GET',
+      //     headers: {
+      //       'Content-Type': 'application/json',
+      //       'Authorization': `Token ${token}`,
+      //     },
+      //   });
+      //   const data = await response.json();
+      //   if (data != null) {
+      //     fetchedDrinks.push(data); // Add each drink to the temporary array
+      //   }
+      // }
+
+      const fetchedDrinks = [];
       for (let i = 0; i < currentList.length; i++) {
-        const response = await fetch(`${BASE_URL}/backend/drinks/${currentList[i]}/`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Token ${token}`,
-          },
-        });
-        const data = await response.json();
-        if (data != null) {
-          fetchedDrinks.push(data); // Add each drink to the temporary array
-        }
+          const response = await fetch(`${BASE_URL}/backend/drinks/${currentList[i]}/`, {
+              method: 'GET',
+              headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Token ${token}`,
+              },
+          });
+          const data = await response.json();
+          // Check if the data contains necessary fields
+          if (data && data.Size && data.SodaUsed && data.Ice) {
+              fetchedDrinks.push(data);
+          }
       }
+
   
       setDrinks(fetchedDrinks); // Update state once after all drinks are collected
       calculateTotalPrice(fetchedDrinks); // Calculate total price after fetching drinks
@@ -63,8 +80,12 @@ const CartPage = () => {
 
   const calculatePrice = (drink) => {
     // $2 base price + $0.30 per ingredient
-    return 2 + (drink.SyrupsUsed.length + drink.AddIns.length) * 0.3;
+    const syrupsCount = Array.isArray(drink.SyrupsUsed) ? drink.SyrupsUsed.length : 0;
+    const addInsCount = Array.isArray(drink.AddIns) ? drink.AddIns.length : 0;
+
+    return 2 + (syrupsCount + addInsCount) * 0.3;
   };
+
 
   const calculateTotalPrice = (drinksList) => {
     let total = 0; // Initialize total here
@@ -118,7 +139,7 @@ const CartPage = () => {
       <Text style={styles.priceText}>Price: ${calculatePrice(drink).toFixed(2)}</Text>
   
       <View style={styles.buttonRow}>
-        <TouchableOpacity onPress={() => navigation.navigate('UpdateDrink', { editDrink: drink })} style={styles.button}>
+        <TouchableOpacity onPress={() => navigation.navigate('UpdateDrink', { drink })} style={styles.button}>
           <Icon name="create-outline" size={24} color="#000" />
         </TouchableOpacity>
   
@@ -139,25 +160,28 @@ const CartPage = () => {
         <View style={styles.container}>
         <Text style={styles.headerText}>Your Drinks</Text>
 
-        <FlatList style={styles.padding}
+        {/* <FlatList style={styles.padding}
           data={drinks}
           keyExtractor={(item) => item.DrinkID.toString()}
           renderItem={({ item }) => renderDrinkItem(item)}
           contentContainerStyle={styles.listContainer}
-        /> 
-        {/* {drinks.length === 0 ? 
-          <Text style={styles.emptyCartText}>Your cart is empty.</Text>
-           : 
-            <FlatList
-              style={styles.padding}
-              data={drinks}
-              keyExtractor={(item) => item.DrinkID.toString()}
-              renderItem={renderDrinkItem}
-              contentContainerStyle={styles.listContainer}
-            />
-          } */}
+        />  */}
+        {Array.isArray(drinks) && drinks.length === 0 ? (
+          <Text style={styles.emptyCartText}>Your cart is empty</Text>
+          
+        ) : (
+          <FlatList
+            style={styles.padding}
+            data={drinks}
+            keyExtractor={(item) => item.DrinkID ? item.DrinkID.toString() : Math.random().toString()}
+            renderItem={({ item }) => renderDrinkItem(item)}
+            contentContainerStyle={styles.listContainer}
+          />
+        )}
+
 
         <View style={styles.padding}>
+
           <Text style={styles.totalText}>Cart Total: ${totalPrice.toFixed(2)}</Text>
 
           <TouchableOpacity onPress={openPaymentSheet} style={styles.payButton}>

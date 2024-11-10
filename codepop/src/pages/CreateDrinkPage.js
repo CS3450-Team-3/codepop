@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView } from 'react-native';
 import NavBar from '../components/NavBar';
 import DropDown from '../components/DropDown';
+import Gif from '../components/Gif';
 import { useNavigation } from '@react-navigation/native';
 import { sodaOptions, syrupOptions, juiceOptions } from '../components/Ingredients';
 import {BASE_URL} from '../../ip_address'
@@ -145,6 +146,40 @@ const CreateDrinkPage = () => {
     // backend endpoint should be like /backend/AI
   };
 
+  // reactive gif stuff
+  const getLayers = (soda, syrups, addins) => {
+    const layers = [];
+    const totalItems = soda.length + syrups.length + addins.length;
+  
+    soda.forEach((sodaName) => {
+      const sodaOption = sodaOptions.find((opt) => opt.label === sodaName);
+      if (sodaOption) {
+        layers.push({ color: sodaOption.color, height: 100 / totalItems });
+      } else {
+      }
+    });
+  
+    syrups.forEach((syrupName) => {
+      const syrupOption = syrupOptions.find((opt) => opt.label === syrupName);
+      if (syrupOption) {
+        layers.push({ color: syrupOption.color, height: 100 / totalItems });
+      } else {
+      }
+    });
+  
+    addins.forEach((addinName) => {
+      const addInOption = syrupOptions.find((opt) => opt.label === addinName); // Assuming AddIns use syrupOptions
+      if (addInOption) {
+        layers.push({ color: addInOption.color, height: 100 / totalItems });
+      } else {
+      }
+    });
+    return layers;
+  };  
+  
+  const layers = getLayers(SodaUsed, SyrupsUsed, AddIns);
+  
+
   return (
     <View style={styles.wholePage}>
 
@@ -171,8 +206,7 @@ const CreateDrinkPage = () => {
         
         <View style={styles.graphicContainer}>
           {/* Drink graphic in the center */}
-          <Text style={styles.drinkGraphicText}>Drink GIF goes here</Text>
-          {/* {gifUrl && <Image source={{ uri: gifUrl }} style={styles.gifImage} />} */}
+          <Gif layers={layers}/>
 
           {/* Button to generate drinks */}
           <TouchableOpacity onPress={GenerateAI} style={styles.button}>
