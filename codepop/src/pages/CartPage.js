@@ -9,7 +9,7 @@ import {BASE_URL} from '../../ip_address'
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // to do:
-// fix wording for drinks in the car - "none ice" doesn't make sense
+// fix wording for drinks in the cart - "none ice" doesn't make sense
 
 const CartPage = () => {
   const navigation = useNavigation();
