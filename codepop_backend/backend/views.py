@@ -11,8 +11,8 @@ from rest_framework.authtoken.views import ObtainAuthToken
 from rest_framework.authtoken.models import Token
 from rest_framework import status, viewsets
 from rest_framework.views import APIView
-from .models import Preference, Drink, Inventory, Notification, Order
-from .serializers import CreateUserSerializer, PreferenceSerializer, DrinkSerializer, InventorySerializer, NotificationSerializer, OrderSerializer
+from .models import Preference, Drink, Inventory, Notification, Order, Revenue
+from .serializers import CreateUserSerializer, PreferenceSerializer, DrinkSerializer, InventorySerializer, NotificationSerializer, OrderSerializer, RevenueSerializer
 from rest_framework.permissions import IsAuthenticated
 import stripe
 from django.conf import settings
@@ -376,3 +376,45 @@ class StripePaymentIntentView(View):
             })
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=400)
+
+class RevenueViewSet(viewsets.ModelViewSet):
+    """
+    A viewset for listing, retrieving, creating, and filtering revenue records.
+    """
+    queryset = Revenue.objects.all()
+    serializer_class = RevenueSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_permissions(self):
+        """Require authentication for creating, updating, and deleting revenues."""
+        if self.action in ['create', 'update', 'destroy']:
+            return [IsAuthenticated()]
+        return super().get_permissions()
+
+    def create(self, request, *args, **kwargs):
+        """
+        Custom create method to ensure the total amount is calculated if not provided.
+        """
+        return super().create(request, *args, **kwargs)
+
+    def update(self, request, *args, **kwargs):
+        """
+        Custom update method to ensure the total amount is recalculated when updating the revenue.
+        """
+        revenue_instance = self.get_object()  # Retrieve the specific revenue instance
+
+        # Check if 'TotalAmount' is provided in the request
+        if 'TotalAmount' in request.data:
+            # Update TotalAmount with the provided value
+            revenue_instance.TotalAmount = request.data['TotalAmount']
+        else:
+            # Calculate and set the total amount if it wasn't provided
+            revenue_instance.calculate_total_amount()
+
+        revenue_instance.save()
+
+        # Proceed with the standard update process
+        return super().update(request, *args, **kwargs)
+    
+
+    
