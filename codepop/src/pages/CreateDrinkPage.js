@@ -203,6 +203,7 @@ const CreateDrinkPage = () => {
 
         
         <View style={styles.graphicContainer}>
+          <View style={styles.straw}></View>
           {/* Drink graphic in the center */}
           <Gif layers={layers}/>
 
@@ -358,6 +359,17 @@ const styles = StyleSheet.create({
     marginVertical: 15,
     borderRadius: 5,
     alignSelf: 'center', // Center the search input
+  },
+  straw: {
+    position: 'absolute',
+    top: 10, // Position the straw above the cup
+    left: '50%',
+    width: 10,
+    height: 240,
+    backgroundColor: 'F92758',  // Straw color
+    borderRadius: 5,
+    transform: [{ translateX: -5 }],  // Center the straw horizontally
+    zIndex: 1, // Ensure straw appears on top of the drink container
   },
 });
 
