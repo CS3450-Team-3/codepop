@@ -26,7 +26,7 @@ from django.utils.dateparse import parse_datetime
 from .drinkAI import generate_soda
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
-
+    
 #Custom login to so that it get's a token but also the user's first name and the user id
 class CustomAuthToken(ObtainAuthToken):
     def post(self, request, *args, **kwargs):

@@ -7,6 +7,7 @@ from .views import DrinkOperations, UserDrinksLookup
 from .views import InventoryListAPIView, InventoryReportAPIView, InventoryUpdateAPIView
 from .views import NotificationOperations, UserNotificationLookup
 from .views import OrderOperations, UserOrdersLookup
+from .customerAI import Chatbot
 from .views import GenerateAIDrink
 from .views import RevenueViewSet
 
@@ -170,6 +171,9 @@ urlpatterns = [
     # - DELETE: Remove the specific order from the database for the specified user.
     path('users/<int:user_id>/orders/<int:pk>/', order_detail, name='user_order_detail'),
 
+    # Customer Service Chatbot
+    # - POST: Send the User response and get back what the chatbot says
+    path('chatbot/', Chatbot.as_view(), name='chatbot'),
     # Endpoint to call the drinkAI when the generate drink button is clicked
     # One for account users and one for general users
     # - GET: Retrive generated-drink information the AI sends back
