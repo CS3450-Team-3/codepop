@@ -4,6 +4,7 @@ import NavBar from '../components/NavBar';
 import RatingCarosel from '../components/RatingCarosel';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import GeoMap from '../components/map';
 
 // todo
 // add geolocation tracking map
@@ -38,19 +39,22 @@ const PostCheckout = () => {
   }, []);
 
   useEffect(() => {
-    // Generate locker combo when the component mounts
+    // Generate locker combo only when the component mounts
     handleLockerCombo();
-
+  }, []); // Empty dependency array ensures it runs only once
+  
+  useEffect(() => {
     // Start countdown timer
     if (timeLeft > 0) {
       const timerId = setInterval(() => {
         setTimeLeft((prevTime) => prevTime - 1);
       }, 1000);
-
+  
       // Clear the interval when the timer reaches 0
       return () => clearInterval(timerId);
     }
   }, [timeLeft]);
+  
 
   const handleLockerCombo = () => {
     // Generate a random 5-digit locker combination
@@ -71,6 +75,7 @@ const PostCheckout = () => {
       <View style={styles.padding}>
         {/* Map Image Box */}
         <View style={[styles.section, styles.mapSection]}>
+          {/* <GeoMap/> */}
           <Image 
             source={require('../../assets/map.png')}
             style={styles.image}

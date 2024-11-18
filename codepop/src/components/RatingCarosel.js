@@ -14,6 +14,9 @@ const { width: windowWidth } = Dimensions.get('window');
     // maybe think about clearing the purchased drinks list from async storage once a user navigates away from the page
     // move all the things together
     // fix the add to favorites and ratings stuff
+// bugs to fix
+    // carosel seems to have two of each drink that it rotates through
+    // if there are two drinks in the carosel and a ratign is selected for one of them, the rating stays for both drinks
 
 const RatingCarosel = ({ purchasedDrinks }) => {
     const navigation = useNavigation();
@@ -52,53 +55,52 @@ const RatingCarosel = ({ purchasedDrinks }) => {
     };  
 
     // Function to update the rating for a specific drink
-    const handleRatingSelected = async (newRating, drinkID) => {
+    const handleRatingSelected = async (newRating, drink) => {
         try {
-            console.log("DrinkID:", drinkID);
+            console.log("DrinkID:", drink);
 
         const token = await AsyncStorage.getItem('userToken');
-        const response = await fetch(`${BASE_URL}/backend/drinks/${drinkID}/`, {
+        const response = await fetch(`${BASE_URL}/backend/drinks/${drink.DrinkID}/`, {
             method: 'PUT',
             headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Token ${token}`,
+            // 'Authorization': `Token ${token}`,
             },
-            body: JSON.stringify({ Rating: newRating }),
+            body: JSON.stringify({ 
+                Rating: newRating 
+            }),
         });
 
         if (!response.ok) {
-            const errorData = await response.json();
-            Alert.alert('Error', errorData.message || 'Failed to update rating');
+            throw new Error(`Failed to update rating. Status: ${response.status}`);
         }
         } catch (error) {
         console.error('Error updating rating:', error);
-        Alert.alert('Error', 'An error occurred while updating the rating');
         }
     };
 
 
     // Function to add a drink to favorites
-    const addToFavs = async (drinkID) => {
+    const addToFavs = async (drink) => {
         try {
-            console.log("DrinkID:", drinkID);
+            const userID = await AsyncStorage.getItem('userId');
+            const token = await AsyncStorage.getItem('userToken');
+            const response = await fetch(`${BASE_URL}/backend/drinks/${drink.DrinkID}/`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    // 'Authorization': `Token ${token}`,
+                },
+                body: JSON.stringify({ 
+                    Favorite: userID 
+                }),
+            });
 
-        const token = await AsyncStorage.getItem('userToken');
-        const response = await fetch(`${BASE_URL}/backend/drinks/${drinkID}/`, {
-            method: 'PUT',
-            headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Token ${token}`,
-            },
-            body: JSON.stringify({ Favorite: true }), // Assuming `Favorite: true` signifies adding the current user
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            Alert.alert('Error', errorData.message || 'Failed to add to favorites');
-        }
+            if (!response.ok) {
+                throw new Error(`Failed to add to favorites. Status: ${response.status}`);
+            }
         } catch (error) {
         console.error('Error adding to favorites:', error);
-        Alert.alert('Error', 'An error occurred while adding to favorites');
         }
     };
 
@@ -113,7 +115,7 @@ const RatingCarosel = ({ purchasedDrinks }) => {
     
                 {/* Middle: Add to Favorites and Drink GIF */}
                 <View style={styles.middleContainer}>
-                    <TouchableOpacity onPress={() => addToFavs(drink.DrinkID)} style={styles.button}>
+                    <TouchableOpacity onPress={() => addToFavs(drink)} style={styles.button}>
                         <Text>Add to Favorites</Text>
                     </TouchableOpacity>
                     <Gif layers={layers} height={120} width={60} />
@@ -122,7 +124,7 @@ const RatingCarosel = ({ purchasedDrinks }) => {
                 {/* Bottom: Star Rating */}
                 <StarRating
                     style={styles.star}
-                    onRatingSelected={(newRating) => handleRatingSelected(newRating, drink.DrinkID)}
+                    onRatingSelected={(newRating) => handleRatingSelected(newRating, drink)}
                 />
             </View>
         );
