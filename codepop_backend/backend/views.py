@@ -12,8 +12,8 @@ from rest_framework.authtoken.models import Token
 from rest_framework import status, viewsets
 from rest_framework.views import APIView
 from .models import Preference, Drink, Inventory, Notification, Order, Revenue
-from .serializers import CreateUserSerializer, PreferenceSerializer, DrinkSerializer, InventorySerializer, NotificationSerializer, OrderSerializer, RevenueSerializer
-from rest_framework.permissions import IsAuthenticated
+from .serializers import CreateUserSerializer, GetUserSerializer, PreferenceSerializer, DrinkSerializer, InventorySerializer, NotificationSerializer, OrderSerializer, RevenueSerializer
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
 import stripe
 from django.conf import settings
 from django.http import JsonResponse
@@ -479,3 +479,34 @@ class RevenueViewSet(viewsets.ModelViewSet):
         # Proceed with the standard update process
         return super().update(request, *args, **kwargs)
     
+class UserOperations(viewsets.ModelViewSet): # was ListAPIView
+    # never works
+    # permission_classes = [IsAdminUser]
+    serializer_class = GetUserSerializer
+
+    def get(self, request):
+        userList = User.objects.all()
+        serializer = self.serializer_class(userList, many=True)
+        return Response(serializer.data)
+
+    def delete(self, request, user_id):
+        try:
+            user = User.objects.get(id=user_id)
+            user.delete()
+            return JsonResponse({"User deleted successfully"}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return JsonResponse({'Error': str(e)}, status=400)
+
+    def promote(self, request, user_id):
+        try:
+            user = User.objects.get(id=user_id)
+            if (user.is_staff):
+                user.is_staff = False
+                user.is_superuser = True
+            else:
+                user.is_staff = True
+            user.save()
+            return JsonResponse({"User promoted successfully"}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return JsonResponse({'Error': str(e)}, status=400)
+        
