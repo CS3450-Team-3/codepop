@@ -24,8 +24,18 @@ import json
 from rest_framework.decorators import action
 from django.utils.dateparse import parse_datetime
 from .drinkAI import generate_soda
+from rest_framework.permissions import BasePermission
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
+
+class IsSuperUser(BasePermission):
+    """
+    Custom permission to allow access only to superusers.
+    """
+
+    def has_permission(self, request, view):
+        # Check if the user is authenticated and a superuser
+        return request.user and request.user.is_authenticated and request.user.is_superuser
     
 #Custom login to so that it get's a token but also the user's first name and the user id
 class CustomAuthToken(ObtainAuthToken):
@@ -481,7 +491,7 @@ class RevenueViewSet(viewsets.ModelViewSet):
     
 class UserOperations(viewsets.ModelViewSet): # was ListAPIView
     # never works
-    # permission_classes = [IsAdminUser]
+    permission_classes = [IsSuperUser]
     serializer_class = GetUserSerializer
 
     def get(self, request):

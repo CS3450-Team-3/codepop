@@ -14,10 +14,13 @@ const AdminDash = () => {
   }, []));
 
   const getUsers = async () => {
+    const token = await AsyncStorage.getItem("userToken");
+
     try {
       const response = await fetch(`${BASE_URL}/backend/users/`, {
         method: 'GET',
         headers: {
+          'Authorization': `Token ${token}`,
           'Content-Type': 'application/json',
         }
       });
@@ -38,6 +41,7 @@ const AdminDash = () => {
   const deleteUser = async (user) => {
     try {
       const user_id = await AsyncStorage.getItem('userId');
+      const token = await AsyncStorage.getItem('userToken');
 
       if (!user_id) {
         console.log("Error: failed to get active user's id.")
@@ -52,6 +56,7 @@ const AdminDash = () => {
         const response = await fetch(`${BASE_URL}/backend/users/delete/${user.id}/`, {
           method: 'DELETE',
           headers: {
+            'Authorization': `Token ${token}`,
             'Content-Type': 'application/json',
           }
         });
@@ -71,6 +76,8 @@ const AdminDash = () => {
   };
 
   const promoteUser = async (user) => {
+    const token = await AsyncStorage.getItem("userToken");
+
     try {
       if (user.is_superuser === true) {
         Alert.alert('Error: User is already an admin');
@@ -80,6 +87,7 @@ const AdminDash = () => {
         const response = await fetch(`${BASE_URL}/backend/users/promote/${user.id}/`, {
           method: 'PUT',
           headers: {
+            'Authorization': `Token ${token}`,
             'Content-Type': 'application/json',
           }
         });
