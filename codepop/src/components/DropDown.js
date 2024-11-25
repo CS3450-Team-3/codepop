@@ -52,11 +52,11 @@ const DropDown = ({ title, options = [], onSelect, isOpen, setOpen, selectedValu
                 ]
                   : [
                   styles.circularButton,
-                  selectedItems[option.label] && styles.circularButtonSelected,
+                  selectedItems[option.value] && styles.circularButtonSelected,
                 ]}
-                onPress={() => toggleItemSelection(option.label)}
+                onPress={() => toggleItemSelection(option.value)}
               >
-                <Text style={styles.buttonText}>{option.label}</Text>
+                <Text style={styles.buttonText}>{option.value}</Text>
               </TouchableOpacity>
             ))}
           </View>
