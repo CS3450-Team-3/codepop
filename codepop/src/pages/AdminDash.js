@@ -403,7 +403,6 @@ const styles = StyleSheet.create({
   dropdown: {
     inputIOS: {
       height: 50,
-      borderColor: '#000',
       paddingLeft: 10,
       color: '#000',
       backgroundColor: '#C7C7C7',
@@ -411,7 +410,6 @@ const styles = StyleSheet.create({
     },
     inputAndroid: {
       height: 50,
-      borderColor: '#ccc',
       paddingLeft: 10,
       color: '#000',
       backgroundColor: '#C7C7C7',
