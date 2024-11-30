@@ -320,7 +320,9 @@ class OrderOperations(viewsets.ModelViewSet):
         if drinks_to_remove:
             order.remove_drinks(drinks_to_remove)
         
-        serializer = self.get_serializer(order)
+        serializer = self.get_serializer(order, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
         return Response(serializer.data, status=status.HTTP_200_OK)
         
     # def get_permissions(self):
@@ -330,7 +332,39 @@ class OrderOperations(viewsets.ModelViewSet):
     #     return super().get_permissions()
 
     def create(self, request, *args, **kwargs):
-        return super().create(request, *args, **kwargs)
+        # Extract data from the request
+        user_id = request.data.get("UserID", None)
+        drinks = request.data.get("Drinks", [])
+        order_status = request.data.get("OrderStatus", "processing")
+        payment_status = request.data.get("PaymentStatus", "pending")
+        stripe_id = request.data.get("StripeID", None)
+
+         # Log extracted values
+        print(f"UserID: {user_id}, Drinks: {drinks}, OrderStatus: {order_status}, PaymentStatus: {payment_status}, StripeID: {stripe_id}")
+
+        # Create a new order
+        order_data = {
+            "UserID": user_id,
+            "order_status": order_status,
+            "Drinks": drinks,
+            "PaymentStatus": payment_status,
+            "StripeID": stripe_id,
+        }
+
+        serializer = self.get_serializer(data=order_data)
+        if serializer.is_valid():
+            order = serializer.save()
+
+            # Add drinks to the order if provided
+            if drinks:
+                order.add_drinks(drinks)
+
+            # Return the created order's data
+            return Response(self.get_serializer(order).data, status=status.HTTP_201_CREATED)
+
+        print("Serializer errors:", serializer.errors)
+        # Handle validation errors
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def update(self, request, *args, **kwargs):
         return super().update(request, *args, **kwargs)
@@ -446,13 +480,7 @@ class RevenueViewSet(viewsets.ModelViewSet):
     """
     queryset = Revenue.objects.all()
     serializer_class = RevenueSerializer
-    permission_classes = [IsAuthenticated]
-
-    def get_permissions(self):
-        """Require authentication for creating, updating, and deleting revenues."""
-        if self.action in ['create', 'update', 'destroy']:
-            return [IsAuthenticated()]
-        return super().get_permissions()
+    permission_classes = [AllowAny]
 
     def create(self, request, *args, **kwargs):
         """
