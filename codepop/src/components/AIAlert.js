@@ -4,7 +4,7 @@ import { useNavigation } from '@react-navigation/native';
 import {BASE_URL} from '../../ip_address'
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Gif from '../components/Gif';
-import { sodaOptions, syrupOptions, juiceOptions } from '../components/Ingredients';
+import { sodaOptions, syrupOptions, addIns } from '../components/Ingredients';
 import Modal from 'react-native-modal';
 
 const AIAlert = ({ isModalVisible, toggleModal, drinkDict }) => {
@@ -119,7 +119,10 @@ const AIAlert = ({ isModalVisible, toggleModal, drinkDict }) => {
   const syrupsUsed = Array.isArray(drinkDict.SyrupsUsed) ? drinkDict.SyrupsUsed : [];
   const addIns = Array.isArray(drinkDict.AddIns) ? drinkDict.AddIns : [];
 
+  
+
   const layers = getLayers(sodaUsed, syrupsUsed, addIns);
+  console.log(layers);
 
 
   return (
