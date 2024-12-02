@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Image, Button, TouchableOpacity, FlatList } from 'react-native';
 import NavBar from '../components/NavBar';
 import RatingCarosel from '../components/RatingCarosel';
+import {BASE_URL} from '../../ip_address'
 import Icon from 'react-native-vector-icons/FontAwesome';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import GeoMap from '../components/map';
@@ -9,9 +10,8 @@ import GeoMap from '../components/map';
 // todo
 // add geolocation tracking map
   // use googles geolocation API: https://developers.google.com/maps/documentation/javascript/examples/map-geolocation#maps_map_geolocation-javascript
-// add timer from drink creation
-// add randomly generated code for locker combination
-  // right now the locker combo changes untill the timer runs out
+// fix bug in carosel so that only one of each drink shows up
+// add im here button
 
 // test card number: 4242 4242 4242 4242
   // enter a date in the future like 12/34
