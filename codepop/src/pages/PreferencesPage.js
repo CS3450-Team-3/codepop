@@ -146,8 +146,6 @@ const PreferencesPage = () => {
       });
       if (response.ok) {
         const data = await response.json();
-        // const savedPreferenceId = data.PreferenceID;
-        setSoda(prevSodas => [...prevSodas, data.Preference]);
       } else {
         // throw new Error(`Failed to add drink. Status: ${response.status} ${response.statusText}`);
         const errorData = await response.json();  // Get the response body
@@ -280,7 +278,7 @@ const PreferencesPage = () => {
               <View style={styles.navBarSpace}>
                 <Text style={styles.subtitleText}>Saved Drinks (can be created on ratings page)</Text>
                 <Text style={styles.subtitleText}>Preferences</Text>
-                <Text>{SodaUsed}</Text>
+                {/* <Text>{SodaUsed}</Text> */}
                 <DropDown
                   title='Sodas'
                   options={filterInventory("Soda")}
