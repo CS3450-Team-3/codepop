@@ -1,13 +1,13 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, TouchableOpacity, FlatList } from 'react-native';
-import Icon from 'react-native-vector-icons/FontAwesome';
+import React, { useState } from "react";
+import { View, StyleSheet, TouchableOpacity, FlatList } from "react-native";
+import Icon from "react-native-vector-icons/FontAwesome";
 
 const StarRating = ({ onRatingSelected }) => {
   const [rating, setRating] = useState(0);
 
   const handleRating = (star) => {
     setRating(star);
-    onRatingSelected(star);  // Pass the selected rating to the parent component
+    onRatingSelected(star); // Pass the selected rating to the parent component
   };
 
   const renderStar = ({ item: star }) => {
@@ -16,7 +16,7 @@ const StarRating = ({ onRatingSelected }) => {
         <Icon
           name="star"
           size={40}
-          color={star <= rating ? '#D30C7B' : '#ffff'}  // Filled if <= rating, otherwise grey
+          color={star <= rating ? "#D30C7B" : "#ffff"} // Filled if <= rating, otherwise grey
           style={styles.star}
         />
       </TouchableOpacity>
@@ -38,13 +38,13 @@ const StarRating = ({ onRatingSelected }) => {
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
   },
   starContainer: {
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   star: {
     marginHorizontal: 5,
