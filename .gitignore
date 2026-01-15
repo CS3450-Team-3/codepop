@@ -13,3 +13,7 @@ node_modules
 
 # ignore direnv
 .envrc
+
+# for Mise
+mise.toml
+
