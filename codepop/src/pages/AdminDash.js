@@ -1,19 +1,27 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, Alert, Modal, Image } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
-import {BASE_URL} from '../../ip_address'
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { TextInput } from 'react-native-gesture-handler';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import RNPickerSelect from 'react-native-picker-select';
+import React, { useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  FlatList,
+  Alert,
+  Modal,
+  Image,
+} from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
+import { BASE_URL } from "../../ip_address";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { TextInput } from "react-native-gesture-handler";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import RNPickerSelect from "react-native-picker-select";
 
 const AdminDash = () => {
-
   const [users, setUsers] = useState([]);
   const [popupIsOpen, setPopupIsOpen] = useState(false);
   const [editorIsOpen, setEditorIsOpen] = useState(false);
 
-  const [userToDelete, setUserToDelete] = useState(null)
+  const [userToDelete, setUserToDelete] = useState(null);
   const [userToEdit, setUserToEdit] = useState(null);
   const [userInfo, setUserInfo] = useState({
     username: "",
@@ -23,114 +31,119 @@ const AdminDash = () => {
     role: "",
   });
 
-  useFocusEffect(React.useCallback(() => {
-    getUsers();
-  }, []));
+  useFocusEffect(
+    React.useCallback(() => {
+      getUsers();
+    }, [])
+  );
 
   const placeholder = {
-    label: 'Select a role...',
+    label: "Select a role...",
     value: null,
   };
 
   const roleOptions = [
-    { label: 'User', value: 'user' },
-    { label: 'Staff', value: 'staff' },
-    { label: 'Admin', value: 'admin' },
+    { label: "User", value: "user" },
+    { label: "Staff", value: "staff" },
+    { label: "Admin", value: "admin" },
   ];
 
   const openPopup = (user) => {
-    setUserToDelete(user)
-    setPopupIsOpen(true)
-  }
+    setUserToDelete(user);
+    setPopupIsOpen(true);
+  };
   const closePopup = () => {
-    setPopupIsOpen(false)
-    setUserToDelete(null)
-  }
+    setPopupIsOpen(false);
+    setUserToDelete(null);
+  };
 
   const openEditor = (user) => {
-    setUserToEdit(user)
+    setUserToEdit(user);
     setUserInfo({
       username: user.username,
       firstName: user.first_name,
       lastName: user.last_name,
       password: "",
       role: user.is_superuser ? "admin" : user.is_staff ? "staff" : "user",
-    })
-    setEditorIsOpen(true)
-  }
+    });
+    setEditorIsOpen(true);
+  };
   const closeEditor = () => {
-    setEditorIsOpen(false)
-    setUserToEdit(null)
+    setEditorIsOpen(false);
+    setUserToEdit(null);
     setUserInfo({
       username: "",
       firstName: "",
       lastName: "",
       password: "",
       role: "",
-    })
-  }
-
+    });
+  };
 
   const getUsers = async () => {
     const token = await AsyncStorage.getItem("userToken");
 
     try {
       const response = await fetch(`${BASE_URL}/backend/users/`, {
-        method: 'GET',
+        method: "GET",
         headers: {
-          'Authorization': `Token ${token}`,
-          'Content-Type': 'application/json',
-        }
+          Authorization: `Token ${token}`,
+          "Content-Type": "application/json",
+        },
       });
 
       if (!response.ok) {
-        throw new Error(`Error when trying to fetch a list of users. Status: ${response.status}`);
+        throw new Error(
+          `Error when trying to fetch a list of users. Status: ${response.status}`
+        );
       }
 
       const userList = await response.json();
       setUsers(userList);
+    } catch (error) {
+      console.error("Error when trying to fetch a list of users:", error);
     }
-    catch (error) {
-      console.error('Error when trying to fetch a list of users:', error);
-    }
-  }
+  };
 
   const deleteUser = async (user) => {
     try {
-      const user_id = await AsyncStorage.getItem('userId');
-      const token = await AsyncStorage.getItem('userToken');
+      const user_id = await AsyncStorage.getItem("userId");
+      const token = await AsyncStorage.getItem("userToken");
 
       if (!user_id) {
-        console.log("Error: Failed to get active user's id.")
-        return
+        console.log("Error: Failed to get active user's id.");
+        return;
       }
 
       if (Number(user_id) === Number(user.id)) {
-        Alert.alert('Error: You cannot delete yourself')
+        Alert.alert("Error: You cannot delete yourself");
         closePopup();
-      }
-      else {
+      } else {
         console.log("Deleting user...");
-        const response = await fetch(`${BASE_URL}/backend/users/delete/${user.id}/`, {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Token ${token}`,
-            'Content-Type': 'application/json',
+        const response = await fetch(
+          `${BASE_URL}/backend/users/delete/${user.id}/`,
+          {
+            method: "DELETE",
+            headers: {
+              Authorization: `Token ${token}`,
+              "Content-Type": "application/json",
+            },
           }
-        });
-  
+        );
+
         if (!response.ok) {
-          throw new Error(`Error when trying to delete a user. Status: ${response.status}`);
+          throw new Error(
+            `Error when trying to delete a user. Status: ${response.status}`
+          );
         }
 
-        const result = await response.json()
-        Alert.alert(result.message)
+        const result = await response.json();
+        Alert.alert(result.message);
         getUsers();
         closePopup();
       }
-    }
-    catch (error) {
-      console.error('Error when trying to delete a user:', error);
+    } catch (error) {
+      console.error("Error when trying to delete a user:", error);
     }
   };
 
@@ -138,63 +151,62 @@ const AdminDash = () => {
     const token = await AsyncStorage.getItem("userToken");
 
     try {
-      const edits = {}
+      const edits = {};
       if (!userInfo.username) {
         edits["username"] = "unchanged";
-      }
-      else {
+      } else {
         edits["username"] = userInfo.username;
       }
 
       if (!userInfo.firstName) {
         edits["firstName"] = "unchanged";
-      }
-      else {
+      } else {
         edits["firstName"] = userInfo.firstName;
       }
 
       if (!userInfo.lastName) {
         edits["lastName"] = "unchanged";
-      }
-      else {
+      } else {
         edits["lastName"] = userInfo.lastName;
       }
 
       if (!userInfo.password) {
         edits["password"] = "unchanged";
-      }
-      else {
+      } else {
         edits["password"] = userInfo.password;
       }
 
       if (!userInfo.role) {
         edits["role"] = "unchanged";
-      }
-      else {
+      } else {
         edits["role"] = userInfo.role;
       }
-      
+
       console.log("Updating user...");
-      const response = await fetch(`${BASE_URL}/backend/users/edit/${user.id}/`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Token ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({edits}),
-      });
-  
+      const response = await fetch(
+        `${BASE_URL}/backend/users/edit/${user.id}/`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Token ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ edits }),
+        }
+      );
+
       if (!response.ok) {
-        throw new Error(`Error when trying to edit a user. Status: ${response.status}`);
+        throw new Error(
+          `Error when trying to edit a user. Status: ${response.status}`
+        );
       }
 
-      const result = await response.json()
-      Alert.alert(result.message)
+      const result = await response.json();
+      Alert.alert(result.message);
       getUsers();
       closeEditor();
-    }
-    catch (error) {
-      console.error('Error when trying to edit a user:', error);
+    } catch (error) {
+      console.error("Error when trying to edit a user:", error);
     }
   };
 
@@ -204,55 +216,132 @@ const AdminDash = () => {
         <View style={styles.box}>
           <View>
             <Text style={styles.mainText}>{item.username}</Text>
-            <Text style={styles.secondaryText}>{item.first_name} {item.last_name}</Text>
-            <Text style={styles.secondaryText}>Role: {item.is_superuser ? <Text style={styles.role}>Admin</Text> : item.is_staff ? <Text style={styles.role}>Staff</Text> : "User"}</Text>
+            <Text style={styles.secondaryText}>
+              {item.first_name} {item.last_name}
+            </Text>
+            <Text style={styles.secondaryText}>
+              Role:{" "}
+              {item.is_superuser ? (
+                <Text style={styles.role}>Admin</Text>
+              ) : item.is_staff ? (
+                <Text style={styles.role}>Staff</Text>
+              ) : (
+                "User"
+              )}
+            </Text>
           </View>
 
           <View style={styles.userButtonContainer}>
-            <TouchableOpacity onPress={() => openEditor(item)} style={styles.button}>
+            <TouchableOpacity
+              onPress={() => openEditor(item)}
+              style={styles.button}
+            >
               <Text style={styles.buttonText}>Edit</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity onPress={() => openPopup(item)} style={styles.button}>
+            <TouchableOpacity
+              onPress={() => openPopup(item)}
+              style={styles.button}
+            >
               <Text style={styles.buttonText}>Delete</Text>
             </TouchableOpacity>
           </View>
 
-          <Modal transparent={true} visible={popupIsOpen} onRequestClose={closePopup}>
-              <View style={styles.modalBackground}>
-                <View style={styles.popup}>
-                    <Text style={styles.modalText}>Are you sure you want to delete user "{userToDelete?.username}"?</Text>
-                    <View styles={styles.modalButtonContainer}>
-                      <TouchableOpacity onPress={() => deleteUser(userToDelete)} style={styles.button}><Text style={styles.buttonText}>Yes</Text></TouchableOpacity>
-                      <TouchableOpacity onPress={closePopup} style={styles.button}><Text style={styles.buttonText}>No</Text></TouchableOpacity>
-                    </View>
-                  </View>
-              </View>
-            </Modal>
-            <Modal transparent={true} visible={editorIsOpen} onRequestClose={closeEditor}>
-              <View style={styles.modalBackground}>
-                <View style={styles.editor}>
-                  <TouchableOpacity onPress={closeEditor} style={styles.xButton}><Text style={styles.x}>X</Text></TouchableOpacity>
-                  <Text style={styles.editorHeader}>Edit user "{userToEdit?.username}"</Text>
-                  <Text style={styles.editorText}>Username:</Text><TextInput onChangeText={(text) => setUserInfo(prev => ({ ...prev, username: text }))} value={userInfo.username} style={styles.textBox}/>
-                  <Text style={styles.editorText}>First Name:</Text><TextInput onChangeText={(text) => setUserInfo(prev => ({ ...prev, firstName: text }))} value={userInfo.firstName} style={styles.textBox}/>
-                  <Text style={styles.editorText}>Last Name:</Text><TextInput onChangeText={(text) => setUserInfo(prev => ({ ...prev, lastName: text }))} value={userInfo.lastName} style={styles.textBox}/>
-                  <Text style={styles.editorText}>Password:</Text><TextInput onChangeText={(text) => setUserInfo(prev => ({ ...prev, password: text }))} value={userInfo.password} placeholder={"Empty for security purposes"} style={styles.textBox}/>
-                  <Text style={styles.editorText}>Role: {"(Currently is " + userInfo.role + ")"}</Text>
-                  <RNPickerSelect
-                    style={styles.dropdown}
-                    placeholder={placeholder}
-                    items={roleOptions}
-                    onValueChange={(value) => setUserInfo(prev => ({ ...prev, role: value }))}
-                    value={userInfo.role}
-                    pickerProps={{
-                      style: { backgroundColor: '#C6C8EE' }
-                    }}
-                  />
-                  <TouchableOpacity onPress={() => editUser(userToEdit)} style={styles.button}><Text style={styles.buttonText}>Save</Text></TouchableOpacity>
+          <Modal
+            transparent={true}
+            visible={popupIsOpen}
+            onRequestClose={closePopup}
+          >
+            <View style={styles.modalBackground}>
+              <View style={styles.popup}>
+                <Text style={styles.modalText}>
+                  Are you sure you want to delete user "{userToDelete?.username}
+                  "?
+                </Text>
+                <View styles={styles.modalButtonContainer}>
+                  <TouchableOpacity
+                    onPress={() => deleteUser(userToDelete)}
+                    style={styles.button}
+                  >
+                    <Text style={styles.buttonText}>Yes</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={closePopup} style={styles.button}>
+                    <Text style={styles.buttonText}>No</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
-            </Modal>
+            </View>
+          </Modal>
+          <Modal
+            transparent={true}
+            visible={editorIsOpen}
+            onRequestClose={closeEditor}
+          >
+            <View style={styles.modalBackground}>
+              <View style={styles.editor}>
+                <TouchableOpacity onPress={closeEditor} style={styles.xButton}>
+                  <Text style={styles.x}>X</Text>
+                </TouchableOpacity>
+                <Text style={styles.editorHeader}>
+                  Edit user "{userToEdit?.username}"
+                </Text>
+                <Text style={styles.editorText}>Username:</Text>
+                <TextInput
+                  onChangeText={(text) =>
+                    setUserInfo((prev) => ({ ...prev, username: text }))
+                  }
+                  value={userInfo.username}
+                  style={styles.textBox}
+                />
+                <Text style={styles.editorText}>First Name:</Text>
+                <TextInput
+                  onChangeText={(text) =>
+                    setUserInfo((prev) => ({ ...prev, firstName: text }))
+                  }
+                  value={userInfo.firstName}
+                  style={styles.textBox}
+                />
+                <Text style={styles.editorText}>Last Name:</Text>
+                <TextInput
+                  onChangeText={(text) =>
+                    setUserInfo((prev) => ({ ...prev, lastName: text }))
+                  }
+                  value={userInfo.lastName}
+                  style={styles.textBox}
+                />
+                <Text style={styles.editorText}>Password:</Text>
+                <TextInput
+                  onChangeText={(text) =>
+                    setUserInfo((prev) => ({ ...prev, password: text }))
+                  }
+                  value={userInfo.password}
+                  placeholder={"Empty for security purposes"}
+                  style={styles.textBox}
+                />
+                <Text style={styles.editorText}>
+                  Role: {"(Currently is " + userInfo.role + ")"}
+                </Text>
+                <RNPickerSelect
+                  style={styles.dropdown}
+                  placeholder={placeholder}
+                  items={roleOptions}
+                  onValueChange={(value) =>
+                    setUserInfo((prev) => ({ ...prev, role: value }))
+                  }
+                  value={userInfo.role}
+                  pickerProps={{
+                    style: { backgroundColor: "#C6C8EE" },
+                  }}
+                />
+                <TouchableOpacity
+                  onPress={() => editUser(userToEdit)}
+                  style={styles.button}
+                >
+                  <Text style={styles.buttonText}>Save</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Modal>
         </View>
       </GestureHandlerRootView>
     );
@@ -260,11 +349,11 @@ const AdminDash = () => {
 
   return (
     <View style={styles.mainContainer}>
-      <Image 
-            source={require('../../assets/PinkBubbles.png')}
-            style={styles.image}
-            resizeMode="cover"
-        />
+      <Image
+        source={require("../../assets/PinkBubbles.png")}
+        style={styles.image}
+        resizeMode="cover"
+      />
       <View style={styles.headerContainer}>
         <Text style={styles.header}>Admin Dashboard</Text>
       </View>
@@ -279,14 +368,14 @@ const AdminDash = () => {
 
 const styles = StyleSheet.create({
   image: {
-    width: '150%',
-    height: '200%',
+    width: "150%",
+    height: "200%",
     ...StyleSheet.absoluteFillObject,
   },
   mainContainer: {
     flex: 1,
     padding: 20,
-    backgroundColor: '#C6C8EE',
+    backgroundColor: "#C6C8EE",
   },
   headerContainer: {
     flex: 0,
@@ -294,15 +383,15 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     paddingBottom: 20,
     borderBottomWidth: 5,
-    borderColor: '#D30C7B',
+    borderColor: "#D30C7B",
     marginBottom: 8,
   },
   header: {
     fontSize: 28,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   box: {
-    backgroundColor: '#f4f4f4',
+    backgroundColor: "#f4f4f4",
     padding: 10,
     marginBottom: 15,
     borderRadius: 8,
@@ -310,30 +399,30 @@ const styles = StyleSheet.create({
 
     flex: 0,
     flexDirection: "row",
-    justifyContent: 'space-between',
-    backgroundColor: '#8DF1D3',
+    justifyContent: "space-between",
+    backgroundColor: "#8DF1D3",
     zIndex: 2, // Ensure it's above the image
   },
   mainText: {
     fontSize: 24,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   secondaryText: {
     fontSize: 20,
     marginTop: 10,
   },
   role: {
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   userButtonContainer: {
-    flexDirection: 'column',
-    justifyContent: 'space-evenly',
+    flexDirection: "column",
+    justifyContent: "space-evenly",
   },
   button: {
     flex: 0,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: '#D30C7B',
+    backgroundColor: "#D30C7B",
     padding: 10,
     borderRadius: 5,
     height: 45,
@@ -341,22 +430,22 @@ const styles = StyleSheet.create({
     margin: 7,
   },
   buttonText: {
-    color: 'white',
-    fontWeight: 'bold',
+    color: "white",
+    fontWeight: "bold",
     fontSize: 18,
   },
   modalBackground: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    backgroundColor: "rgba(0, 0, 0, 0.3)",
     zIndex: 2,
   },
   popup: {
     flex: 0,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: '#f4f4f4',
+    backgroundColor: "#f4f4f4",
     height: 300,
     width: 380,
     zIndex: 3,
@@ -369,15 +458,15 @@ const styles = StyleSheet.create({
     marginBottom: 25,
   },
   modalButtonContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-evenly',
-    width: '100%',
+    flexDirection: "row",
+    justifyContent: "space-evenly",
+    width: "100%",
   },
   editor: {
     flex: 0,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: '#FFA686',
+    backgroundColor: "#FFA686",
     height: 600,
     width: 360,
     zIndex: 3,
@@ -391,7 +480,7 @@ const styles = StyleSheet.create({
     flex: 0,
     alignItems: "center",
     justifyContent: "center",
-    position: 'absolute',
+    position: "absolute",
     top: 10,
     right: 10,
     borderRadius: 100,
@@ -402,7 +491,7 @@ const styles = StyleSheet.create({
   x: {
     fontSize: 30,
     fontWeight: "bold",
-    color: '#FFFFFF'
+    color: "#FFFFFF",
   },
   editorHeader: {
     fontSize: 25,
@@ -411,28 +500,28 @@ const styles = StyleSheet.create({
   },
   textBox: {
     borderWidth: 2,
-    borderColor: '#D30C7B',
+    borderColor: "#D30C7B",
     borderRadius: 10,
     padding: 5,
-    width: '100%',
+    width: "100%",
     height: 35,
     fontSize: 20,
     marginBottom: 20,
-    backgroundColor: '#C6C8EE',
+    backgroundColor: "#C6C8EE",
   },
   dropdown: {
     inputIOS: {
       height: 50,
       paddingLeft: 10,
-      color: '#000',
-      backgroundColor: '#C6C8EE',
+      color: "#000",
+      backgroundColor: "#C6C8EE",
       marginBottom: 15,
     },
     inputAndroid: {
       height: 50,
       paddingLeft: 10,
-      color: '#000',
-      backgroundColor: '#C6C8EE',
+      color: "#000",
+      backgroundColor: "#C6C8EE",
       marginBottom: 15,
     },
     iconContainer: {

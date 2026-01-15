@@ -1,11 +1,19 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import * as Font from 'expo-font';
-import React, { useEffect, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View, Image } from 'react-native';
-import { BASE_URL } from '../../ip_address';
-import NavBar from '../components/NavBar';
-import SeasonalCarousel from '../components/SeasonalCarousel';
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import * as Font from "expo-font";
+import React, { useEffect, useState } from "react";
+import {
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  Image,
+} from "react-native";
+import { BASE_URL } from "../../ip_address";
+import NavBar from "../components/NavBar";
+import SeasonalCarousel from "../components/SeasonalCarousel";
 
 const GeneralHomePage = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -19,37 +27,37 @@ const GeneralHomePage = () => {
     React.useCallback(() => {
       const checkLoginStatus = async () => {
         try {
-          const storedName = await AsyncStorage.getItem('first_name');
-          const token = await AsyncStorage.getItem('userToken');
-          const userRole = await AsyncStorage.getItem('userRole');
+          const storedName = await AsyncStorage.getItem("first_name");
+          const token = await AsyncStorage.getItem("userToken");
+          const userRole = await AsyncStorage.getItem("userRole");
           if (token && storedName) {
-            setIsLoggedIn(true);  // User is logged in
-            setName(storedName);  // Set username for display
+            setIsLoggedIn(true); // User is logged in
+            setName(storedName); // Set username for display
           } else {
-            setIsLoggedIn(false);  // No user is logged in
+            setIsLoggedIn(false); // No user is logged in
           }
-          if (userRole == 'admin'){
+          if (userRole == "admin") {
             setIsAdmin(true);
-          }else if(userRole == 'manager'){
+          } else if (userRole == "manager") {
             setIsManager(true);
-          }else{
+          } else {
             setIsAdmin(false);
             setIsManager(false);
           }
         } catch (error) {
-          console.error('Error checking login status:', error);
+          console.error("Error checking login status:", error);
         }
       };
-  
+
       checkLoginStatus();
-    }, [])  // The empty array ensures this only runs when the screen is focused
+    }, []) // The empty array ensures this only runs when the screen is focused
   );
 
   useEffect(() => {
     const loadFonts = async () => {
-        await Font.loadAsync({
-            'CherryBombOne': require('./../../assets/fonts/CherryBombOne-Regular.ttf'), // Adjust path as necessary
-        });
+      await Font.loadAsync({
+        CherryBombOne: require("./../../assets/fonts/CherryBombOne-Regular.ttf"), // Adjust path as necessary
+      });
     };
 
     loadFonts();
@@ -59,12 +67,12 @@ const GeneralHomePage = () => {
     // Retrieve the username from AsyncStorage when the component mounts
     const checkUserLogin = async () => {
       try {
-        const storedName = await AsyncStorage.getItem('first_name');
+        const storedName = await AsyncStorage.getItem("first_name");
         if (storedName) {
           setName(storedName); // If a username is found, set it in the state
         }
       } catch (error) {
-        console.error('Error retrieving username:', error);
+        console.error("Error retrieving username:", error);
       }
     };
 
@@ -75,61 +83,61 @@ const GeneralHomePage = () => {
   const handleLogout = async () => {
     try {
       // Send logout request to the backend
-      const token = await AsyncStorage.getItem('userToken');
+      const token = await AsyncStorage.getItem("userToken");
       const response = await fetch(`${BASE_URL}/backend/auth/logout/`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Authorization': `Token ${token}`,
-          'Content-Type': 'application/json',
+          Authorization: `Token ${token}`,
+          "Content-Type": "application/json",
         },
       });
 
       if (response.status === 200) {
         // Clear AsyncStorage
-        await AsyncStorage.removeItem('userToken');
-        await AsyncStorage.removeItem('userId');
-        await AsyncStorage.removeItem('first_name');
-        await AsyncStorage.removeItem('userRole');
-        
+        await AsyncStorage.removeItem("userToken");
+        await AsyncStorage.removeItem("userId");
+        await AsyncStorage.removeItem("first_name");
+        await AsyncStorage.removeItem("userRole");
+
         setIsLoggedIn(false);
         setName(null);
-        
-        Alert.alert('Logout successful!');
+
+        Alert.alert("Logout successful!");
       } else {
-        Alert.alert('Logout failed, please try again.');
+        Alert.alert("Logout failed, please try again.");
       }
     } catch (error) {
-      console.error('Error during logout:', error);
-      Alert.alert('Logout failed, please try again later.');
+      console.error("Error during logout:", error);
+      Alert.alert("Logout failed, please try again later.");
     }
   };
 
   // Login button press
   const goToLoginPage = () => {
-    navigation.navigate('Auth');  // Navigate to the login page
+    navigation.navigate("Auth"); // Navigate to the login page
   };
 
   const goToAdminDash = () => {
-    navigation.navigate('AdminDash');  // Navigate to the login page
+    navigation.navigate("AdminDash"); // Navigate to the login page
   };
 
   const goToManDash = () => {
-    navigation.navigate('ManagerDash');  // Navigate to the login page
+    navigation.navigate("ManagerDash"); // Navigate to the login page
   };
 
   // Generate drinks button press
   const generateDrinks = () => {
-    console.log('generating drinks...');
-    navigation.navigate('CreateDrink', {fromGenerateButton: true} );
-  }
+    console.log("generating drinks...");
+    navigation.navigate("CreateDrink", { fromGenerateButton: true });
+  };
 
   return (
     <View style={styles.container}>
-      <Image 
-                source={require('../../assets/PinkBubbles.png')}
-                style={styles.image}
-                resizeMode="cover"
-            />
+      <Image
+        source={require("../../assets/PinkBubbles.png")}
+        style={styles.image}
+        resizeMode="cover"
+      />
       <ScrollView contentContainerStyle={styles.contentContainer}>
         {/* If logged in, display the username and Logout button, otherwise display Login button */}
         {isLoggedIn ? (
@@ -139,40 +147,62 @@ const GeneralHomePage = () => {
 
             {/* The main title */}
             <Text style={styles.title}>Welcome to the CodePop App!</Text>
-            <SeasonalCarousel style={styles.carousel}/>
+            <SeasonalCarousel style={styles.carousel} />
             <View style={styles.buttonContainer}>
-              <TouchableOpacity onPress={generateDrinks} style={styles.mediumButton}>
+              <TouchableOpacity
+                onPress={generateDrinks}
+                style={styles.mediumButton}
+              >
                 <Text style={styles.buttonText}>Generate Drinks</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={handleLogout} style={styles.mediumButton}>
+              <TouchableOpacity
+                onPress={handleLogout}
+                style={styles.mediumButton}
+              >
                 <Text style={styles.buttonText}>Logout</Text>
               </TouchableOpacity>
               {/*If the user is an admin display a button for navigation to the admin dash*/}
               {isAdmin ? (
                 <>
-                <TouchableOpacity onPress={goToAdminDash} style={styles.mediumButton}>
-                  <Text style={styles.buttonText}>Admin Dash</Text>
-                </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={goToAdminDash}
+                    style={styles.mediumButton}
+                  >
+                    <Text style={styles.buttonText}>Admin Dash</Text>
+                  </TouchableOpacity>
                 </>
-              ): (<></>)}
+              ) : (
+                <></>
+              )}
               {/*If the user is an admin display a button for navigation to the admin dash*/}
               {isManager ? (
                 <>
-                <TouchableOpacity onPress={goToManDash} style={styles.mediumButton}>
-                  <Text style={styles.buttonText}>Manager Dash</Text>
-                </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={goToManDash}
+                    style={styles.mediumButton}
+                  >
+                    <Text style={styles.buttonText}>Manager Dash</Text>
+                  </TouchableOpacity>
                 </>
-              ): (<></>)}  
+              ) : (
+                <></>
+              )}
             </View>
           </>
         ) : (
           <>
-            <SeasonalCarousel style={styles.carousel}/>
+            <SeasonalCarousel style={styles.carousel} />
             <View style={styles.buttonContainer}>
-              <TouchableOpacity onPress={generateDrinks} style={styles.mediumButton}>
-              <Text style={styles.buttonText}>Generate Drinks</Text>
+              <TouchableOpacity
+                onPress={generateDrinks}
+                style={styles.mediumButton}
+              >
+                <Text style={styles.buttonText}>Generate Drinks</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={goToLoginPage} style={styles.mediumButton}>
+              <TouchableOpacity
+                onPress={goToLoginPage}
+                style={styles.mediumButton}
+              >
                 <Text style={styles.buttonText}>Login</Text>
               </TouchableOpacity>
             </View>
@@ -186,41 +216,40 @@ const GeneralHomePage = () => {
 
 const styles = StyleSheet.create({
   image: {
-    width: '100%',
-    height: '150%',
+    width: "100%",
+    height: "150%",
     ...StyleSheet.absoluteFillObject,
   },
   container: {
     flex: 1,
     padding: 0,
-    backgroundColor: '#D30C7B',
+    backgroundColor: "#D30C7B",
     zIndex: 2, // Ensure it's above the image
-
   },
   contentContainer: {
     flexGrow: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   mediumButton: {
     margin: 10,
     padding: 15,
-    backgroundColor: '#8DF1D3',
+    backgroundColor: "#8DF1D3",
     borderRadius: 10,
-    alignItems: 'center',
+    alignItems: "center",
     elevation: 3,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 2, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 3,
   },
   buttonText: {
     fontSize: 16,
-    color: '#000',
+    color: "#000",
   },
   greeting: {
     fontSize: 40,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginBottom: 10,
   },
   carousel: {
@@ -229,7 +258,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 25,
-  }
+  },
 });
 
 export default GeneralHomePage;
