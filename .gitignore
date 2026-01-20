@@ -17,3 +17,5 @@ node_modules
 # for Mise
 mise.toml
 
+# ignore local VSCode settings
+.vscode/
