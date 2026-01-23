@@ -19,3 +19,6 @@ mise.toml
 
 # ignore local VSCode settings
 .vscode/
+
+# ignore mypy cache
+.mypy_cache/
