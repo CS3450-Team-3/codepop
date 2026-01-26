@@ -214,7 +214,7 @@ These requirements define high-level business goals
 
 ### Device Access 
 
-- Prioritize access through Application, should be avliable on both Apple and Andriod as well as web applicatins. Web applications should include Google Chrome, Safari, Firefox, and Edge
+- Prioritize access through Application, should be avliable on both Apple and Andriod as well as web applicatins. Web applications should include Google Chrome, Safari, Firefox, and Edge compatability
 
 ## Should Have
 
@@ -303,7 +303,9 @@ The User Stories below describe the functional requirements from the perspective
 
 - As a Guest Customer I want to order a drink without having to make an account
 
-- The option the create/ sign in to an account 
+- There are endless possiblities, I would like some way to narrow them down so I can give dirty soda a fair try.
+
+- The option the create/ sign in to an account and remember my order
 
 ## Registered Customer
 
@@ -319,13 +321,13 @@ The User Stories below describe the functional requirements from the perspective
 
 - As a Registed Customer I want to be able to edit my profile 
 
-- As a Registed Customer I want ot be able to save my favorite drinks and be view/modify/delete them
+- As a Registed Customer I want to be able to save my favorite drinks and view/modify/delete them
 
-- As an Registed Customer, I want to be able to have my drink fresh and ready for me right as I arrive to pick it up. 
+- As a Registed Customer, I want to be able to have my drink fresh and ready for me right as I arrive to pick it up. 
 
-- As an Registed Customer, I want to be able to add payment options to my account so I can pay through the app when I order my drinks.
+- As a Registed Customer, I want to be able to add payment options to my account so I can pay through the app when I order my drinks.
 
-- As an Registed Customer, I want to be refunded if I cancel my drink order. 
+- As a Registed Customer, I want to be refunded if I cancel my drink order. 
 
 
 
@@ -336,6 +338,8 @@ The User Stories below describe the functional requirements from the perspective
 - As a Store Manager I want access to non-sensitive payment transaction information to help administer refunds, verify transactions, and other payment-related issues
 
 - As a Store Manager I want to be able to see store revenue reports from the database.
+
+- As a store manager I want to be able to view the status of my machines
 
 ## Logistics Manager
 
@@ -355,7 +359,7 @@ The User Stories below describe the functional requirements from the perspective
 
 ## Admin
 
-- As an Admin I want to access store data so I can add and manage Store Manager accoutns
+- As an Admin I want to access store data so I can add and manage Store Manager accounts
 
 - As an Admin I want to update/remove/unlock user accounts so that I can help users and protect the system from misuse
 
