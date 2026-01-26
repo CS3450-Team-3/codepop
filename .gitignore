@@ -20,6 +20,16 @@ mise.toml
 # ignore local VSCode settings
 .vscode/
 
+<<<<<<< HEAD
+
+# ignore virtual environments
+venv/
+.python-version
+=======
+# ignore mypy cache
+.mypy_cache/
+>>>>>>> 87a5ea98439fb7532e79bcdd0a171ee49a9a6820
+
 
 # ignore virtual environments
 venv/

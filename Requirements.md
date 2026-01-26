@@ -64,7 +64,7 @@ A high-level administrator responsible for the supply chain and inventory flow a
 - **Responsibilities:**
   - Manages "Supply Hubs" and authorizes stock transfers between stores and hubs.
   - Assigns tasks and routes to **Repair Staff**.
-  - Analyzes supply usage patterns to optimize restocking.
+  - Analyzes supply usage patterns using an AI or algorithm to optimize restocking.
 - **Access:**
   - **Region Stock:** View specific store stock within their region.
   - **Hub Stock:** View inventory levels in regional Supply Hubs.
@@ -109,10 +109,10 @@ The highest level of system access, responsible for the global configuration of 
 These requirements define high-level business goals
 
 1. Scalability via Decentralization
-   - The architecture must be optimized to allow easy expansion from a single store to multiple locations, being organized into regions and sub-regions.
+   - The architecture must be optimized to allow for easy expansion from a single store to multiple locations, being organized into regions and sub-regions.
    - The software must operate without a single centralized master server. Instead local stores must communicate with each other and synchronize peer-to-peer or with their regional hub only when necessary.
 2. Automation and Minimal Human Interaction:
-   - The system must enable stores to run without the interference of human operators, with minimal visits by store staff, relying instead of robotic fulfillment.
+   - The system must enable stores to run without the interference of human operators, with minimal visits by store staff, relying instead on robotic fulfillment.
 3. Supply Chain Optimization
    - The system must reduce waste and stockouts by utilizing the 7 designated supply hubs
    - Inventory logic must prioritize shipping from the closest valid source _(Local Store > Regional Hub > Neighboring Hub < 1000 miles)_.
@@ -128,12 +128,16 @@ These requirements define high-level business goals
    - To maximize system uptime and profits, the system must transition from a reactive to a proactive maintenance schedule. Repair staff travel should be minimized using specialized algorithms.
 5. Regulatory and Reporting Compliance
    - Each location must maintain independent revenue tracking. Global reporting must be aggregable by Super Admins without compromising the decentralized nature of the network.
+6. Payment System 
+  - App/Site should be able to process payment when an order is placed
+  - Refunds must be proccess before order is retrieved 
+  - ability to track revenue
 
 ## Must Have
 
 ### Region Management
 
-- Stores will belong and act within a region
+- Stores will belong and act within an assigned region
 - Each Region will have a supply hub
 - Supplies can come from supply hub, local suppliers, stores within region, and regions within 1000 miles
 
@@ -144,9 +148,13 @@ These requirements define high-level business goals
 
 - Sales data
 
+- The user will pay for their soda(s) as soon as they submit their order either on the app or the website. If the cart is empty no transactions will take place. If the user decides to cancel the order, they will get immediately reimbursed. The user should not be able to cancel their order once the drinks have been picked up.
+
+- All transcations will be handled by third party software to reduce need for encryption
+
 ### Machine Management
 
-- Keep track of maintnence schedule
+- Keep track of maintenance schedule
 
 - Keep track of machine type
 
@@ -171,6 +179,12 @@ These requirements define high-level business goals
 
 - Keep track of repair staff location/status
 
+### Dashboards
+
+- each role requires a specific dashboard to update/change/view everything that their responsibilities require of them
+
+- User has the option to create their own drink without the use of AI 
+
 ### Universal Drink ordering system
 
 - Drinks are universal in their makeup
@@ -187,6 +201,20 @@ These requirements define high-level business goals
 - ingredients added in different order are the same (mtn dew, lime, lemon is the same as lemon, mtn dew, lime)
 
 - ingredients combine if added out of order (1 lemon, 1 lime, 1 lemon -> 2 lemon, 1 lime)
+
+### AI 
+
+- Can randomly generate drinks from soda flavor, ice amount, syrup flavor and pumps, and cream
+ - If User likes the generated drink they can chose to save it, or if they don't they can recreate it.
+
+- The AI will use geolocation to keep track of the user. Using a combination of the user’s rate of speed and an estimation of how long the soda order will take to create, the AI determines how close the user needs to be to the CodePop location before the robots start creating their order.
+
+- Keep track of ingredient popularity and the rate at which ingredients are being used (in store). When it predicts an ingredient to start running low, it will notify the manager what ingredients should be ordered and restocked.
+
+
+### Device Access 
+
+- Prioritize access through Application, should be avliable on both Apple and Andriod as well as web applicatins. Web applications should include Google Chrome, Safari, Firefox, and Edge
 
 ## Should Have
 
@@ -214,6 +242,10 @@ These requirements define high-level business goals
 - minimum stock required to allow transfer to other store
 
 - maximum stock of items
+
+- contains their own server
+
+- sign in any user from any store server
 
 ### Logistic Manager
 
@@ -244,7 +276,95 @@ These requirements define high-level business goals
 
 - new suggested minimums based off of sales data
 
+### Push Notifications
+
+- users can receive notifications about order status and special offers
+
+- managers can receive notifications of supplies running low which need restocking
+
+- repair_staff can receive notifications for when a bot needs immediate attention
+
 ## Will not have
 
 - The ability for multiple users to use the same account
+
 - A gift card or cash processing system (all types of payment will be processed using Stripe)
+
+# User Stories
+
+The User Stories below describe the functional requirements from the perspective of each role
+
+## Customer
+
+- As any Customer I want to contact someone to get a refund, make a complaint, or get a drink remade
+
+
+## Guest Customer
+
+- As a Guest Customer I want to order a drink without having to make an account
+
+- The option the create/ sign in to an account 
+
+## Registered Customer
+
+- As a Registered Customer I want to order drinks that I have ordered before
+
+- As a Registered Customer I want to be recommended new drinks based on personal preferences
+
+- As a Registered Customer I want to save my payment info so that I don't need to input it each time
+
+- As a Registed Customer I can sign out
+
+- As a Registed Customer I can delete my account 
+
+- As a Registed Customer I want to be able to edit my profile 
+
+- As a Registed Customer I want ot be able to save my favorite drinks and be view/modify/delete them
+
+- As an Registed Customer, I want to be able to have my drink fresh and ready for me right as I arrive to pick it up. 
+
+- As an Registed Customer, I want to be able to add payment options to my account so I can pay through the app when I order my drinks.
+
+- As an Registed Customer, I want to be refunded if I cancel my drink order. 
+
+
+
+## Store Manager
+
+- As a Store Manager I want to view stock inventory so that I can request restocks as needed
+
+- As a Store Manager I want access to non-sensitive payment transaction information to help administer refunds, verify transactions, and other payment-related issues
+
+- As a Store Manager I want to be able to see store revenue reports from the database.
+
+## Logistics Manager
+
+- As a Logistics Manager I want to view the supply usage of each store so that I can use recognize patterns in the supply usage of each store
+
+- As a Logistics Manager I want to manage the routing of supplies to stores so that I can ensure supplies can reach each store before they run out
+
+- As a Logistics Manager I want to update and create supply schedules based on patterns I've found so that I can ensure each store is sufficiently stocked on time for their individual needs
+
+## Repair Staff
+
+- As a Repair Staff I want to stay updated on robot conditions so that I can repair them when needed
+
+- As a Repair Staff I want to be assigned to stores that require less of a distance to travel so I can go from one store to another quickly
+
+- As a Repair Staff I want to notify the system that repairs are in progress so that customers can't order from the location while repairs are underway
+
+## Admin
+
+- As an Admin I want to access store data so I can add and manage Store Manager accoutns
+
+- As an Admin I want to update/remove/unlock user accounts so that I can help users and protect the system from misuse
+
+## Super Admin
+
+- As a Super Admin I want to access data for any store location so that I can manage new Admins and other roles across the region
+
+- As a Super Admin I want to manage supply hubs and regions so that when new stores are added we can adjust boundaries as needed for efficiency
+
+- As a Super Admin I need to make nation-wide updates so that I can keep all the stores up to date
+
+- As a Super Admin I want to add new ingredients to every store and supply hub so that when a new flavor is added we can deploy it quickly and efficiently
