@@ -128,10 +128,11 @@ These requirements define high-level business goals
    - To maximize system uptime and profits, the system must transition from a reactive to a proactive maintenance schedule. Repair staff travel should be minimized using specialized algorithms.
 5. Regulatory and Reporting Compliance
    - Each location must maintain independent revenue tracking. Global reporting must be aggregable by Super Admins without compromising the decentralized nature of the network.
-6. Payment System 
-  - App/Site should be able to process payment when an order is placed
-  - Refunds must be proccess before order is retrieved 
-  - ability to track revenue
+6. Payment System
+
+- App/Site should be able to process payment when an order is placed
+- Refunds must be process before order is retrieved
+- ability to track revenue
 
 ## Must Have
 
@@ -150,7 +151,7 @@ These requirements define high-level business goals
 
 - The user will pay for their soda(s) as soon as they submit their order either on the app or the website. If the cart is empty no transactions will take place. If the user decides to cancel the order, they will get immediately reimbursed. The user should not be able to cancel their order once the drinks have been picked up.
 
-- All transcations will be handled by third party software to reduce need for encryption
+- All transactions will be handled by third party software to reduce need for encryption
 
 ### Machine Management
 
@@ -183,7 +184,7 @@ These requirements define high-level business goals
 
 - each role requires a specific dashboard to update/change/view everything that their responsibilities require of them
 
-- User has the option to create their own drink without the use of AI 
+- User has the option to create their own drink without the use of AI
 
 ### Universal Drink ordering system
 
@@ -202,19 +203,18 @@ These requirements define high-level business goals
 
 - ingredients combine if added out of order (1 lemon, 1 lime, 1 lemon -> 2 lemon, 1 lime)
 
-### AI 
+### AI
 
 - Can randomly generate drinks from soda flavor, ice amount, syrup flavor and pumps, and cream
- - If User likes the generated drink they can chose to save it, or if they don't they can recreate it.
+- If User likes the generated drink they can chose to save it, or if they don't they can recreate it.
 
-- The AI will use geolocation to keep track of the user. Using a combination of the user’s rate of speed and an estimation of how long the soda order will take to create, the AI determines how close the user needs to be to the CodePop location before the robots start creating their order.
+- The AI will use Geo-Location to keep track of the user. Using a combination of the user’s rate of speed and an estimation of how long the soda order will take to create, the AI determines how close the user needs to be to the CodePop location before the robots start creating their order.
 
 - Keep track of ingredient popularity and the rate at which ingredients are being used (in store). When it predicts an ingredient to start running low, it will notify the manager what ingredients should be ordered and restocked.
 
+### Device Access
 
-### Device Access 
-
-- Prioritize access through Application, should be avliable on both Apple and Andriod as well as web applicatins. Web applications should include Google Chrome, Safari, Firefox, and Edge compatability
+- Prioritize access through Application, should be available on both Apple and Android as well as web applications. Web applications should include Google Chrome, Safari, Firefox, and Edge compatibility
 
 ## Should Have
 
@@ -231,7 +231,7 @@ These requirements define high-level business goals
 
 - Drinks in the order queue (ordered but not yet made)
 
-- organise other stores between micro and main region
+- Organize other stores between micro and main region
 
 - upcoming maintenance schedule
 
@@ -296,40 +296,37 @@ The User Stories below describe the functional requirements from the perspective
 
 ## Customer
 
-- As any Customer I want to contact someone to get a refund, make a complaint, or get a drink remade
-
+- As any Customer I want to contact someone to get a refund, make a complaint, or get a drink remade so that I can get my issues resolved and feel satisfied with the service.
 
 ## Guest Customer
 
-- As a Guest Customer I want to order a drink without having to make an account
+- As a Guest Customer I want to order a drink without having to make an account so that I can get my drink quickly.
 
-- There are endless possiblities, I would like some way to narrow them down so I can give dirty soda a fair try.
+- As a Guest Customer, I want to filter or view popular drink options so that I am not overwhelmed by the endless customization possibilities.
 
-- The option the create/ sign in to an account and remember my order
+- As a Guest Customer, I might want to create or sign into an account so that I can save my order history for future convenience.
 
 ## Registered Customer
 
-- As a Registered Customer I want to order drinks that I have ordered before
+- As a Registered Customer I want to see drinks that I have ordered before so that I can re-order my favorites without customizing them from scratch.
 
-- As a Registered Customer I want to be recommended new drinks based on personal preferences
+- As a Registered Customer I want to be recommended new drinks based on personal preferences so that I can discover new drink combinations that I might like.
 
 - As a Registered Customer I want to save my payment info so that I don't need to input it each time
 
-- As a Registed Customer I can sign out
+- As a Registered Customer, I want to be able to sign out so that I can protect my account information.
 
-- As a Registed Customer I can delete my account 
+- As a Registered Customer, I want to delete my account so that I can remove my personal data from the system permanently.
 
-- As a Registed Customer I want to be able to edit my profile 
+- As a Registered Customer I want to be able to edit my profile so that I can keep my contact and payment information up to date.
 
-- As a Registed Customer I want to be able to save my favorite drinks and view/modify/delete them
+- As a Registered Customer I want to be able to save my favorite drinks and view/modify/delete them so that I can keep a personal menu of my favorite drinks.
 
-- As a Registed Customer, I want to be able to have my drink fresh and ready for me right as I arrive to pick it up. 
+- As a Registered Customer, I want to be able to have my drink fresh and ready for me right as I arrive to pick it up so that I don't have to wait or have a watered-down drink.
 
-- As a Registed Customer, I want to be able to add payment options to my account so I can pay through the app when I order my drinks.
+- As a Registered Customer, I want to be able to add payment options to my account so I can pay through the app when I order my drinks.
 
-- As a Registed Customer, I want to be refunded if I cancel my drink order. 
-
-
+- As a Registered Customer, I want to be refunded if I cancel my drink order so that I do not lose money if I made a mistake or change my mind.
 
 ## Store Manager
 
@@ -337,9 +334,9 @@ The User Stories below describe the functional requirements from the perspective
 
 - As a Store Manager I want access to non-sensitive payment transaction information to help administer refunds, verify transactions, and other payment-related issues
 
-- As a Store Manager I want to be able to see store revenue reports from the database.
+- As a Store Manager I want to be able to see store revenue reports from the database so that I can track the financial performance of my store.
 
-- As a store manager I want to be able to view the status of my machines
+- As a store manager I want to be able to view the status of my machines so that I can immediately identify if my machines are working properly or if they need maintenance.
 
 ## Logistics Manager
 
@@ -357,7 +354,7 @@ The User Stories below describe the functional requirements from the perspective
 
 - As a Repair Staff I want to notify the system that repairs are in progress so that customers can't order from the location while repairs are underway
 
-## Admin
+## Admin (Local)
 
 - As an Admin I want to access store data so I can add and manage Store Manager accounts
 
@@ -372,3 +369,121 @@ The User Stories below describe the functional requirements from the perspective
 - As a Super Admin I need to make nation-wide updates so that I can keep all the stores up to date
 
 - As a Super Admin I want to add new ingredients to every store and supply hub so that when a new flavor is added we can deploy it quickly and efficiently
+
+# Use Case Diagrams
+
+## Customer Experience
+
+```mermaid
+flowchart LR
+    %% Users
+    Guest[Guest Customer]
+    Reg[Registered Customer]
+
+    subgraph "Codepop App"
+        uc_order([Order Drink])
+        uc_custom([Customize Drink])
+        uc_create([Create Account])
+        uc_help([Contact Support / Refund])
+
+        uc_login([Login])
+        uc_logout([Logout])
+        uc_save([Save Favorite Drink])
+        uc_pay([Manage Payment Methods])
+        uc_hist([View Order History])
+        uc_profile([Edit Profile])
+        uc_del([Delete Account])
+    end
+
+    Reg -.-> Guest
+
+    Guest --> uc_order
+    Guest --> uc_custom
+    Guest --> uc_create
+    Guest --> uc_help
+
+    Reg --> uc_login
+    Reg --> uc_logout
+    Reg --> uc_save
+    Reg --> uc_pay
+    Reg --> uc_hist
+    Reg --> uc_profile
+    Reg --> uc_del
+```
+
+## Store Management
+
+```mermaid
+flowchart LR
+    %% Users
+    Manager[Store Manager]
+    Repair[Repair Staff]
+    LocalAdmin[Admin - Local]
+
+    subgraph "Store Management System"
+        uc_inv([View Inventory Levels])
+        uc_restock([Request Restock])
+        uc_rev([View Revenue Reports])
+        uc_trans([View Transactions / Refunds])
+        uc_status([Monitor Machine Status])
+
+        uc_accts([Manage Local Accounts])
+        uc_unlock([Unlock User Accounts])
+
+        uc_tickets([View Repair Tickets])
+        uc_upd_status([Update Machine Status])
+        uc_loc([View Store Location Info])
+    end
+
+    %% Relationships
+    LocalAdmin -.-> Manager
+
+    Manager --> uc_inv
+    Manager --> uc_restock
+    Manager --> uc_rev
+    Manager --> uc_trans
+    Manager --> uc_status
+
+    LocalAdmin --> uc_accts
+    LocalAdmin --> uc_unlock
+
+    Repair --> uc_status
+    Repair --> uc_tickets
+    Repair --> uc_upd_status
+    Repair --> uc_loc
+```
+
+## Logistics Management
+
+```mermaid
+flowchart LR
+    %% Users
+    Logistics[Logistics Manager]
+    SuperAdmin[Super Admin]
+
+    subgraph "Global Administration"
+        uc_analyze([Analyze Supply Patterns])
+        uc_auth([Authorize Stock Transfers])
+        uc_route([Assign Repair Staff Routes])
+        uc_global_inv([View Global Inventory])
+
+        uc_config([Manage Global Config])
+        uc_regions([Create/Delete Regions])
+        uc_hubs([Manage Supply Hubs])
+        uc_users([Manage Global Users])
+        uc_add_ingred([Add New Ingredients - Global])
+    end
+
+    %% Relationships
+    Logistics --> uc_analyze
+    Logistics --> uc_auth
+    Logistics --> uc_route
+    Logistics --> uc_global_inv
+
+    SuperAdmin --> uc_global_inv
+    SuperAdmin --> uc_config
+    SuperAdmin --> uc_regions
+    SuperAdmin --> uc_hubs
+    SuperAdmin --> uc_users
+    SuperAdmin --> uc_add_ingred
+```
