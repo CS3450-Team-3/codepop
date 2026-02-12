@@ -50,7 +50,7 @@ Relevant and detailed information can be found under the [Data Classification & 
 
 ## 2. Data Classification & Security
 
-[Describe your approach to handling data to uphold user trust.]
+All data, when possible, should be encrypted. This helps ensure that security remains a priority, and decreases the likelihood of malicious individuals gaining unauthorized access to information and systems that should otherwise be protected.
 
 ### 2.1 Definitions
 
