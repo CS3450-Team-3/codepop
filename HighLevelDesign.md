@@ -84,7 +84,7 @@ To ensure the definitive security of all data, everything in transit must be enc
 Data will be encrypted at rest using a transparent encryption layer when possible. This ensures that there are no additional complexities that the developers have to manage. Thus, the likelihood of incorrect implementations decreases drastically.
 
 - **Database:** User passwords are automatically hashed using PBKDF2 (Django default) with the option to upgrade to Argon2.
-- **Sensitive Fields:** Payment information is *not* handled directly by our systems; only Stripe tokens are retained. Personally Identifiable Information should be encrypted when possible using `Django-encrypted-fields`.
+- **Sensitive Fields:** Payment information is _not_ handled directly by our systems; only Stripe tokens are retained. Personally Identifiable Information should be encrypted when possible using `Django-encrypted-fields`.
 
 ### 2.4 Secure Code Guidelines
 
