@@ -74,25 +74,27 @@ Relevant and detailed information can be found under the [Data Classification & 
 
 ### 3.1 Concept and Design
 
-- **Consistency:** [Rules for maintaining visual consistency across user roles.]
-- **Navigation:** [e.g., Sidebar vs. Top bar navigation.]
-- **Accessibility:** [Colors and fonts chosen for readability.]
+- **Consistency:** The site is designed around the same components, colors, and styles to ensure a consistent experience across the entire application. This consistency allows users to easily understand how to interact with the application, and where to find the information they need.
+- **Navigation:** The navigation is designed to be intuitive, with a clear hierarchy and logical flow between pages. The main page provides easy access to the most important features for each user level (e.g., ordering for customers, inventory management for store managers) and the navigation menu allows for easy access to other sections of the site.
+- **Accessibility:** The site is designed with accessibility in mind, ensuring that colors and fonts are chosen for readability and that the application is usable by individuals with disabilities.
 
 ### 3.2 Color Palette
 
-- **Primary:** `#[HexCode]` - [Color Name]
-- **Secondary:** `#[HexCode]` - [Color Name]
-- **Accent/Contrast:** `#[HexCode]` - [Color Name]
-- **Neutral:** `#[HexCode]` - [Color Name]
+- **Background:** `#FCF8FF` - Off-White
+- **Text:** `#0A0A0A` - Dark Gray
+- **Primary:** `#FFFFFF` - White
+- **Secondary:** `#030213` - Charcoal Black
+- **Accent/Contrast:** `#9810FA` - Vibrant Purple
+- **Neutral:** `#ECECF0` - Light Gray
 
 ### 3.3 Frameworks and Tools (Tech Stack)
 
 - **Frontend:** ReactJS
-  - _Reasoning:_ [Why was this chosen? e.g., Modular design, Type safety.]
-- **Backend:** [e.g., Ruby on Rails, Node.js]
-  - _Reasoning:_ [Why was this chosen? e.g., Development speed, Gem ecosystem.]
-- **Database:** [e.g., PostgreSQL, MongoDB]
-  - _Reasoning:_ [Why was this chosen? e.g., Scalability, Relational integrity.]
+  - _Reasoning:_ React has many developer focused features, such as a large ecosystem of libraries, reusable components, and a virtual DOM for efficient rendering. This allows us to rapidly develop a responsive and dynamic user interface that can easily adapt to different hardware platforms. Additionally, React's component-based architecture promotes code reusability and maintainability, which is crucial for a project of this scale and complexity.
+- **Backend:** Django (Python)
+  - _Reasoning:_ Django was primarily chosen for its ease of use, security features, and scalability. Django's built-in admin interface allows for easy management of the database and user accounts, while its robust security features help protect against common web vulnerabilities. Additionally, Django's scalability allows us to handle a growing user base and increasing data volume as the application expands.
+- **Database:** PostgreSQL
+  - _Reasoning:_ PostgreSQL was used because it works well with our other software choices, and is a powerful, open-source relational database that offers advanced features such as support for JSON data types. This allows us to efficiently store and query complex data structures, which is essential for the functionality of our application.
 
 ---
 
