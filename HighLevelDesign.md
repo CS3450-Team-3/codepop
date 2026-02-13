@@ -44,21 +44,69 @@ As software developers, we are committed to ensuring the safety and security of 
 - [**OWASP Top 10:**](https://owasp.org/Top10/2025/) The mitigation of common security vulnerabilities across the web, including injection attacks and broken access controls
 - **PCI DSS:** Ensuring secure handling of payment information through a compliant third-party company (Stripe)
 
-Relevant and detailed information can be found under the [Data Classification & Security](#2-data-classification--security) section of this document
+Relevant and detailed information can be found under the [Data Classification & Security](#4-data-classification--security) section of this document
 
 ---
 
-## 2. Data Classification & Security
+## 2. Hardware Platforms
+
+[Describe the targeted hardware strategy.]
+
+### 2.1 Mobile & Touch
+
+- **Responsive Design:** [Strategy for adapting layouts to screen dimensions.]
+- **Gestures:** [Support for swipe, pinch, zoom, etc.]
+
+### 2.2 Web / Desktop
+
+- **Technology:** [e.g., Progressive Web App (PWA)]
+- **Service Workers:** [Offline functionality and caching strategy.]
+- **Manifest:** [Installability on home screens.]
+- **Push Notifications:** [Engagement strategy.]
+
+### 2.3 IoT & Future Platforms (Optional)
+
+- [Describe potential future integrations, e.g., Voice Assistants, Wearables, AR/VR.]
+
+---
+
+## 3. User Interface (UI)
+
+### 3.1 Concept and Design
+
+- **Consistency:** [Rules for maintaining visual consistency across user roles.]
+- **Navigation:** [e.g., Sidebar vs. Top bar navigation.]
+- **Accessibility:** [Colors and fonts chosen for readability.]
+
+### 3.2 Color Palette
+
+- **Primary:** `#[HexCode]` - [Color Name]
+- **Secondary:** `#[HexCode]` - [Color Name]
+- **Accent/Contrast:** `#[HexCode]` - [Color Name]
+- **Neutral:** `#[HexCode]` - [Color Name]
+
+### 3.3 Frameworks and Tools (Tech Stack)
+
+- **Frontend:** ReactJS
+  - _Reasoning:_ [Why was this chosen? e.g., Modular design, Type safety.]
+- **Backend:** [e.g., Ruby on Rails, Node.js]
+  - _Reasoning:_ [Why was this chosen? e.g., Development speed, Gem ecosystem.]
+- **Database:** [e.g., PostgreSQL, MongoDB]
+  - _Reasoning:_ [Why was this chosen? e.g., Scalability, Relational integrity.]
+
+---
+
+## 4. Data Classification & Security
 
 All data, when possible, should be encrypted. This helps ensure that security remains a priority, and decreases the likelihood of malicious individuals gaining unauthorized access to information and systems that should otherwise be protected.
 
-### 2.1 Definitions
+### 4.1 Definitions
 
 - **Personal Data:** Information that identifies an individual (e.g., Names, Birthdates). _Security Standard: [e.g., Encrypted in transit]_
-- **Sensitive Data:** High-risk information (e.g., Financials, Gov ID, Location). _Security Standard: [e.g., Encrypted at rest and in transit]_
+- **Sensitive Data:** High-risk information (e.g., Financials, Store Information, Location Data). _Security Standard: [e.g., Encrypted at rest and in transit]_
 - **Other Data:** Non-identifiable information (e.g., preferences, order history). _Security Standard: [e.g., Encrypted at rest and in transit]_
 
-### 2.2 Data Breakdown by Role
+### 4.2 Data Breakdown by Role
 
 | User Role               | Personal Data Collected | Sensitive Data Collected                | Other Data                                     |
 | :---------------------- | :---------------------- | :-------------------------------------- | :--------------------------------------------- |
@@ -70,7 +118,7 @@ All data, when possible, should be encrypted. This helps ensure that security re
 | **Admin (Local)**       | Name, Employee ID       | Access Logs, Local User Management Logs | System Configuration History                   |
 | **Super Admin**         | Name, Employee ID       | Global System Config, Full Access Logs  | Global Inventory & Sales Data                  |
 
-### 2.3 Encryption Guidelines
+### 4.3 Encryption Guidelines
 
 #### **Data in Transit:**
 
@@ -86,81 +134,30 @@ Data will be encrypted at rest using a transparent encryption layer when possibl
 - **Database:** User passwords are automatically hashed using PBKDF2 (Django default) with the option to upgrade to Argon2.
 - **Sensitive Fields:** Payment information is _not_ handled directly by our systems; only Stripe tokens are retained. Personally Identifiable Information should be encrypted when possible using `Django-encrypted-fields`.
 
-### 2.4 Secure Code Guidelines
+### 4.4 Secure Code Guidelines
 
 #### Web Security Considerations
 
 Codepop must be resilient against common vulnerabilities, including but not limited to:
 
-- Cross-site Scripting (XSS)
-- SQL Injection
-- CSRF & Clickjacking
-- Denial of Service (DoS)
+- **SQL Injection:** Prevented by Django's Object-based (ORM) implementation of SQL commands, treating all user inputs purely as text.
+- **Cross-site Scripting (XSS):** React by default treats all rendered variables as pure text, instead of just putting it into the webpage. This prevents instances where if a malicious username is rendered, even if there is code by way of `<script>` tags, these are not executed in the browser.
+- **CSRF:** Prevented by using Django's CSRF Token checks during state-changing requests (e.g. POST, PUT, DELETE). Only valid, active sessions have a usable CSRF token, preventing random websites from sending requests to the database.
+- **Denial of Service (DoS)**
 
-#### Framework & Language Considerations
+#### General Security & Language Considerations
 
 - **Safety Features:** [Describe utilizing built-in framework security features by default.]
-- **Unsafe Functions:** [List functions to avoid, e.g., `eval()`.]
+- **Unsafe Functions:** Unsafe functions, such as Python's `eval()` or React's `dangerouslySetInnerHTML` should not be used, as these bypass many of the security benefits of the frameworks. If they absolutely must be used for a specific feature, these functions **_can not_** use user-provided values.
 - **Updates:** [Policy on using LTS releases and patching.]
-
-#### General Security
-
 - **Input Validation:** [All user input (Strings, JSON, Files) must be validated before processing.]
-- **Error Handling:** [Users receive generic error codes; detailed stack traces are logged internally only.]
+- **Error Handling:** Users will receive generic "something went wrong" messages when an error occurs. This prevents general users from being overwhelmed from seeing a stack trace, and no longer trusting the company to be secure. Detailed Stack Traces will be logged internally for debugging.
 
-### 2.5 Hardware & Device Security
+### 4.5 Hardware & Device Security
 
 - **Client Side:** [Policy on trusting client devices, session de-authorization.]
 - **Server Side:** [OS configuration, logging, access control, physical access restrictions.]
 - **3rd Party Integration:** [Criteria for vetting third-party security policies.]
-
----
-
-## 3. Hardware Platforms
-
-[Describe the targeted hardware strategy.]
-
-### 3.1 Mobile & Touch
-
-- **Responsive Design:** [Strategy for adapting layouts to screen dimensions.]
-- **Gestures:** [Support for swipe, pinch, zoom, etc.]
-
-### 3.2 Web / Desktop
-
-- **Technology:** [e.g., Progressive Web App (PWA)]
-- **Service Workers:** [Offline functionality and caching strategy.]
-- **Manifest:** [Installability on home screens.]
-- **Push Notifications:** [Engagement strategy.]
-
-### 3.3 IoT & Future Platforms (Optional)
-
-- [Describe potential future integrations, e.g., Voice Assistants, Wearables, AR/VR.]
-
----
-
-## 4. User Interface (UI)
-
-### 4.1 Concept and Design
-
-- **Consistency:** [Rules for maintaining visual consistency across user roles.]
-- **Navigation:** [e.g., Sidebar vs. Top bar navigation.]
-- **Accessibility:** [Colors and fonts chosen for readability.]
-
-### 4.2 Color Palette
-
-- **Primary:** `#[HexCode]` - [Color Name]
-- **Secondary:** `#[HexCode]` - [Color Name]
-- **Accent/Contrast:** `#[HexCode]` - [Color Name]
-- **Neutral:** `#[HexCode]` - [Color Name]
-
-### 4.3 Frameworks and Tools (Tech Stack)
-
-- **Frontend:** [e.g., Angular, React]
-  - _Reasoning:_ [Why was this chosen? e.g., Modular design, Type safety.]
-- **Backend:** [e.g., Ruby on Rails, Node.js]
-  - _Reasoning:_ [Why was this chosen? e.g., Development speed, Gem ecosystem.]
-- **Database:** [e.g., PostgreSQL, MongoDB]
-  - _Reasoning:_ [Why was this chosen? e.g., Scalability, Relational integrity.]
 
 ---
 
