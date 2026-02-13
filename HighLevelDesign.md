@@ -104,7 +104,7 @@ All data, when possible, should be encrypted. This helps ensure that security re
 
 ### 4.1 Definitions
 
-- **Personal Data:** Information that identifies an individual (e.g., Names, Birthdates). _Security Standard: [e.g., Encrypted in transit]_
+- **Personal Data:** Information that identifies an individual (e.g., Names, Emails). _Security Standard: [e.g., Encrypted in transit]_
 - **Sensitive Data:** High-risk information (e.g., Financials, Store Information, Location Data). _Security Standard: [e.g., Encrypted at rest and in transit]_
 - **Other Data:** Non-identifiable information (e.g., preferences, order history). _Security Standard: [e.g., Encrypted at rest and in transit]_
 
@@ -149,17 +149,16 @@ Codepop must be resilient against common vulnerabilities, including but not limi
 
 #### General Security & Language Considerations
 
-- **Safety Features:** [Describe utilizing built-in framework security features by default.]
+- **Safety Features:** React and Django already have built-in security features that prevent malicious user input from being executed. Both by default treat user input and variables as plain text; thus, although input sanitation is good practice, there's another layer of safety in case the sanitation methods don't catch everything.
 - **Unsafe Functions:** Unsafe functions, such as Python's `eval()` or React's `dangerouslySetInnerHTML` should not be used, as these bypass many of the security benefits of the frameworks. If they absolutely must be used for a specific feature, these functions **_can not_** use user-provided values.
-- **Updates:** [Policy on using LTS releases and patching.]
-- **Input Validation:** [All user input (Strings, JSON, Files) must be validated before processing.]
+- **Input Validation:** User inputs, especially ones being sent to the AI Chatbot, should be sanitized to prevent prompt injection or processing of malicious code.
 - **Error Handling:** Users will receive generic "something went wrong" messages when an error occurs. This prevents general users from being overwhelmed from seeing a stack trace, and no longer trusting the company to be secure. Detailed Stack Traces will be logged internally for debugging.
 
 ### 4.5 Hardware & Device Security
 
-- **Client Side:** [Policy on trusting client devices, session de-authorization.]
-- **Server Side:** [OS configuration, logging, access control, physical access restrictions.]
-- **3rd Party Integration:** [Criteria for vetting third-party security policies.]
+- **Client Side:** The mobile app acts as a client that communicates via a secure token. Users can revoke these tokens by way of a password reset in cases of lost or stolen devices.
+- **Server Side:** The backend is separated from the client. Access to the API is restricted to only authorized users via authenticated tokens.
+- **Stripe Integration:** The information within the [Stripe Developer Documentation](https://docs.stripe.com/) will be strictly followed. This ensures that the security of user's credit card information is handled by a reliable and reputable company.
 
 ---
 
