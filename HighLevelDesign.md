@@ -203,7 +203,41 @@ Codepop must be resilient against common vulnerabilities, including but not limi
 5.  Server responds with updated View/Data.
 6.  Client renders data.
 
-> [Insert Data Flow Diagram Here]
+#### UML Sequence Diagram
+> sequenceDiagram
+    participant User
+    participant Client as Client App
+    participant Controller as Server Controller
+    participant Service as Business Logic Service
+    participant DB as Database
+    participant Stripe as Stripe API
+    participant Store as Store Server
+
+    User->>Client: initiateOrder()
+    Client->>Controller: HTTPS request (order data)
+
+    Controller->>Service: validateRequest()
+    Service->>DB: fetchUser/session data
+    DB-->>Service: user data
+
+    Service->>Store: checkAvailability()
+    Store-->>Service: availabilityConfirmed
+
+    Service->>Stripe: processPayment()
+    Stripe-->>Service: paymentResult
+
+    alt Payment successful
+        Service->>DB: saveOrder()
+        Service->>Store: queueOrder()
+        Service-->>Controller: success response
+    else Payment failed
+        Service-->>Controller: error response
+    end
+
+    Controller-->>Client: updated data/view
+    Client-->>User: render confirmation
+
+
 
 ### 6.2 Component Interfaces
 
