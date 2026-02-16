@@ -249,11 +249,11 @@ Codepop must be resilient against common vulnerabilities, including but not limi
 
 
 
-### 6.2 Component Interfaces
+### 6.2 Component Interfaces 
 
-- **Client Interface:** [Input methods, display logic, encryption standards.]
-- **Server Interface:** [MVC pattern implementation, API handler decoupling.]
-- **Database Interface:** [ORM usage, SQL query responsibility.]
+ - **Client Interface:** Input/interaction contracts (touch/keyboard), display & accessibility requirements, offline caching and secure token storage.
+ - **Server Interface:** REST API contracts (auth scopes, request/response shapes), versioning, rate-limiting, and observability hooks.
+ - **Database Interface:** Django ORM access patterns, transactional boundaries, indexing/backup, and encryption-at-rest policies.
 
 ---
 
@@ -263,16 +263,41 @@ Codepop must be resilient against common vulnerabilities, including but not limi
 
 ### 7.1 Artificial Intelligence (AI)
 
-- **Usage:** [How is AI used? e.g., Chatbots, Recommendation Engine.]
+- **Usage:** Chatbots for customer support and conversational ordering; recommendation engine for personalized drink suggestions; demand forecasting and inventory optimization;
 - **Interface Options:**
   - _Option A (Selected):_ [e.g., OpenAI API. List Pros/Cons.]
   - _Option B (Rejected):_ [e.g., Self-hosted Llama 2. List Pros/Cons.]
-- **Resilience Strategy:** [What happens if the AI provider changes prices or shuts down? e.g., Building an abstraction layer.]
+
+| Feature / Factor | OpenAI API (Hosted) | Self-Hosted Llama 2 |
+|------------------|---------------------|---------------------|
+| Setup Speed | Very fast — simple API calls | Slow — infra + deployment required |
+| Upfront Cost | Low | Very high (GPUs, servers) |
+| Ongoing Cost | Usage-based (per token/request) | Infrastructure-based (power, hosting) |
+| Intelligence Quality | Very high (state-of-the-art) | Medium–high (lower out-of-box) |
+| Custom Training | Limited fine-tuning | Full fine-tuning control |
+| Data Privacy | Cloud processing | Full local control |
+| Scaling | Automatic | Manual scaling required |
+| Maintenance | Minimal | Heavy DevOps + ML ops |
+| Offline Capability | No | Yes (edge deployment possible) |
+| Latency Control | Dependent on API/network | Full control locally |
+| Reliability | Depends on provider uptime | Depends on your infra |
+| Feature Updates | Automatic improvements | Manual upgrades |
+| Multimodal (voice/image) | Native support | Requires extra tooling |
+| Best For MVPs | Excellent | Overkill |
+| Best For Enterprise | Good | Excellent |
+| Cost at Low Volume | Cheap | Expensive |
+| Cost at High Volume | Expensive | Cheaper long-term |
+| Recipe / IP Protection | Moderate | Strong |
+| Edge / Vending Deployment | Not suitable | Suitable |
+| Dev Team Required | Small | Large (ML + DevOps) |
+
+
+- **Resilience Strategy:** Implement an AI abstraction layer with configurable provider adapters, automatic failover to secondary providers or local/edge models and feature flags to gracefully degrade non‑critical features; ensure SLAs and data portability for migration.
 
 ### 7.2 Single Sign On (SSO)
 
-- **Target Providers:** [Google, Microsoft, GitHub, etc.]
-- **Resilience Strategy:** [Ensure users can still login via Email/Password if SSO fails or is removed.]
+- **Target Providers:** Google, Microsoft, GitHub, etc.
+- **Resilience Strategy:** Ensure users can still login via Email/Password if SSO fails or is removed.
 
 ### 7.3 Geolocation (Optional)
 
