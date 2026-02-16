@@ -259,14 +259,15 @@ Codepop must be resilient against common vulnerabilities, including but not limi
 
 ## 7. External Interfaces
 
-[Describe 3rd party systems and APIs.]
+
+Third-party services: Stripe for payments and tokenized card flows, OpenAI API (with an abstraction layer) for chat/recommendations and forecasting, mapping/geocoding providers for store selection and routing, OAuth SSO providers for optional social/enterprise login. 
 
 ### 7.1 Artificial Intelligence (AI)
 
 - **Usage:** Chatbots for customer support and conversational ordering; recommendation engine for personalized drink suggestions; demand forecasting and inventory optimization;
 - **Interface Options:**
-  - _Option A (Selected):_ [e.g., OpenAI API. List Pros/Cons.]
-  - _Option B (Rejected):_ [e.g., Self-hosted Llama 2. List Pros/Cons.]
+  - _Option A (Selected):_ OpenAI API
+  - _Option B (Rejected):_ Self-hosted Llama 2.
 
 | Feature / Factor | OpenAI API (Hosted) | Self-Hosted Llama 2 |
 |------------------|---------------------|---------------------|
@@ -301,11 +302,11 @@ Codepop must be resilient against common vulnerabilities, including but not limi
 
 ### 7.3 Geolocation (Optional)
 
-- **API:** [e.g., Browser Geolocation API, Google Maps API.]
-- **Privacy:** [Handling user consent and refusal to share location.]
-- **Resilience:** [Fallback methods for manual address entry.]
+- **API:** Use the Browser Geolocation API (with explicit consent) for precise location, and a geocoding/mapping provider (Google Maps, Mapbox or OpenStreetMap) for reverse geocoding, routing and map tiles; server-side IP-based geolocation can provide a coarse fallback.
+- **Privacy:** Require clear, contextual consent; explain purpose; store minimal location data and only when necessary; allow revocation and deletion; anonymize or short-retain telemetry and follow GDPR/CCPA rules.
+- **Resilience:** Provide manual address/ZIP entry, cached last-known location, and server-side IP fallback; allow users to select a store manually if automatic location fails.
 
 ### 7.4 Payment Processing (Optional)
 
-- **Strategy:** [Plan for current or future integration (e.g., Stripe, PayPal).]
-- **Implementation:** [Use of decoupled handlers to allow switching providers.]
+- **Strategy:** Primary payment provider: Stripe. Use Stripe Checkout or Payment Intents to handle card flows and tokenization so raw card data never touches our servers, minimizing PCI scope.
+- **Implementation:** Implement decoupled payment handlers that create/confirm `PaymentIntent`s server-side, verify webhooks (signature verification), store only Stripe payment token/metadata, use idempotency keys for retries, implement webhook-backed order state transitions, test with Stripe test keys and enable Stripe Radar/fraud controls; document migration steps for alternate providers.
