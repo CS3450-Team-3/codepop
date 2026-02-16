@@ -185,23 +185,23 @@ Codepop must be resilient against common vulnerabilities, including but not limi
 
 ### 5.1 Component Definitions
 
-- **Client:** [Responsible for UI and displaying application views.]
-- **Server:** [Handles logic, database queries, and 3rd party API orchestration.]
-- **Database:** [Stores persistent data.]
+**Client:** Responsible for UI and displaying application views. Handles routing and input validation, renders order and confirmation views, communicates with the backend over HTTPS using token-based auth, and implements PWA behaviors (offline support, Service Worker, manifest) and graceful fallbacks for limited connectivity.
+**Server:** Handles business logic, request validation, authentication and authorization, database queries, and orchestration of third-party APIs (e.g., Stripe for payments, selected AI provider). Exposes REST API endpoints, enforces security controls (CSRF, TLS), and queues/dispatches background tasks for long-running work.
+**Database:** PostgreSQL stores persistent data (users, orders, inventory, telemetry, analytics). Sensitive fields are encrypted or tokenized where appropriate; the database is accessed via the Django ORM and managed with migrations and backups.
 
 ### 5.2 Server Subcomponents
 
-- **Controller:** [Validates requests, dictates views.]
-- **View Module:** [Constructs the response for the client.]
-- **API Handlers:** [Interface between the controller and external APIs.]
+**Controller:** Validates incoming requests, enforces authentication/authorization, applies business rules, and coordinates service calls and background jobs before returning results to the client.
+**View Module:** Serializes and constructs API responses or server-rendered views (JSON payloads, templates). Uses serializers to shape data, enforces output formatting, and ensures responses do not leak sensitive internals.
+**API Handlers:** Decoupled adapters that manage communication with external services (payment gateway, AI provider, geolocation services, push delivery). Handle retries, rate-limiting, error translation, and circuit-breaking to preserve system stability.
 
 ### 5.3 Database Schema
 
 **Potential Tables:**
 
-- `[Table Name]`: [Description of data stored.]
-- `[Table Name]`: [Description of data stored.]
-- `[Table Name]`: [Description of data stored.]
+ - `users`: Stores user accounts and profiles (user_id, email, hashed password, roles, preferences, default payment token references, device push tokens). Sensitive fields are hashed/encrypted and access is strictly controlled.
+ - `orders`: Stores customer orders and fulfillment state (order_id, customer_id, store_id, items JSON, total, payment_token_reference, status, timestamps, fulfillment_queue_id). Designed for immutable audit trails and retryable processing.
+ - `inventory`: Stores product and per-store inventory data (product_id, store_id, quantity_on_hand, low_stock_threshold, recent_restock_events, ingredient_batches). Used for availability checks, forecasting, and automated restock triggers.
 
 ### 5.4 Component Diagram
 
