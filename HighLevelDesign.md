@@ -205,13 +205,6 @@ Codepop must be resilient against common vulnerabilities, including but not limi
 
 #### UML Sequence Diagram
 > sequenceDiagram
-    participant User
-    participant Client as Client App
-    participant Controller as Server Controller
-    participant Service as Business Logic Service
-    participant DB as Database
-    participant Stripe as Stripe API
-    participant Store as Store Server
 
     User->>Client: initiateOrder()
     Client->>Controller: HTTPS request (order data)
