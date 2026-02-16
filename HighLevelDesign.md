@@ -50,23 +50,40 @@ Relevant and detailed information can be found under the [Data Classification & 
 
 ## 2. Hardware Platforms
 
-[Describe the targeted hardware strategy.]
+Customers will access Codepop from personal devices (smartphones, tablets, or laptops) using their preferred web browser (Chrome, Firefox, Edge, Safari). The web application will be responsive across screen sizes and can be offered as a Progressive Web App (PWA) for an installable, native-like experience.
 
 ### 2.1 Mobile & Touch
 
-- **Responsive Design:** [Strategy for adapting layouts to screen dimensions.]
-- **Gestures:** [Support for swipe, pinch, zoom, etc.]
+- **Responsive Design:** Implement a mobile-first, fluid layout using CSS Grid and Flexbox. Define standard breakpoints (e.g., 320px, 480px, 768px, 1024px, 1280px) and prefer relative units (`rem`, `%`, `vw`) for spacing and typography. Serve responsive images (`srcset` / `sizes`), optimize touch targets (>=44px), and use media queries (and container queries where supported) to adapt component layouts. Use design tokens (CSS variables) for consistent theming, follow progressive enhancement, and validate UI across real devices, emulators, and automated visual regression tests.
+- **Gestures:** Implement gesture support using Pointer Events and a lightweight gesture library (for example, `@use-gesture/react` or `hammerjs`). Provide swipe gestures for carousels and in-app navigation, pinch-to-zoom and double-tap to zoom for images/previews, and long-press where appropriate. Use CSS `touch-action` to avoid scroll/gesture conflicts, set sensible gesture thresholds and debounce to reduce accidental activations, and avoid calling `preventDefault()` on touch events unless necessary. Always provide accessible fallbacks (visible buttons and keyboard equivalents), respect `prefers-reduced-motion`, and validate gestures across iOS and Android devices and major browsers.
 
 ### 2.2 Web / Desktop
 
-- **Technology:** [e.g., Progressive Web App (PWA)]
-- **Service Workers:** [Offline functionality and caching strategy.]
-- **Manifest:** [Installability on home screens.]
-- **Push Notifications:** [Engagement strategy.]
+- **Technology:** Code Pop will be made as a Progressive Web App (PWA) to be accessed as a website but feel more like an app to provide a more native interation for the User. 
+- **Service Workers:** Implement a Service Worker (using Workbox or a small custom worker) to provide reliable offline behavior and efficient caching. Precache the application shell (HTML, core JS/CSS, critical assets) so the app can load while offline. Use runtime caching strategies tuned per resource type: network-first for API requests with a short fallback cache, stale-while-revalidate for images and static assets, and cache-first for large immutable resources with proper cache versioning and max-age limits. Provide background sync for failed POSTs (order submission) so retries occur when connectivity returns. Ensure the Service Worker follows HTTPS requirements, handles updates gracefully (skipWaiting/clients.claim patterns with an optional user-visible update prompt), and exposes health/diagnostic hooks for remote monitoring.
+- **Manifest:** Include a complete `manifest.json` to enable installability and a native-like launch experience. Provide `name` and `short_name`, a descriptive `description`, `start_url`, `scope`, `display` (prefer `standalone`), `orientation`, `theme_color`, and `background_color`. Ship a full set of icons (PNG/SVG) at recommended sizes (48, 72, 96, 144, 192, 512) and include service-worker-aware icon references. Test installability on Chrome, Edge, and Safari (where supported) and document icon generation and caching requirements.
+- **Push Notifications:** Support opt-in Web Push using the Push API + Notifications API with VAPID keys for server authentication. Request permission using a contextual UX (ask after a user action or clear value exchange), allow segmentation (order updates, promotions, local store alerts), and include actionable buttons and deep links into the app. Respect user preferences and rate limits — include unsubscribe and quiet-hours options, follow consent/GDPR rules (store consent server-side), and avoid spammy behavior. Implement push handling in the Service Worker to show notifications when appropriate, handle `notificationclick` to route users to relevant views, and capture delivery/engagement metrics for analytics and A/B testing.
 
 ### 2.3 IoT & Future Platforms (Optional)
-
 - [Describe potential future integrations, e.g., Voice Assistants, Wearables, AR/VR.]
+
+## IoT
+
+- Install IoT devices in soda making machine to track:
+  - Stock levels
+  - Temperature
+  - Machine Health
+  - Sales per location
+- Connects to the PWA to dyamically show the avliableility of items 
+
+- Integrate AI with Iot to provide:
+  - Demand Forecasting 
+  - Dynamic Pricing
+  - Predictive Maintenance
+
+## Future Platforms 
+
+- Voice Assistant that allows the User a seemless expereience where they don't have to physically interact with the PWA and can simiply navigate to where they need to go and order. This would be usefuls for the visually impared or those who are doing an avtivity that requires sight such as driving. 
 
 ---
 
