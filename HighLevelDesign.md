@@ -203,9 +203,10 @@ Codepop must be resilient against common vulnerabilities, including but not limi
  - `orders`: Stores customer orders and fulfillment state (order_id, customer_id, store_id, items JSON, total, payment_token_reference, status, timestamps, fulfillment_queue_id). Designed for immutable audit trails and retryable processing.
  - `inventory`: Stores product and per-store inventory data (product_id, store_id, quantity_on_hand, low_stock_threshold, recent_restock_events, ingredient_batches). Used for availability checks, forecasting, and automated restock triggers.
 
-### 5.4 Component Diagram
+### 5.4 Client & Employee Class Diagrams
 
-> [Insert UML Component Diagram Here]
+![UserClasses](misc/ClassUsers.png)
+![RoleClasses](misc/ClassRoles.png)
 
 ---
 
