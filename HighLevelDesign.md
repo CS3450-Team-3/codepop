@@ -1,23 +1,6 @@
-> **Remove on document completion:**
->
-> These points are addressed in the document:
-> A Hardware Platform is chosen (mobile, web app, desktop, etc.)
-> User Interface - consider branding, color schemes, skins, the flow from one area to another
-> Input and Output - the kinds of I/O to be processed, and how much of it there will be
-> The project is divided into components
->
-> - Internal Interfaces - how these components will interact with each other
-> - External Interfaces - which systems the system will interact with
->
-> Include expressive diagrams that capture the architecture, components, and interactions within the system. Different types of diagrams serve various purposes:
->
-> - UML Class Diagrams are great for object-oriented design
-> - UML Sequence Diagrams help to visualize the flow of control in a system, capturing the interactions among components in terms of sequenced messages
-> - UML Use Cases capture the functional requirements of a system from the perspective of users
-
 # Codepop High Level Design Documentation
 
-**Version:** 0.5
+**Version:** 1
 
 **Date:** February 2026
 
@@ -59,13 +42,14 @@ Customers will access Codepop from personal devices (smartphones, tablets, or la
 
 ### 2.2 Web / Desktop
 
-- **Technology:** Code Pop will be made as a Progressive Web App (PWA) to be accessed as a website but feel more like an app to provide a more native interation for the User. 
+- **Technology:** Code Pop will be made as a Progressive Web App (PWA) to be accessed as a website but feel more like an app to provide a more native interation for the User.
 - **Service Workers:** Implement a Service Worker (using Workbox or a small custom worker) to provide reliable offline behavior and efficient caching. Precache the application shell (HTML, core JS/CSS, critical assets) so the app can load while offline. Use runtime caching strategies tuned per resource type: network-first for API requests with a short fallback cache, stale-while-revalidate for images and static assets, and cache-first for large immutable resources with proper cache versioning and max-age limits. Provide background sync for failed POSTs (order submission) so retries occur when connectivity returns. Ensure the Service Worker follows HTTPS requirements, handles updates gracefully (skipWaiting/clients.claim patterns with an optional user-visible update prompt), and exposes health/diagnostic hooks for remote monitoring.
 - **Manifest:** Include a complete `manifest.json` to enable installability and a native-like launch experience. Provide `name` and `short_name`, a descriptive `description`, `start_url`, `scope`, `display` (prefer `standalone`), `orientation`, `theme_color`, and `background_color`. Ship a full set of icons (PNG/SVG) at recommended sizes (48, 72, 96, 144, 192, 512) and include service-worker-aware icon references. Test installability on Chrome, Edge, and Safari (where supported) and document icon generation and caching requirements.
 - **Push Notifications:** Support opt-in Web Push using the Push API + Notifications API with VAPID keys for server authentication. Request permission using a contextual UX (ask after a user action or clear value exchange), allow segmentation (order updates, promotions, local store alerts), and include actionable buttons and deep links into the app. Respect user preferences and rate limits — include unsubscribe and quiet-hours options, follow consent/GDPR rules (store consent server-side), and avoid spammy behavior. Implement push handling in the Service Worker to show notifications when appropriate, handle `notificationclick` to route users to relevant views, and capture delivery/engagement metrics for analytics and A/B testing.
 
 ### 2.3 IoT & Future Platforms (Optional)
-- [Describe potential future integrations, e.g., Voice Assistants, Wearables, AR/VR.]
+
+The Codepop ecosystem leverages Internet of Things (IoT) telemetry to ensure machine reliability and inventory accuracy. Soda dispensing units will be equipped with networked sensors that communicate with the central backend via secure MQTT or HTTP protocols.
 
 ## IoT
 
@@ -74,16 +58,16 @@ Customers will access Codepop from personal devices (smartphones, tablets, or la
   - Temperature
   - Machine Health
   - Sales per location
-- Connects to the PWA to dyamically show the avliableility of items 
+- Connects to the PWA to dynamically show the availability of items
 
 - Integrate AI with Iot to provide:
-  - Demand Forecasting 
+  - Demand Forecasting
   - Dynamic Pricing
   - Predictive Maintenance
 
-## Future Platforms 
+## Future Platforms
 
-- Voice Assistant that allows the User a seemless expereience where they don't have to physically interact with the PWA and can simiply navigate to where they need to go and order. This would be usefuls for the visually impared or those who are doing an avtivity that requires sight such as driving. 
+- Voice Assistant that allows the User a seamless experience where they don't have to physically interact with the PWA and can simply navigate to where they need to go and order. This would be useful for the visually impaired or those who are doing an activity that requires sight such as driving.
 
 ---
 
@@ -181,7 +165,7 @@ Codepop must be resilient against common vulnerabilities, including but not limi
 
 ## 5. Internal Components
 
-[High-level architecture breakdown.]
+The Codepop system employs a robust 3-Tier Client-Server architecture designed to support a decentralized network of stores.
 
 ### 5.1 Component Definitions
 
@@ -199,9 +183,9 @@ Codepop must be resilient against common vulnerabilities, including but not limi
 
 **Potential Tables:**
 
- - `users`: Stores user accounts and profiles (user_id, email, hashed password, roles, preferences, default payment token references, device push tokens). Sensitive fields are hashed/encrypted and access is strictly controlled.
- - `orders`: Stores customer orders and fulfillment state (order_id, customer_id, store_id, items JSON, total, payment_token_reference, status, timestamps, fulfillment_queue_id). Designed for immutable audit trails and retryable processing.
- - `inventory`: Stores product and per-store inventory data (product_id, store_id, quantity_on_hand, low_stock_threshold, recent_restock_events, ingredient_batches). Used for availability checks, forecasting, and automated restock triggers.
+- `users`: Stores user accounts and profiles (user_id, email, hashed password, roles, preferences, default payment token references, device push tokens). Sensitive fields are hashed/encrypted and access is strictly controlled.
+- `orders`: Stores customer orders and fulfillment state (order_id, customer_id, store_id, items JSON, total, payment_token_reference, status, timestamps, fulfillment_queue_id). Designed for immutable audit trails and retryable processing.
+- `inventory`: Stores product and per-store inventory data (product_id, store_id, quantity_on_hand, low_stock_threshold, recent_restock_events, ingredient_batches). Used for availability checks, forecasting, and automated restock triggers.
 
 ### 5.4 Client & Employee Class Diagrams
 
@@ -222,46 +206,45 @@ Codepop must be resilient against common vulnerabilities, including but not limi
 6.  Client renders data.
 
 #### UML Sequence Diagram
-> sequenceDiagram
 
-    User->>Client: initiateOrder()
-    Client->>Controller: HTTPS request (order data)
+```mermaid
+sequenceDiagram
+  User->>Client: initiateOrder()
+  Client->>Controller: HTTPS request (order data)
 
-    Controller->>Service: validateRequest()
-    Service->>DB: fetchUser/session data
-    DB-->>Service: user data
+  Controller->>Service: validateRequest()
+  Service->>DB: fetchUser/session data
+  DB-->>Service: user data
 
-    Service->>Store: checkAvailability()
-    Store-->>Service: availabilityConfirmed
+  Service->>Store: checkAvailability()
+  Store-->>Service: availabilityConfirmed
 
-    Service->>Stripe: processPayment()
-    Stripe-->>Service: paymentResult
+  Service->>Stripe: processPayment()
+  Stripe-->>Service: paymentResult
 
-    alt Payment successful
-        Service->>DB: saveOrder()
-        Service->>Store: queueOrder()
-        Service-->>Controller: success response
-    else Payment failed
-        Service-->>Controller: error response
-    end
+  alt Payment successful
+      Service->>DB: saveOrder()
+      Service->>Store: queueOrder()
+      Service-->>Controller: success response
+  else Payment failed
+      Service-->>Controller: error response
+  end
 
-    Controller-->>Client: updated data/view
-    Client-->>User: render confirmation
+  Controller-->>Client: updated data/view
+  Client-->>User: render confirmation
+```
 
+### 6.2 Component Interfaces
 
-
-### 6.2 Component Interfaces 
-
- - **Client Interface:** Input/interaction contracts (touch/keyboard), display & accessibility requirements, offline caching and secure token storage.
- - **Server Interface:** REST API contracts (auth scopes, request/response shapes), versioning, rate-limiting, and observability hooks.
- - **Database Interface:** Django ORM access patterns, transactional boundaries, indexing/backup, and encryption-at-rest policies.
+- **Client Interface:** Input/interaction contracts (touch/keyboard), display & accessibility requirements, offline caching and secure token storage.
+- **Server Interface:** REST API contracts (auth scopes, request/response shapes), versioning, rate-limiting, and observability hooks.
+- **Database Interface:** Django ORM access patterns, transactional boundaries, indexing/backup, and encryption-at-rest policies.
 
 ---
 
 ## 7. External Interfaces
 
-
-Third-party services: Stripe for payments and tokenized card flows, OpenAI API (with an abstraction layer) for chat/recommendations and forecasting, mapping/geocoding providers for store selection and routing, OAuth SSO providers for optional social/enterprise login. 
+Third-party services: Stripe for payments and tokenized card flows, OpenAI API (with an abstraction layer) for chat/recommendations and forecasting, mapping/geocoding providers for store selection and routing, OAuth SSO providers for optional social/enterprise login.
 
 ### 7.1 Artificial Intelligence (AI)
 
@@ -270,29 +253,28 @@ Third-party services: Stripe for payments and tokenized card flows, OpenAI API (
   - _Option A (Selected):_ OpenAI API
   - _Option B (Rejected):_ Self-hosted Llama 2.
 
-| Feature / Factor | OpenAI API (Hosted) | Self-Hosted Llama 2 |
-|------------------|---------------------|---------------------|
-| Setup Speed | Very fast — simple API calls | Slow — infra + deployment required |
-| Upfront Cost | Low | Very high (GPUs, servers) |
-| Ongoing Cost | Usage-based (per token/request) | Infrastructure-based (power, hosting) |
-| Intelligence Quality | Very high (state-of-the-art) | Medium–high (lower out-of-box) |
-| Custom Training | Limited fine-tuning | Full fine-tuning control |
-| Data Privacy | Cloud processing | Full local control |
-| Scaling | Automatic | Manual scaling required |
-| Maintenance | Minimal | Heavy DevOps + ML ops |
-| Offline Capability | No | Yes (edge deployment possible) |
-| Latency Control | Dependent on API/network | Full control locally |
-| Reliability | Depends on provider uptime | Depends on your infra |
-| Feature Updates | Automatic improvements | Manual upgrades |
-| Multimodal (voice/image) | Native support | Requires extra tooling |
-| Best For MVPs | Excellent | Overkill |
-| Best For Enterprise | Good | Excellent |
-| Cost at Low Volume | Cheap | Expensive |
-| Cost at High Volume | Expensive | Cheaper long-term |
-| Recipe / IP Protection | Moderate | Strong |
-| Edge / Vending Deployment | Not suitable | Suitable |
-| Dev Team Required | Small | Large (ML + DevOps) |
-
+| Feature / Factor          | OpenAI API (Hosted)             | Self-Hosted Llama 2                   |
+| ------------------------- | ------------------------------- | ------------------------------------- |
+| Setup Speed               | Very fast — simple API calls    | Slow — infra + deployment required    |
+| Upfront Cost              | Low                             | Very high (GPUs, servers)             |
+| Ongoing Cost              | Usage-based (per token/request) | Infrastructure-based (power, hosting) |
+| Intelligence Quality      | Very high (state-of-the-art)    | Medium–high (lower out-of-box)        |
+| Custom Training           | Limited fine-tuning             | Full fine-tuning control              |
+| Data Privacy              | Cloud processing                | Full local control                    |
+| Scaling                   | Automatic                       | Manual scaling required               |
+| Maintenance               | Minimal                         | Heavy DevOps + ML ops                 |
+| Offline Capability        | No                              | Yes (edge deployment possible)        |
+| Latency Control           | Dependent on API/network        | Full control locally                  |
+| Reliability               | Depends on provider uptime      | Depends on your infra                 |
+| Feature Updates           | Automatic improvements          | Manual upgrades                       |
+| Multimodal (voice/image)  | Native support                  | Requires extra tooling                |
+| Best For MVPs             | Excellent                       | Overkill                              |
+| Best For Enterprise       | Good                            | Excellent                             |
+| Cost at Low Volume        | Cheap                           | Expensive                             |
+| Cost at High Volume       | Expensive                       | Cheaper long-term                     |
+| Recipe / IP Protection    | Moderate                        | Strong                                |
+| Edge / Vending Deployment | Not suitable                    | Suitable                              |
+| Dev Team Required         | Small                           | Large (ML + DevOps)                   |
 
 - **Resilience Strategy:** Implement an AI abstraction layer with configurable provider adapters, automatic failover to secondary providers or local/edge models and feature flags to gracefully degrade non‑critical features; ensure SLAs and data portability for migration.
 
