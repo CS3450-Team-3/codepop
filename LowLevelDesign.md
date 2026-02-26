@@ -403,7 +403,7 @@ Requirements:
 
 When a user creates an account:
 
-* The system assigns a home server based on geographic region, load balancing, or provisioning logic.
+* The system assigns a home server based on geographic region
 
 * All permanent and sensitive data is stored on that home server.
 
