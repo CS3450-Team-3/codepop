@@ -219,6 +219,16 @@ Tracks accounting and financial metrics associated with orders. _(Note: `OrderID
 
 ---
 
+#### **Table: `USER_Home_Server`** (Many-to-Many Join Table)
+
+Tracks user credentials with their home server.
+
+| id            | UserName               | Home Server               |
+| :------------ | :--------------------- | :--------------------- |
+| `primary_key` | `Username` from `user` | `Home Server id` |
+
+---
+
 #### Implementation Notes
 
 - **Foreign Keys**: In the actual PostgreSQL database, Django will append `_id` to the Foreign Key fields. For example, the `UserID` field in the `Preference` model will be created as `UserID_id` in the database to link to the `auth_user` table.
@@ -279,15 +289,15 @@ This system uses a distributed peer-to-peer (P2P) server model where each server
 
 The design ensures:
 
-Data locality for performance
+* Data locality for performance
 
-Authoritative ownership of sensitive information
+* Authoritative ownership of sensitive information
 
-Controlled replication of non-sensitive data
+* Controlled replication of non-sensitive data
 
-Secure inter-server communication
+* Secure inter-server communication
 
-Reduced cross-server API overhead
+* Reduced cross-server API overhead
 
 
 ### 6.0 Terms
@@ -304,7 +314,7 @@ Characteristics:
 
 * Processes all security-sensitive operations.
 
-* Maintains full user profile, permissions, and payment information.
+* Maintains full user profile, and permissions
 
 * Only one home server exists per user.
 
@@ -330,8 +340,6 @@ Data classified as requiring heightened security controls.
 Examples:
 
 * Password hashes
-
-* Payment tokens or card references
 
 * Multi-factor authentication secrets
 
@@ -451,11 +459,21 @@ These users:
 
 Since user data resides on a single home server, the visiting server must coordinate access.
 
+#### Account Creation
+
+  1) User enters information to create an account
+
+  2) Server checks table of all user information
+
+  3) if there is no match, account creation proceeds
+
+  4) User table is updated and sent to other servers.
+
 #### Login Process
 
 1) User submits credentials.
 
-2) Visiting server queries potential home servers.
+2) Server checks registry for all assigned users and routes to home server
 
 3) If credentials are valid:
 
@@ -490,31 +508,29 @@ Data Never Sent
 
 * Password hashes
 
-* Payment information
-
 * MFA secrets
 
 * Encryption keys
 ---
-#### Payment Processing
+#### Payment and Order Processing
 
-When a user initiates payment on a visiting server:
+When a user initiates payment on any server:
 
-1) Visiting server sends secure purchase request to home server.
+1) All payment will be handled by stripe.
 
-2) Home server validates:
+2) Order is created
 
-    * Session token
+    * Order ID generated
 
-    * Account permissions
+    * Order added to account history
 
-    * Payment method
+    * Order added to orders list
 
-3) Home server processes payment.
+3) Stripe processes payment
 
 4) Home server updates permanent order data.
 
-5) Confirmation is returned to visiting server.
+5) If order is on visiting server, order is saved to visiting server and home server.
 
 #### The visiting server never handles raw payment data.
 
@@ -524,19 +540,13 @@ When a user initiates payment on a visiting server:
 
 To reduce system-wide API load:
 
-1) Visiting server queries the 3 geographically closest servers.
+1) All users and their home server is stored on every server.
 
-2) If no match is found:
+2) Once a username match is found:
 
-    * Remaining servers are queried.
+    * Home server is contacted for logging in.
 
-3) Once a username match is found:
-
-    * Server location is cached.
-
-    * Future login attempts only contact that server.
-
-4) This reduces:
+3) This reduces:
 
     * Broadcast authentication overhead
 
@@ -545,13 +555,19 @@ To reduce system-wide API load:
     * Cross-server traffic
 ---
 
+#### User Table Updates
+
+The user table must be up to date across all servers.
+
+This table will be automatically updated every hour to ensure data parity.
+
+---
+
 #### Caching Strategy
 
 Visiting servers maintain:
 
 * Temporary cache of non-sensitive user data
-
-* Home server location mapping
 
 * Session tokens
 
