@@ -911,11 +911,95 @@ There are various common security risks potentially involved in the development 
 
 ### 8.1 Integration Details
 
-_Thoroughly explain integrations with third-party systems._
+The CodePop system integrates three key third-party services to enhance functionality and security. **Stripe** handles all payment processing through tokenization, ensuring raw card data never touches CodePop servers; payment intents are created server-side and processed client-side via Stripe Elements with webhook listeners for status updates, while all payment data is securely stored in Stripe's vault with only transaction IDs retained in the `order` table, maintaining PCI DSS compliance through server-side API authentication and HTTPS/TLS encryption. **OpenAI API** powers the AI drink recommendation engine by analyzing user preferences, order history, and flavor profiles to generate custom drink recipe recommendations using dynamically constructed prompts; responses are validated, parsed, and mapped to existing drink recipes in the `drink` table or used to create new entries, with request caching preventing duplicate API calls and fallback to predefined popular drinks if the API fails. **Google Maps API** provides geographic routing and location services for home server assignment during account creation, store locating functionality on the frontend, and visiting server detection during cross-region logins; Geocoding and Distance Matrix APIs determine user locations and calculate distances to nearby stores with results cached to optimize quota usage, while user location data is not permanently stored unless explicitly requested to prioritize privacy.
 
-- **Payments:** Stripe will be used as the payment processor. Following the information in the [Stripe Developer Documentation](https://docs.stripe.com/), we will ensure that the implementation is as secure as possible, and that the user's card information is safely handled.
-- **AI Integration:** [_(e.g., OpenAI API for drink recommendations - explain how the prompt is constructed and how the response is parsed)._]
-- **Mapping/Location:** [_(If utilizing Google Maps or similar for the 'Map' component)._]
+## 8. Third-Party Integrations
+
+### 8.1 Integration Details
+
+#### **Payments: Stripe**
+
+Stripe is integrated as the primary payment processor for all transactions within the CodePop system. The implementation follows PCI DSS compliance standards to ensure secure card handling.
+
+**Integration Details:**
+- Stripe's tokenization system ensures that raw card data never touches CodePop servers
+- Payment intent is created on the backend and processed client-side using Stripe Elements
+- Webhook endpoints listen for payment status updates (e.g., `payment_intent.succeeded`, `payment_intent.payment_failed`)
+- Failed payments are logged and users are notified via the `notification` table
+- All payment data is stored in Stripe's secure vault; CodePop only stores the Stripe transaction ID in the `order` table
+
+**Security Measures:**
+- No card data is cached or stored locally
+- All Stripe API calls use server-side authentication with secret keys
+- HTTPS/TLS encryption protects all client-server payment communication
+- PCI compliance is maintained through Stripe's hosted infrastructure
+
+---
+
+#### **AI Drink Recommendations: OpenAI API**
+
+The OpenAI API powers the AI-generated drink recommendation engine. This system analyzes user preferences and flavor profiles to suggest custom drink recipes.
+
+**Prompt Construction:**
+The system constructs prompts dynamically based on user data:
+
+```
+"Given a user with the following preferences: {user_preferences}, 
+past order history: {order_history}, 
+and flavor profile: {flavor_analysis}, 
+suggest a custom soda recipe using available syrups: {available_syrups}. 
+Include drink name, syrup combinations, add-ins, and estimated price."
+```
+
+**Response Parsing:**
+- OpenAI returns a structured JSON response containing:
+  - Drink name
+  - List of syrup IDs with flavor profiles from the `Flavors` table
+  - Add-in recommendations
+  - Estimated price
+- The response is validated and mapped to existing drink recipes in the `drink` table
+- If the recommended combination doesn't exist, a new drink record is created and added to `drink_favorite`
+
+**Implementation:**
+- Requests are made server-side (Django backend) to avoid exposing API keys
+- Response caching prevents duplicate API calls for similar user profiles
+- Fallback to predefined "popular drinks" if API fails
+
+---
+
+#### **Location Services: Google Maps API**
+
+Google Maps integration provides geographic routing, store locating, and regional user assignment.
+
+**Use Cases:**
+
+1. **User Home Server Assignment**
+   - During account creation, user's location is determined via their IP address or explicit location input
+   - Nearest regional server is assigned as their home server
+   - Geographic data is stored but not treated as sensitive information
+
+2. **Store Locator**
+   - Users can search for nearby CodePop locations on the "Find a Store" screen
+   - Map displays all available stores with real-time distance and travel time estimates
+   - Clicking a store shows hours, contact info, and current inventory levels
+
+3. **Visiting Server Detection**
+   - When a user logs in from a different region, the system calculates geographic distance
+   - If distance exceeds threshold, a nearby visiting server is assigned for reduced latency
+   - User location is updated in cache but not permanently stored on visiting server
+
+**Implementation:**
+- Geocoding API converts user addresses to coordinates
+- Distance Matrix API calculates travel distances between user and stores
+- Maps Embed API displays interactive map on storefront pages
+- All API calls are server-side authenticated using API keys
+- Results are cached to reduce API quota usage
+
+**Privacy Considerations:**
+- User precise location data is not permanently stored unless explicitly requested
+- Location queries are necessary only for account setup and visiting server assignment
+- Users can manually assign a preferred home server regardless of geography
+
 
 ---
 
