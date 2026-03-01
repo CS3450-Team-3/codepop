@@ -306,18 +306,185 @@ Below is a breakdown of how these tables satisfy these rules:
 
 A working prototype for the application can be found [here](https://www.figma.com/make/BtypY8RxTDdqVOn2As0ygv/CodePop).
 
-[_Insert prototypes for all user types (Admin, Manager, End User)._]
-
-- ![Home Screen](path/to/1_Home_Screen.png)
-- ![Drink Order Screen](path/to/2_Drink_Order_Screen.png)
+#### User 
+- ![Home Screen](/UI_UX/Home_Screen.png)
+- ![Drink Order Screen](UI_UX/Drink_Order.png)
+- ![User Profile](UI_UX/User_profile.png)
+##### Manager
+- ![Manager](UI_UX/Manager.png)
+- ![Logistics](UI_UX/Logistics.png)
+##### Admin
+- ![Admin](UI_UX/Admin.png)
+##### Super Admin
+- ![Super Admin](UI_UX/Super_Admin.png)
+- ![Super Admin Modules](UI_UX/Super_Admin_Modules.png)
 
 ### 5.2 User Flow
+#### Account Creation and Profile Setup
 
-[_Describe the user flow for key interactions (e.g., How a customer creates a custom drink, adds it to the cart, and checks out)._]
+1. User navigates to the registration page
+2. User enters email, password, and personal information
+3. System validates input and assigns home server based on geographic region
+4. User account is created in `auth_user` table
+5. User profile is replicated across all servers via hourly sync
+6. User receives confirmation email
+7. User is redirected to login page
+
+#### Login Process
+
+1. User enters email and password
+2. System queries user registry to locate home server
+3. Home server validates credentials against password hash
+4. Home server generates signed access token
+5. User session is established with expiration time
+6. User is redirected to home screen
+7. Non-sensitive user data (preferences, order history) is cached locally
+
+#### Logout Process
+
+1. User clicks logout button
+2. System invalidates current session token
+3. Cached data is cleared from client
+4. User is redirected to login page
+5. Session record is removed from visiting server (if applicable)
+
+#### AI-Generated Drink Selection
+
+1. User navigates to "Get Recommendation" feature
+2. System sends request to AI recommendation engine with user preferences
+3. AI analyzes user flavor profile and past orders
+4. AI generates drink recipe with syrup combinations from `drink` table
+5. Recommended drink is displayed with name, ingredients, and price
+6. User can save recommendation to favorites or add directly to cart
+7. Drink is added to `drink_favorite` table if saved, or to `order_drinks` if ordered
+
+#### Super Admin Capabilities
+
+Super admins can:
+
+- Promote or demote regular admins to/from admin status
+- Access all stores and user data across regions
+- Manage system-wide security policies
+- Override any store-level decision
+- Generate system-wide reports
+- Manage inter-server communication and P2P network configuration
+- Access audit logs across all servers
+
+**Process to Change Admin Access:**
+
+1. Super admin navigates to "User Management" section
+2. Super admin searches for target admin user
+3. Super admin selects user and clicks "Modify Permissions"
+4. Super admin toggles admin status on/off
+5. System updates user permissions in `auth_user` table
+6. Change is logged to audit trail with timestamp and super admin ID
+7. Target user receives notification of permission change
+8. If demoting, all admin sessions are invalidated immediately
+
+#### Regular Admin Capabilities
+
+Regular admins can:
+
+- View all orders and user data within their assigned region
+- Manage store managers and staff
+- Monitor inventory levels
+- Review financial reports and revenue data
+- Handle customer support and refund requests
+- Manage notifications and marketing messages
+- Access server health and performance metrics for their region
+- Cannot promote other users or modify system-wide settings
+
+#### Store Manager Responsibilities
+
+Store managers must:
+
+1. **Daily Operations**
+  - Monitor real-time order queue and fulfillment status
+  - Manage locker assignments and pickup coordination
+  - Track inventory levels via `inventory` table
+  - Respond to customer notifications and issues
+
+2. **Inventory Management**
+  - Check `ThresholdLevel` alerts in `inventory` table
+  - Reorder syrups, sodas, add-ins, and physical supplies when stock drops below threshold
+  - Log all inventory updates with timestamps
+  - Monitor expiration dates for perishable items
+
+
+3. **Order Management**
+  - Review pending orders from `order` table
+  - Coordinate drink preparation
+  - Assign locker combinations from `LockerCombo` field
+  - Update `OrderStatus` (Pending → Processing → Completed)
+  - Send pickup notifications when drinks are ready
+
+4. **Financial Oversight**
+  - Review daily revenue reports from `revenue` table
+  - Monitor payment statuses in `order` table (Pending, Paid, Failed)
+  - Process refunds for failed payments or customer complaints
+  - Generate end-of-day financial summaries
+
+5. **Quality Control**
+  - Ensure drinks match saved recipes from `drink` table
+  - Monitor customer ratings and feedback
+  - Address low-rated drinks or recurring complaints
+  - Update drink recipes if quality issues arise
+
+6. **Customer Service**
+  - Handle customer inquiries and complaints
+  - Process special orders or custom modifications
+  - Manage loyalty and preference programs
+  - Send promotional notifications via `notification` table
+
+7. **System Maintenance**
+  - Perform equipment checks and preventive maintenance
+  - Report technical issues to IT/Support team
+  - Ensure P2P server connectivity and data synchronization
+  - Monitor cache synchronization status with home server
+
 
 ### 5.3 Usability and Accessibility
 
-[_Explain how the interface supports usability and accessibility (e.g., high color contrast, intuitive navigation, clear error messages, and scalable fonts)._]
+
+The CodePop interface is designed to prioritize usability and accessibility across all user types and devices:
+
+**Visual Accessibility**
+- All text meets WCAG AA contrast ratios (minimum 4.5:1 for body text, 3:1 for large text)
+- Font sizes scale responsively with a minimum of 16px on mobile devices
+- Interactive elements have minimum touch targets of 44x44 pixels
+- Color is never the sole indicator of information; icons and text labels accompany all UI states
+
+**Navigation and Wayfinding**
+- Consistent header and navigation placement across all screens
+- Breadcrumb trails on multi-step workflows (account creation, checkout, order tracking)
+- Clear focus indicators for keyboard navigation
+- Descriptive page titles and section headings
+- Logical tab order following reading direction
+
+**Error Handling and Feedback**
+- Clear, plain-language error messages that explain what went wrong and how to fix it
+- Real-time validation feedback as users complete forms
+- Success confirmations after critical actions
+- Toast notifications for non-critical updates
+
+**Responsive Design**
+- Single-column, mobile-first layout that scales to desktop
+- Touch-friendly spacing for mobile interactions
+- Optimized layouts for screen readers
+- Support for system-level font scaling preferences
+
+**Assistive Technology Support**
+- Semantic HTML and ARIA labels for all interactive components
+- Form labels properly associated with inputs
+- Alternative text descriptions for all images
+- Keyboard navigation fully functional (no mouse required)
+- Compatible with screen readers (NVDA, JAWS, VoiceOver)
+
+**Progressive Enhancement**
+- Base functionality works without JavaScript
+- Service workers enable offline capabilities
+- Graceful degradation for older browsers
+
 
 ---
 
