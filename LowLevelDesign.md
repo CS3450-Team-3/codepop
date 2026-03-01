@@ -69,11 +69,31 @@ The purpose of this document is to provide a detailed, technical blueprint for t
 
 ### 1.2 Consistency with High-Level Design
 
-[_Describe how this low-level design builds upon and remains consistent with the high-level architecture outlined in the High-Level Design document._]
+The Low-Level Design remains fully consistent with the High-Level Design by preserving the defined three-tier architecture, maintaining clear separation between the client, server, and database layers.
+
+This document adheres strictly to the technology stack selected in the HLD, utilizing ReactJS for the frontend, Django for the backend, PostgreSQL for the database, and Stripe for payment processing. The LLD does not introduce new architectural technologies or structural deviations; rather, it implements and refines the design decisions established in the HLD.
+
+Security considerations outlined in the HLD are expanded upon in this document through detailed implementation strategies. This includes enforced data encryption in transit, hashed password storage using Django’s secure defaults, centralized storage of sensitive data on authoritative servers, and adherence to OWASP Top 10 security principles.
+
+The decentralized peer-to-peer architecture described in the HLD is further operationalized in the LLD through the formal definition of Home and Visiting servers. This includes clearly defined server roles, authentication workflows, data ownership rules, synchronization policies, and fault tolerance mechanisms. These refinements ensure secure and efficient inter-server communication while preserving the original decentralized vision.
+
+Additionally, the LLD supports the HLD’s goals regarding inventory tracking, predictive maintenance, and IoT telemetry by defining the Inventory table, Notification system, order and telemetry logging structures, and scalable REST-based device communication endpoints.
+
+Overall, the Low-Level Design does not deviate from the High-Level Design. Instead, it provides detailed technical implementations that reinforce and expand upon the architectural decisions previously established.
 
 ### 1.3 System Architecture
 
-[_Provide a clear and concise description of the overall system architecture (e.g., Client-Server architecture utilizing a ReactJS mobile frontend and a Django REST API backend)._]
+Each client is implemented as a ReactJS Progressive Web App. It is responsible for rendering the user interface, handling user input, and securely communicating with backend services over HTTPS. The client manages session tokens for authenticated users and supports offline capabilities through service workers. It is designed to function on both mobile and desktop platforms.
+
+Every server is responsible for authentication, authorization, and processing orders, including payment handling through Stripe. Business logic and request validation are handled at this level.
+
+Each server operates within a decentralized peer-to-peer network, where any store server can act as either a Home Server or a Visiting Server. Sensitive user data remains stored on the user’s Home Server. Communication between servers is secured using TLS to ensure encrypted data exchange.
+
+Users interact with the client, which sends HTTPS requests to the appropriate server. The server validates and processes the request, interacts with the database and/or external services as needed, and then returns a response to the client.
+
+Because the system uses a decentralized architecture, individual stores can operate independently while leveraging geographic distribution to reduce latency. This design supports horizontal scaling, as new stores can be deployed with the same software stack and integrate into the network without requiring architectural changes.
+
+The database uses PostgreSQL to store system data, including user accounts, order history, preferences, and related records. It enforces foreign key constraints and follows normalization principles to prevent redundancy and maintain consistent data integrity.
 
 ---
 
