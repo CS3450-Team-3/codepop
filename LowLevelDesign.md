@@ -170,8 +170,8 @@ The CodePop system is divided into nine major subsystems, each responsible for a
 5. **Inventory Management** — Tracks physical stock levels for sodas, syrups, add-ins, and supplies, and generates threshold alerts for restocking.
 6. **Notification System** — Delivers user-targeted and global alerts (e.g., order ready, low stock, promotional messages).
 7. **Payment & Revenue** — Integrates with Stripe to process payments and refunds, and records per-order financial data in the revenue ledger.
-8. **AI Drink Recommendation Engine** — Generates personalized drink recipes by applying cosine-similarity matching against a user's saved preferences and a CSV-backed ingredient dataset.
-9. **Customer Service Chatbot** — Provides a conversational AI interface (powered by DialoGPT) for handling wrong-drink and refund support flows.
+8. **AI Drink Recommendation Engine** — Generates personalized drink recipes by applying similarity matching against a user's saved preferences and a CSV-backed ingredient dataset.
+9. **Customer Service Chatbot** — Provides a conversational AI interface for handling wrong-drink and refund support flows.
 
 ---
 
@@ -1003,7 +1003,6 @@ When a user initiates payment on any server:
 
 5. If order is on visiting server, order is saved to visiting server and home server.
 
-#### The visiting server never handles raw payment data.
 
 ---
 
@@ -1178,7 +1177,7 @@ Each server maintains a local copy of the server registry, which contains one re
 | :---- | :---------- |
 | `ServerID` | Unique identifier for the server instance |
 | `ServerURL` | HTTPS endpoint used for inter-server API calls |
-| `StoreID` | Unique identifier for the store this server is dedicated to |
+| `RegionID` | Unique identifier for the region this server is dedicated to |
 | `Status` | Current availability status (`Active`, `Inactive`) |
 | `LastSeen` | Timestamp of the last successful health check response |
 
