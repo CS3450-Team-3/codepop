@@ -51,8 +51,8 @@ Table of contents:
       - [Authoritative Source](#authoritative-source)
       - [Inter-Server API](#inter-server-api)
     - [6.1 Home and Visiting Server Assignment](#61-home-and-visiting-server-assignment)
-      - [Single-Region Users](#single-region-users)
-      - [Multi-Region Users](#multi-region-users)
+      - [Store-Local Users](#store-local-users)
+      - [Cross-Store Users](#cross-store-users)
     - [6.2 Cross-Server User Session Handling](#62-cross-server-user-session-handling)
       - [Account Creation](#account-creation)
       - [Login Process](#login-process)
@@ -90,7 +90,7 @@ Table of contents:
 
 The purpose of this document is to provide a detailed, technical blueprint for the CodePop system. It outlines the specific classes, database schemas, security protocols, and deployment strategies necessary for the development sprints.
 
-This document serves as the authoritative reference for developers implementing the system. It covers the full deployment stack — from the ReactJS frontend to the Django backend, from the PostgreSQL database schema to the Google Cloud infrastructure on which all server instances run. Each server instance is packaged as a Docker container, ensuring environment consistency across all deployments. The same application codebase is deployed to every instance; instances are differentiated only by their associated database, which is scoped to the store or region they serve.
+This document serves as the authoritative reference for developers implementing the system. It covers the full deployment stack — from the ReactJS frontend to the Django backend, from the PostgreSQL database schema to the Google Cloud infrastructure on which all server instances run. Each server instance is packaged as a Docker container, ensuring environment consistency across all deployments. The same application codebase is deployed to every instance; instances are differentiated only by their associated database, which is scoped to the individual store it serves.
 
 ### 1.2 Consistency with High-Level Design
 
@@ -114,11 +114,11 @@ Each client is implemented as a ReactJS Progressive Web App. It is responsible f
 
 Every server is responsible for authentication, authorization, and processing orders, including payment handling through Stripe. Business logic and request validation are handled at this level.
 
-Each server operates within a decentralized peer-to-peer network, where any store server can act as either a Home Server or a Visiting Server. Sensitive user data remains stored on the user’s Home Server. Communication between servers is secured using TLS to ensure encrypted data exchange.
+Each server operates within a decentralized peer-to-peer network, where any store server can act as either a Home Server or a Visiting Server. Every individual store runs its own dedicated server instance. Sensitive user data remains stored on the user’s Home Server. Communication between servers is secured using TLS to ensure encrypted data exchange.
 
 Users interact with the client, which sends HTTPS requests to the appropriate server. The server validates and processes the request, interacts with the database and/or external services as needed, and then returns a response to the client.
 
-Because the system uses a decentralized architecture, individual stores can operate independently while leveraging geographic distribution to reduce latency. This design supports horizontal scaling, as new stores can be deployed with the same software stack and integrate into the network without requiring architectural changes.
+Because the system uses a decentralized architecture, each store operates its own independent server while participating in the broader network. This design supports horizontal scaling, as new store locations can be deployed with the same software stack and integrate into the network without requiring architectural changes.
 
 The database uses PostgreSQL to store system data, including user accounts, order history, preferences, and related records. It enforces foreign key constraints and follows normalization principles to prevent redundancy and maintain consistent data integrity.
 
@@ -126,13 +126,13 @@ The database uses PostgreSQL to store system data, including user accounts, orde
 
 All server instances are hosted on Google Cloud. Each instance runs inside a Docker container, which packages the full application runtime — the Django backend, its dependencies, and its configuration — into a portable, self-contained unit. This guarantees that every instance runs in an identical environment regardless of the underlying Google Cloud machine, eliminating environment-specific bugs and simplifying deployment.
 
-Every Google Cloud instance runs the same application code. Instances are differentiated solely by the PostgreSQL database they connect to. Each database is scoped to a specific store or region and holds only the data belonging to that instance's user base. This design means:
+Every Google Cloud instance runs the same application code. Instances are differentiated solely by the PostgreSQL database they connect to. Each database is scoped to a specific individual store and holds only the data belonging to that store's user base. This design means:
 
 - Adding a new store location requires only provisioning a new Google Cloud instance with a new database — no code changes are needed.
 - A rolling update to the application (e.g., a new feature or security patch) can be applied uniformly across all instances by updating the shared Docker image.
-- Database isolation ensures that a failure or data issue on one instance does not directly affect other instances.
+- Database isolation ensures that a failure or data issue on one store's instance does not directly affect other stores.
 
-This architecture maps directly onto the P2P model: each Docker container is an independent peer, capable of acting as a Home or Visiting Server, while Google Cloud's infrastructure provides the reliability and geographic distribution the system requires.
+This architecture maps directly onto the P2P model: each Docker container is an independent peer dedicated to a single store, capable of acting as a Home or Visiting Server, while Google Cloud's infrastructure provides the reliability and geographic distribution the system requires.
 
 ---
 
@@ -829,7 +829,7 @@ Examples:
 
 - Account settings
 
-- Region access permissions
+- Store access permissions
 
 ---
 
@@ -875,7 +875,7 @@ Requirements:
 
 When a user creates an account:
 
-- The system assigns a home server based on geographic region
+- The system assigns a home server based on the store where the account is created.
 
 - All permanent and sensitive data is stored on that home server.
 
@@ -883,7 +883,7 @@ When a user creates an account:
 
 ---
 
-#### Single-Region Users
+#### Store-Local Users
 
 Users such as:
 
@@ -901,7 +901,7 @@ These users:
 
 ---
 
-#### Multi-Region Users
+#### Cross-Store Users
 
 Users such as:
 
@@ -911,11 +911,11 @@ Users such as:
 
 These users:
 
-- Are routed dynamically based on geographic proximity.
+- May visit any store location, each of which runs its own dedicated server.
 
-- May connect to a visiting server if not near their home server.
+- When visiting a store other than the one where they registered, they are serviced by a visiting server.
 
-- Experience reduced latency via local routing.
+- Experience reduced latency when ordering at their home store.
 
 - If a user connects to a non-home server, that server operates as a visiting server.
 
@@ -1138,11 +1138,11 @@ When a home server comes back online:
 
 To ensure system scalability:
 
-- Home server assignment should distribute users evenly.
+- Each store's server manages users who registered at that store; new store locations are onboarded by provisioning a new server instance.
 
 - Visiting servers should monitor CPU and memory usage.
 
-- Geographic routing should consider both latency and server load.
+- Routing should direct users to their home store's server when possible, and to the nearest available store server otherwise.
 
 - Health checks must determine server availability.
 
@@ -1180,7 +1180,7 @@ Each server maintains a local copy of the server registry, which contains one re
 | :---- | :---------- |
 | `ServerID` | Unique identifier for the server instance |
 | `ServerURL` | HTTPS endpoint used for inter-server API calls |
-| `Region` | Geographic region this server serves |
+| `StoreID` | Unique identifier for the store this server is dedicated to |
 | `Status` | Current availability status (`Active`, `Inactive`) |
 | `LastSeen` | Timestamp of the last successful health check response |
 
