@@ -415,8 +415,6 @@ classDiagram
 
 ### 4.1 Database Tables and Schema
 
-[_Define database tables, including column names, data types, and foreign key relationships._]
-
 #### **Table: `preference`**
 
 Stores user-specific app or drink preferences.
