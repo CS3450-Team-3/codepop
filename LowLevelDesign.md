@@ -1329,12 +1329,183 @@ Google Maps integration provides geographic routing, store locating, and regiona
 
 ### 9.1 Deployment Strategy
 
-[_Outline the system's deployment plan (e.g., Heroku, AWS EC2, or PythonAnywhere for the backend; ReactJS + PWA for the frontend)._]
+## Deployment Architecture
+
+**Frontend Deployment (React PWA)**
+- Built as a Progressive Web App using React
+- Static assets (HTML, CSS, JS) hosted on Google Cloud Storage or Cloud CDN
+- Service workers enable offline functionality and caching
+- Deployed via CI/CD pipeline; changes trigger automatic builds and distribution to CDN
+- Users access via HTTPS; PWA installs to home screen on mobile/desktop
+
+**Backend Deployment (Django)**
+- Django application packaged in Docker containers
+- Each container runs on a separate Google Cloud Compute Engine instance
+- Environment configuration (database connection, API keys, secrets) injected at runtime
+- Database: PostgreSQL instance on Google Cloud SQL (separate from each server instance for data isolation)
+- API endpoints exposed over HTTPS; all requests validated and authenticated
+
+**Inter-Service Communication**
+- Frontend communicates with backend via REST API over HTTPS
+- Backend instances communicate securely via TLS for P2P operations
+- API Gateway (optional) routes requests to appropriate backend instance based on region/home server assignment
+
+**Continuous Deployment (CI/CD)**
+- Git commits trigger automated testing and linting
+- On merge to main branch, Docker image is built and pushed to Container Registry
+- All running instances pull and deploy the new image with zero-downtime rolling updates
+- Database migrations applied automatically during deployment
+
+**Monitoring & Scaling**
+- Google Cloud Monitoring tracks CPU, memory, disk, and network metrics across instances
+- Auto-scaling policies adjust instance count based on traffic and resource utilization
+- Logs aggregated to Google Cloud Logging with alerts for errors and anomalies
+- Health checks ensure failed instances are replaced automatically
+
 
 ### 9.2 Automated Testing and Monitoring
 
-- **Testing:** [Detail the automated testing setup (e.g., Django unit tests `tests.py` for API endpoints and models).]
-- **Monitoring:** [Explain how you will monitor for crashes or errors (e.g., Django logging, Expo error reporting).]
+#### Testing Strategy
+
+The CodePop system employs a multi-layered testing approach to ensure code quality, prevent regressions, and maintain system reliability across all deployment instances.
+
+**Unit Testing**
+
+Django unit tests validate individual model methods, serializer validation logic, and API endpoint behavior:
+
+- **Model Tests** (`tests/test_models.py`): Test model methods such as `Drink.addFavorite()`, `Inventory.is_out_of_stock()`, and `Revenue.calculate_total_amount()`. These tests verify that business logic executes correctly in isolation.
+- **Serializer Tests** (`tests/test_serializers.py`): Test validation logic for all serializers (e.g., `PreferenceSerializer.validate_Preference()`, `DrinkSerializer.validate_Size()`, `OrderSerializer.validate_Drinks()`). These ensure invalid data is rejected and valid data is transformed correctly.
+- **View/API Tests** (`tests/test_views.py`): Test each API endpoint with valid and invalid payloads, verifying correct HTTP status codes, response structure, and permission checks. For example:
+  - `CreateUserAPIView` is tested with valid and duplicate usernames
+  - `OrderOperations` is tested for partial updates and drink addition/removal
+  - `InventoryUpdateAPIView` is tested for quantity changes and threshold warnings
+  - Inter-server API endpoints are tested with malformed authentication headers
+
+**Integration Testing**
+
+Integration tests validate workflows spanning multiple subsystems:
+
+- Cross-subsystem flows such as user registration → preference setting → order creation → payment processing are tested end-to-end.
+- P2P server interactions are tested, including home/visiting server handshakes, session token validation, and data synchronization.
+- Payment workflow integration with Stripe is tested using Stripe's test mode, verifying webhook handling and transaction logging.
+
+**Security Testing**
+
+Security-focused tests validate mitigation of OWASP Top 10 risks:
+
+- **SQL Injection Prevention**: Attempts to inject SQL via user input fields are tested to confirm Django ORM rejects malformed queries.
+- **XSS Prevention**: Attempts to input `<script>` tags in username, preference, and message fields are verified to render as plain text in responses.
+- **CSRF Protection**: State-changing requests (POST, PUT, DELETE) without valid CSRF tokens are rejected.
+- **Authentication/Authorization**: Attempts to access protected endpoints without valid tokens or with insufficient permissions are rejected.
+
+**Continuous Integration (CI)**
+
+All unit and integration tests run automatically on every commit to the main repository branch:
+
+- Tests must pass before code is merged.
+- Test coverage reports are generated to identify untested code paths (target minimum 80% coverage).
+- Linting checks (using `pylint` and `flake8`) enforce code style and detect common errors.
+- Type checking (using `mypy` for Python) catches type-related bugs early.
+
+---
+
+#### Monitoring and Observability
+
+The system implements comprehensive monitoring across application, infrastructure, and P2P communication layers.
+
+**Application Logging**
+
+Django's built-in logging framework captures all relevant system events:
+
+- **INFO Level**: User actions (login, order creation, preference updates), API requests, and authentication events.
+- **WARNING Level**: Inventory threshold breaches, payment failures, failed authentication attempts, and Stripe API errors.
+- **ERROR Level**: Unhandled exceptions, database constraint violations, third-party service failures, and inter-server communication errors.
+- **DEBUG Level**: Detailed request payloads, serializer validation steps, and ORM query logs (disabled in production).
+
+Logs are structured in JSON format to enable machine parsing and correlation:
+
+```json
+{
+  "timestamp": "2024-01-15T14:23:45Z",
+  "level": "ERROR",
+  "user_id": 123,
+  "request_id": "abc-xyz-789",
+  "subsystem": "Payment",
+  "message": "Stripe refund failed",
+  "stripe_error_code": "rate_limit",
+  "order_id": 456
+}
+```
+
+**Error Tracking and Alerting**
+
+Critical errors are captured and alerted on immediately:
+
+- Unhandled exceptions are logged with full stack traces and context (user ID, request data, server ID).
+- Payment processing failures trigger alerts to operations staff and are logged to the `notification` table for user notification.
+- Inter-server communication failures (home server unreachable, authentication token rejection) are logged and trigger failover logic.
+- Database connection pool exhaustion or slow queries exceeding configurable thresholds trigger alerts.
+
+**Infrastructure Monitoring**
+
+Google Cloud monitoring tracks infrastructure health across all deployed instances:
+
+- **CPU and Memory Usage**: Each Docker container's resource utilization is monitored. Alerts fire if CPU exceeds 80% or memory exceeds 85%.
+- **Disk Space**: Storage usage on each instance is monitored; alerts fire if free disk space drops below 10%.
+- **Network I/O**: Incoming and outgoing network traffic is tracked to detect unusual spikes or DDoS-like patterns.
+- **Container Health**: Docker containers are monitored for restart frequency; unexpected restarts trigger alerts.
+
+**P2P Network Health**
+
+Inter-server communication is monitored to ensure network resilience:
+
+- **Health Check Status**: The result of each peer-to-peer health check (success, timeout, connection refused) is logged with timestamp.
+- **Home Server Availability**: If a home server fails health checks, it is marked as `Inactive` and users are routed to alternative servers; this transition is logged and alerted.
+- **Sync Lag**: The time difference between the last successful hourly sync and current time is monitored. If lag exceeds 2 hours, an alert is triggered.
+- **Inter-Server Latency**: Round-trip time for inter-server API calls is measured and logged. Latency spikes may indicate network congestion or server performance issues.
+
+**Performance Monitoring**
+
+API response times are tracked to detect performance regressions:
+
+- Endpoint response times are aggregated and p95, p99 latencies are calculated.
+- Queries taking longer than configurable thresholds (e.g., >1 second) are logged as slow queries.
+- AI recommendation engine API calls to OpenAI are timed; timeouts or rate-limit responses trigger alerts.
+- Payment processing latency (time from order creation to Stripe success) is tracked.
+
+**User-Facing Metrics**
+
+High-level system health metrics are available via a `/health` endpoint:
+
+```json
+{
+  "status": "healthy",
+  "database_connection": "ok",
+  "home_servers_active": 5,
+  "visiting_servers_active": 12,
+  "orders_pending": 23,
+  "payment_success_rate": 0.989,
+  "average_api_latency_ms": 145
+}
+```
+
+**Log Aggregation and Retention**
+
+All logs from all server instances are aggregated centrally using Google Cloud Logging:
+
+- Logs are retained for 90 days for compliance and auditing.
+- Logs are queryable by timestamp, severity, subsystem, user ID, server ID, and custom fields.
+- Dashboards display real-time overview of system health, recent errors, and key metrics.
+- Alerts are configured for critical conditions (payment errors, server unavailability, data corruption indicators).
+
+**Testing of Monitoring Systems**
+
+Monitoring systems themselves are tested:
+
+- Synthetic transactions are periodically executed to ensure the full request/response flow works end-to-end.
+- Alert routing is tested to confirm that critical alerts reach on-call staff.
+- Log parsing and aggregation is validated to ensure logs are correctly indexed and searchable.
+
 
 ---
 
