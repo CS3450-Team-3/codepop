@@ -140,16 +140,20 @@ This architecture maps directly onto the P2P model: each Docker container is an 
 
 ### 2.1 Languages, Libraries, and Frameworks
 
-- **Frontend:** ReactJS
-- **Backend:** Django (Python)
-- **Database:** PostgreSQL
-- **Other Tools:** Stripe (payment processor)
+- **Frontend:** ReactJS (Progressive Web App architecture utilizing functional components and hooks)
+- **Backend:** Django (Python-based framework handling business logic, authentication and API endpoints)
+- **Database:** PostgreSQL (relational database system for persistent data storage)
+- **Other Tools:** Stripe (secure third-party payment processor)
 
 ### 2.2 Justification
 
-- **Design Choice:** [e.g. Utilizing ReactJS for frontend and Django for backend.]
-- **Alternatives Considered:** [e.g. Native iOS (Swift) / Android (Kotlin) for frontend, Node.js/Express for backend.]
-- **Rationale:** [e.g. ReactJS allows for cross-platform deployment with a single codebase, fitting project time constraints. Django provides a robust, out-of-the-box ORM, admin panel, and secure authentication handling, maximizing long-term maintainability.]
+- **Design Choice:**
+The system uses ReactJS for frontend and Django for the backend with PostgreSQL as the database and Stripe for payment.
+
+- **Alternatives Considered:** Native iOS (Swift) / Android (Kotlin) for frontend were considered but would require separate codebases overall slowing deployment and updates., Node.js with express was considered as a backend alternative, but we stuck with Django for it's security defaults and PostgreSQL integration.
+
+- **Rationale:**
+ReactJS enables cross-platform deployment through a single progressive app which supports both desktop and mobile. Django provides the framework with built-in authentication handling, ORM support, and administrative tools which help with the system's decentralized architecture. PostgreSQL helps with foreign key enforcement and scalability, along with Django having built-in support for it. Stripe was chosen to allow sensitive payment information to be stored elsewhere, this allows the decentralized network to not have to send saved payment info between servers.
 
 ---
 
