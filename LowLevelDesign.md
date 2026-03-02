@@ -161,27 +161,253 @@ ReactJS enables cross-platform deployment through a single progressive app which
 
 ### 3.1 Subsystem Breakdown
 
-[_Identify major subsystems here (e.g., User Authentication, Order Management, Catalog/Menu Management, AI Drink Recommendation)._]
+The CodePop system is divided into nine major subsystems, each responsible for a distinct functional domain:
+
+1. **User Authentication & Authorization** — Handles user registration, login, logout, and role-based access control (user, manager, admin, super admin).
+2. **User Preferences** — Stores and manages per-user flavor and drink preferences, which are also consumed by the AI recommendation engine.
+3. **Drink Management** — Manages the catalog of drinks (both standard menu items and user-created recipes), including ingredient definitions, ratings, sizing, and favorite tracking.
+4. **Order Management** — Orchestrates the full order lifecycle from cart creation through fulfillment, including drink assignment, locker combo issuance, and status transitions.
+5. **Inventory Management** — Tracks physical stock levels for sodas, syrups, add-ins, and supplies, and generates threshold alerts for restocking.
+6. **Notification System** — Delivers user-targeted and global alerts (e.g., order ready, low stock, promotional messages).
+7. **Payment & Revenue** — Integrates with Stripe to process payments and refunds, and records per-order financial data in the revenue ledger.
+8. **AI Drink Recommendation Engine** — Generates personalized drink recipes by applying cosine-similarity matching against a user's saved preferences and a CSV-backed ingredient dataset.
+9. **Customer Service Chatbot** — Provides a conversational AI interface (powered by DialoGPT) for handling wrong-drink and refund support flows.
+
+---
 
 ### 3.2 Detailed Class Definitions
 
-[_Break down each subsystem into specific classes. Explain how they adhere to the Single Responsibility Principle (SRP). Ensure you describe how inheritance is used appropriately to avoid complexity, and where composition is used to make objects work together._]
+Each subsystem is structured so that model classes own only data and domain-level behavior (SRP), serializer classes own only validation and transformation, and view classes own only HTTP request/response handling. Inheritance is used exclusively to extend Django REST Framework base classes, avoiding custom deep hierarchies. Composition is preferred when objects must collaborate — for example, views compose serializers for validation rather than embedding validation logic inline, and models expose ManyToMany relationships to compose related entities.
 
-**Subsystem 1: [Name]**
+---
 
-- `ClassName1`: Description of responsibility.
-  - _Fields:_ `field1 (type)`, `field2 (type)`
-  - _Methods:_ `method1()`, `method2()`
-- `ClassName2`: Description of responsibility.
+**Subsystem 1: User Authentication & Authorization**
 
-_(Repeat for other subsystems)_
+- `CustomAuthToken` _(extends `ObtainAuthToken`)_: Handles user login and token issuance.
+  - _Methods:_ `post(request)` — validates credentials, returns `token`, `user_id`, `first_name`, `is_staff`, `is_superuser`
+- `CreateUserAPIView` _(extends `CreateAPIView`)_: Handles user registration.
+  - _Methods:_ `post(request)` — creates a `User` record and its associated auth token
+- `LogoutUserAPIView` _(extends `APIView`)_: Handles user logout.
+  - _Methods:_ `post(request)` — deletes the requesting user's auth token; requires `IsAuthenticated`
+- `UserOperations` _(extends `ModelViewSet`)_: Provides super-admin user management (list, edit, delete).
+  - _Methods:_ `list()`, `post(request)` — edit user fields (username, name, password, role), `destroy(request)`; requires `IsSuperUser`
+- `IsSuperUser` _(extends `BasePermission`)_: Custom DRF permission gate.
+  - _Methods:_ `has_permission(request, view)` — returns `True` only if the user is authenticated and `is_superuser`
+- `CreateUserSerializer` _(extends `ModelSerializer`)_: Validates and securely creates user accounts.
+  - _Fields:_ `username`, `password` (write-only), `first_name`, `last_name`
+  - _Methods:_ `create(validated_data)` — calls `set_password()` to hash before saving
+- `GetUserSerializer` _(extends `ModelSerializer`)_: Read serializer for user data.
+  - _Fields:_ `id`, `username`, `password` (write-only), `first_name`, `last_name`, `is_staff`, `is_superuser`
+
+---
+
+**Subsystem 2: User Preferences**
+
+- `Preference` _(extends `Model`)_: Stores a single preference tag for a user.
+  - _Fields:_ `PreferenceID (AutoField PK)`, `UserID (ForeignKey → auth_user)`, `Preference (CharField, max 100)`
+  - _Methods:_ `__str__()` — returns preference description
+- `PreferencesOperations` _(extends `ModelViewSet`)_: Full CRUD for preferences; requires `IsAuthenticated`.
+  - _Methods:_ `list()`, `create()`, `retrieve()`, `update()`, `destroy()`
+- `UserPreferenceLookup` _(extends `ListAPIView`)_: Lists all preferences for a specific user.
+  - _Methods:_ `get_queryset()` — filters by `user_id` URL parameter
+- `PreferenceSerializer` _(extends `ModelSerializer`)_: Validates preferences against a fixed allow-list (~60 accepted flavor/style tags).
+  - _Fields:_ `PreferenceID`, `UserID`, `Preference`
+  - _Methods:_ `validate_Preference(value)` — raises `ValidationError` if value is not in the allowed set
+
+---
+
+**Subsystem 3: Drink Management**
+
+- `Drink` _(extends `Model`)_: Represents a drink recipe; the central entity of the catalog.
+  - _Fields:_ `DrinkID (AutoField PK)`, `Name (CharField, max 255)`, `SyrupsUsed (ArrayField)`, `SodaUsed (ArrayField)`, `AddIns (ArrayField)`, `Rating (FloatField, nullable)`, `Price (FloatField)`, `Size (CharField, default "m")`, `Ice (CharField, default "normal")`, `User_Created (BooleanField)`, `Favorite (ManyToManyField → auth_user)`
+  - _Methods:_ `addFavorite(userToAdd)`, `removeFavorite(userToRemove)`, `__str__()`
+- `DrinkOperations` _(extends `ModelViewSet`)_: Full CRUD for drinks; filters non-user-created drinks on list.
+  - _Methods:_ `list()`, `create()`, `retrieve()`, `update()`, `destroy()`; PATCH actions for adding/removing favorites
+- `UserDrinksLookup` _(extends `ListAPIView`)_: Lists all drinks favorited by a specific user.
+  - _Methods:_ `get_queryset()` — filters `Favorite` by `user_id` URL parameter
+- `DrinkSerializer` _(extends `ModelSerializer`)_: Validates drink creation and updates.
+  - _Fields:_ All `Drink` model fields
+  - _Methods:_ `validate_Size(value)` — accepts `['16oz', '24oz', '32oz']`; `validate_Ice(value)` — accepts `['none', 'light', 'regular', 'extra']`
+
+---
+
+**Subsystem 4: Order Management**
+
+- `Order` _(extends `Model`)_: Represents a customer order and its full lifecycle state.
+  - _Fields:_ `OrderID (AutoField PK)`, `UserID (ForeignKey → auth_user, nullable)`, `Drinks (ManyToManyField → Drink)`, `OrderStatus (CharField: pending/processing/completed/cancelled)`, `PaymentStatus (CharField: pending/paid/failed/remade)`, `PickupTime (DateTimeField, nullable)`, `CreationTime (DateTimeField, auto)`, `LockerCombo (BigIntegerField, nullable)`, `StripeID (CharField)`
+  - _Methods:_ `add_drinks(drink_ids)`, `remove_drinks(drink_ids)`, `__str__()`
+- `OrderOperations` _(extends `ModelViewSet`)_: Full CRUD for orders, including PATCH support for drink modifications.
+  - _Methods:_ `list()`, `create()`, `retrieve()`, `update()`, `partial_update()`, `destroy()`
+- `UserOrdersLookup` _(extends `ListCreateAPIView`)_: Lists and creates orders scoped to a specific user.
+  - _Methods:_ `get_queryset()` — filters by `user_id`; `perform_create()` — assigns `UserID` automatically
+- `OrderSerializer` _(extends `ModelSerializer`)_: Validates and creates orders, handling the ManyToMany drink assignment.
+  - _Fields:_ All `Order` model fields
+  - _Methods:_ `validate_Drinks(value)` — ensures drink list is non-empty; `create(validated_data)` — pops drinks, saves order, then calls `set()` on the M2M relation
+
+---
+
+**Subsystem 5: Inventory Management**
+
+- `Inventory` _(extends `Model`)_: Tracks a physical stock item at the store.
+  - _Fields:_ `InventoryID (AutoField PK)`, `ItemName (CharField, max 100)`, `ItemType (CharField: Soda/Syrup/Add In/Physical)`, `Quantity (PositiveIntegerField)`, `ThresholdLevel (PositiveIntegerField)`, `LastUpdated (DateTimeField, auto_now)`
+  - _Methods:_ `is_out_of_stock()` — returns `True` if `Quantity <= 0`; `__str__()`
+- `InventoryListAPIView` _(extends `ListAPIView`)_: Lists all inventory items that are not out of stock.
+  - _Methods:_ `get_queryset()` — filters by `Quantity > 0`
+- `InventoryReportAPIView` _(extends `APIView`)_: Generates an aggregate inventory report.
+  - _Methods:_ `get(request)` — returns total item count, out-of-stock count, and below-threshold count
+- `InventoryUpdateAPIView` _(extends `RetrieveUpdateAPIView`)_: Retrieves or updates a single inventory item; handles `reset_quantity` and `used_quantity` update modes; returns a warning when stock drops below `ThresholdLevel`.
+  - _Methods:_ `partial_update(request, pk)` — validates quantity change and returns threshold warning if applicable
+- `InventorySerializer` _(extends `ModelSerializer`)_: Serializes all inventory fields.
+  - _Fields:_ `InventoryID`, `ItemName`, `ItemType`, `Quantity`, `ThresholdLevel`, `LastUpdated`
+
+---
+
+**Subsystem 6: Notification System**
+
+- `Notification` _(extends `Model`)_: Stores a single alert or message for a user or for all users.
+  - _Fields:_ `NotificationID (AutoField PK)`, `UserID (ForeignKey → auth_user)`, `Message (CharField, max 500)`, `Timestamp (DateTimeField, default now)`, `Type (CharField, max 50)`, `Global (BooleanField, default False)`
+  - _Methods:_ `__str__()`
+- `NotificationOperations` _(extends `ModelViewSet`)_: Full CRUD for notifications; filters to return both global notifications and those targeted at the requesting user. Includes a `filter_by_time` custom action accepting ISO 8601 `start`/`end` query parameters.
+  - _Methods:_ `list()`, `create()`, `retrieve()`, `update()`, `destroy()`, `filter_by_time(request)`
+- `UserNotificationLookup` _(extends `ListAPIView`)_: Lists all notifications belonging to a specific user.
+  - _Methods:_ `get_queryset()` — filters by `user_id` URL parameter
+- `NotificationSerializer` _(extends `ModelSerializer`)_: Serializes all notification fields.
+  - _Fields:_ `NotificationID`, `UserID`, `Message`, `Timestamp`, `Type`, `Global`
+
+---
+
+**Subsystem 7: Payment & Revenue**
+
+- `Revenue` _(extends `Model`)_: Records the financial outcome of a completed order.
+  - _Fields:_ `RevenueID (AutoField PK)`, `OrderID (IntegerField)`, `TotalAmount (FloatField, default 0.0)`, `SaleDate (DateTimeField, default now)`, `Refunded (BooleanField, default False)`
+  - _Methods:_ `calculate_total_amount()` — sums `Price` for all drinks in the linked order; `save()` — overridden to auto-populate `TotalAmount` before insert; `__str__()`
+- `StripePaymentIntentView` _(extends `View`, CSRF exempt)_: Creates a Stripe PaymentIntent for the client-side payment flow.
+  - _Methods:_ `post(request)` — creates Stripe customer, ephemeral key, and payment intent; returns `paymentIntent`, `ephemeralKey`, `customer`, `publishableKey`
+- `refund_order(client_secret_or_id)`: Module-level helper function that calls the Stripe Refunds API to reverse a charge.
+- `RevenueViewSet` _(extends `ModelViewSet`)_: Full CRUD for revenue records.
+  - _Methods:_ `list()`, `create()`, `retrieve()`, `update()`, `destroy()`
+- `RevenueSerializer` _(extends `ModelSerializer`)_: Serializes revenue data and triggers auto-calculation on create.
+  - _Fields:_ `RevenueID`, `OrderID`, `TotalAmount`, `SaleDate`, `Refunded`
+  - _Methods:_ `create(validated_data)` — calls `calculate_total_amount()` after saving
+
+---
+
+**Subsystem 8: AI Drink Recommendation Engine**
+
+- `GenerateAIDrink` _(extends `APIView`)_: HTTP interface to the recommendation engine; works for both anonymous and authenticated users.
+  - _Methods:_ `get(request, user_id=None)` — loads user preferences (or defaults), delegates to `drinkAI.generate_soda()`, and returns a structured drink recipe
+- `generate_soda(user_preferences)` _(module function in `drinkAI.py`)_: Orchestrates the full recommendation pipeline.
+  - _Returns:_ dict with `SyrupsUsed`, `SodaUsed`, `AddIns`, `Size`, `Ice`, `UserCreated`
+- `generate_similar_syrup_preferences(user_preference)` _(module function)_: Uses `CountVectorizer` + cosine similarity to find the top 5 syrups that best match a user's flavor preference string.
+- `generate_best_soda(syrups, prefs)` _(module function)_: Selects a soda whose `best-match-flavors` column overlaps most with the chosen syrups' flavor profiles.
+- `generate_best_addins(syrups, soda, prefs, num)` _(module function)_: Selects add-ins whose `best-match-syrup` and `best-match-soda` columns align with the chosen syrups and soda.
+- `create_list(csv_file_name)` _(module function)_: Reads a CSV ingredient file and returns an array of ingredient names for lookup operations.
+
+---
+
+**Subsystem 9: Customer Service Chatbot**
+
+- `Chatbot` _(extends `APIView`)_: Manages a multi-turn conversational support session powered by Microsoft DialoGPT-medium.
+  - _Fields (session state):_ `phase` — current conversation stage (`init`, `1`, `collect`); `order_number` — captured order reference; `selected_drinks` — drinks flagged for refund/remake
+  - _Methods:_ `post(request)` — receives user message and conversation history, runs NLP-based intent matching (regex), advances the state machine (wrong-drink flow or refund flow), calls `refund_order()` when appropriate, and returns a structured JSON response with the next bot message and updated state
+
+---
 
 ### 3.3 UML Class Diagrams
 
-[_Insert your detailed UML class diagrams here. Ensure they outline class names, fields, methods, and relationships (inheritance, composition, aggregation)._]
+The diagram below shows the six Django model classes, their fields, key methods, and relationships (foreign keys and many-to-many associations). The built-in Django `auth_user` table is represented as `User`.
 
-![Backend UML Diagram](path/to/Backend_UML_Diagram.png)
-_(Ensure the diagram is updated and legible)_
+```mermaid
+classDiagram
+    class User {
+        +id : int
+        +username : str
+        +password : str
+        +first_name : str
+        +last_name : str
+        +email : str
+        +is_staff : bool
+        +is_superuser : bool
+    }
+
+    class Preference {
+        +PreferenceID : int
+        +UserID : FK → User
+        +Preference : str
+        +__str__() str
+    }
+
+    class Drink {
+        +DrinkID : int
+        +Name : str
+        +SyrupsUsed : list[str]
+        +SodaUsed : list[str]
+        +AddIns : list[str]
+        +Rating : float
+        +Price : float
+        +Size : str
+        +Ice : str
+        +User_Created : bool
+        +Favorite : M2M → User
+        +addFavorite(userToAdd)
+        +removeFavorite(userToRemove)
+        +__str__() str
+    }
+
+    class Order {
+        +OrderID : int
+        +UserID : FK → User
+        +Drinks : M2M → Drink
+        +OrderStatus : str
+        +PaymentStatus : str
+        +PickupTime : datetime
+        +CreationTime : datetime
+        +LockerCombo : int
+        +StripeID : str
+        +add_drinks(drink_ids)
+        +remove_drinks(drink_ids)
+        +__str__() str
+    }
+
+    class Inventory {
+        +InventoryID : int
+        +ItemName : str
+        +ItemType : str
+        +Quantity : int
+        +ThresholdLevel : int
+        +LastUpdated : datetime
+        +is_out_of_stock() bool
+        +__str__() str
+    }
+
+    class Notification {
+        +NotificationID : int
+        +UserID : FK → User
+        +Message : str
+        +Timestamp : datetime
+        +Type : str
+        +Global : bool
+        +__str__() str
+    }
+
+    class Revenue {
+        +RevenueID : int
+        +OrderID : int
+        +TotalAmount : float
+        +SaleDate : datetime
+        +Refunded : bool
+        +calculate_total_amount() float
+        +save()
+        +__str__() str
+    }
+
+    User "1" --> "0..*" Preference : has
+    User "1" --> "0..*" Notification : receives
+    User "0..1" --> "0..*" Order : places
+    User "0..*" <--> "0..*" Drink : favorites
+    Order "1" --> "1..*" Drink : contains
+    Order "1" --> "1" Revenue : generates
+```
 
 ---
 
