@@ -48,6 +48,7 @@ Table of contents:
       - [Sensitive Information](#sensitive-information)
       - [Permanent Data](#permanent-data)
       - [Ephemeral Data](#ephemeral-data)
+      - [Authoritative Source](#authoritative-source)
       - [Inter-Server API](#inter-server-api)
     - [6.1 Home and Visiting Server Assignment](#61-home-and-visiting-server-assignment)
       - [Single-Region Users](#single-region-users)
@@ -66,6 +67,10 @@ Table of contents:
     - [6.5 Server Failure and Fault Tolerance](#65-server-failure-and-fault-tolerance)
     - [6.6 Scalability and Load Balancing](#66-scalability-and-load-balancing)
     - [6.7 Data Privacy Model](#67-data-privacy-model)
+    - [6.8 Server Registration and Discovery](#68-server-registration-and-discovery)
+      - [Server Registry](#server-registry)
+      - [New Server Onboarding](#new-server-onboarding)
+      - [Health Checks](#health-checks)
   - [7. Security and Data Protection](#7-security-and-data-protection)
     - [7.1 Security Risks \& Mitigations](#71-security-risks--mitigations)
     - [7.2 Data Protection (In Transit and At Rest)](#72-data-protection-in-transit-and-at-rest)
@@ -85,6 +90,8 @@ Table of contents:
 
 The purpose of this document is to provide a detailed, technical blueprint for the CodePop system. It outlines the specific classes, database schemas, security protocols, and deployment strategies necessary for the development sprints.
 
+This document serves as the authoritative reference for developers implementing the system. It covers the full deployment stack — from the ReactJS frontend to the Django backend, from the PostgreSQL database schema to the Google Cloud infrastructure on which all server instances run. Each server instance is packaged as a Docker container, ensuring environment consistency across all deployments. The same application codebase is deployed to every instance; instances are differentiated only by their associated database, which is scoped to the store or region they serve.
+
 ### 1.2 Consistency with High-Level Design
 
 The Low-Level Design remains fully consistent with the High-Level Design by preserving the defined three-tier architecture, maintaining clear separation between the client, server, and database layers.
@@ -96,6 +103,8 @@ Security considerations outlined in the HLD are expanded upon in this document t
 The decentralized peer-to-peer architecture described in the HLD is further operationalized in the LLD through the formal definition of Home and Visiting servers. This includes clearly defined server roles, authentication workflows, data ownership rules, synchronization policies, and fault tolerance mechanisms. These refinements ensure secure and efficient inter-server communication while preserving the original decentralized vision.
 
 Additionally, the LLD supports the HLD’s goals regarding inventory tracking, predictive maintenance, and IoT telemetry by defining the Inventory table, Notification system, order and telemetry logging structures, and scalable REST-based device communication endpoints.
+
+The infrastructure choices made in this document are consistent with the HLD's operational goals. All server instances are hosted on Google Cloud, which provides the geographic distribution and reliability required by the P2P architecture. Each server instance runs inside a Docker container, ensuring reproducible, environment-agnostic deployments that match the HLD's goal of horizontal scalability. Because every instance runs identical application code and differs only in its connected database, new store locations can be onboarded by provisioning a new Google Cloud instance and database without any code changes — directly realizing the HLD's vision of an extensible, decentralized network.
 
 Overall, the Low-Level Design does not deviate from the High-Level Design. Instead, it provides detailed technical implementations that reinforce and expand upon the architectural decisions previously established.
 
@@ -112,6 +121,18 @@ Users interact with the client, which sends HTTPS requests to the appropriate se
 Because the system uses a decentralized architecture, individual stores can operate independently while leveraging geographic distribution to reduce latency. This design supports horizontal scaling, as new stores can be deployed with the same software stack and integrate into the network without requiring architectural changes.
 
 The database uses PostgreSQL to store system data, including user accounts, order history, preferences, and related records. It enforces foreign key constraints and follows normalization principles to prevent redundancy and maintain consistent data integrity.
+
+**Infrastructure and Deployment**
+
+All server instances are hosted on Google Cloud. Each instance runs inside a Docker container, which packages the full application runtime — the Django backend, its dependencies, and its configuration — into a portable, self-contained unit. This guarantees that every instance runs in an identical environment regardless of the underlying Google Cloud machine, eliminating environment-specific bugs and simplifying deployment.
+
+Every Google Cloud instance runs the same application code. Instances are differentiated solely by the PostgreSQL database they connect to. Each database is scoped to a specific store or region and holds only the data belonging to that instance's user base. This design means:
+
+- Adding a new store location requires only provisioning a new Google Cloud instance with a new database — no code changes are needed.
+- A rolling update to the application (e.g., a new feature or security patch) can be applied uniformly across all instances by updating the shared Docker image.
+- Database isolation ensures that a failure or data issue on one instance does not directly affect other instances.
+
+This architecture maps directly onto the P2P model: each Docker container is an independent peer, capable of acting as a Home or Visiting Server, while Google Cloud's infrastructure provides the reliability and geographic distribution the system requires.
 
 ---
 
@@ -598,7 +619,7 @@ Examples:
 
 ---
 
-Authoritative Source
+#### Authoritative Source
 
 The server that owns and validates a specific dataset. In this system, the home server is the authoritative source for all user account data.
 
@@ -676,30 +697,37 @@ Since user data resides on a single home server, the visiting server must coordi
 
 #### Account Creation
 
-1. User enters information to create an account
+1. User enters information to create an account.
 
-2. Server checks table of all user information
+2. Server checks the local user registry for a matching username or email.
 
-3. if there is no match, account creation proceeds
+3. If a match is found, the server returns an error and prompts the user to use a different username or email.
 
-4. User table is updated and sent to other servers.
+4. If there is no match, account creation proceeds.
+
+5. User table is updated and propagated to all other servers on the next hourly sync.
 
 #### Login Process
 
 1. User submits credentials.
 
-2. Server checks registry for all assigned users and routes to home server
+2. Server checks the local user registry to identify the user's home server.
 
-3. If credentials are valid:
+3. If the username is not found in the local registry, the login attempt is rejected. The client is informed that the account does not exist or that a sync delay may be in effect (see User Table Updates).
+
+4. Home server validates the submitted credentials against the stored password hash.
+
+5. If credentials are invalid:
+   - The home server returns an authentication failure response.
+   - The failed attempt is counted. After a configurable number of consecutive failures, the account is temporarily locked and the user is notified.
+
+6. If credentials are valid:
    - Home server generates a temporary signed access token.
+   - Visiting server establishes a session using the token.
 
-   - Visiting server establishes session using token.
-
-4. Visiting server stores:
+7. Visiting server stores:
    - Home server location
-
    - Non-sensitive cached data
-
    - Session expiration time
 
 Passwords are never transmitted in plain text and are never stored outside the home server.
@@ -777,6 +805,8 @@ The user table must be up to date across all servers.
 
 This table will be automatically updated every hour to ensure data parity.
 
+**Sync Window Consideration:** A newly created account may not be propagated to all servers until the next scheduled sync. If a user creates an account and then immediately attempts to log in at a different server within the same sync window, that server may not yet have a record for the user. In this case, the receiving server must return a clear error indicating that the account may not yet be available at this location, and direct the user to log in at the server where they registered or to retry after the sync interval.
+
 ---
 
 #### Caching Strategy
@@ -840,17 +870,39 @@ For secure P2P operation, servers must:
 
 ### 6.5 Server Failure and Fault Tolerance
 
+#### Visiting Server Failure
+
 If a visiting server fails:
 
-- User reconnects to nearest available server.
+- Users with active sessions on the visiting server lose their local cache.
 
-- Home server remains authoritative.
+- Users must log in again at the nearest available server.
+
+- Because no permanent data is stored on a visiting server, no data is lost.
+
+- The home server remains authoritative and unaffected.
+
+#### Home Server Failure
 
 If a home server fails:
 
-- User login is temporarily unavailable.
+- New login attempts for users assigned to that home server are rejected.
 
-- No other server may assume authority
+- Users who are already authenticated via a visiting server may continue their current session until the cached session token expires, after which re-authentication will fail until the home server is restored.
+
+- No other server may assume authority over the home server's data.
+
+- Writes to permanent or sensitive data (orders, account changes, preferences) are rejected for affected users while the home server is unavailable.
+
+#### Home Server Recovery
+
+When a home server comes back online:
+
+- It re-registers itself with the network (see Section 6.8).
+
+- All other servers resume routing authentication requests to it automatically, based on restored health check status.
+
+- No manual intervention is required for users to resume normal login once the server is marked active again.
 
 ### 6.6 Scalability and Load Balancing
 
@@ -885,6 +937,46 @@ This ensures:
 - Controlled data ownership
 
 - Predictable data consistency
+
+### 6.8 Server Registration and Discovery
+
+For servers to communicate with each other, each server must be known to the rest of the network. This is managed through a server registry that is replicated alongside the user table.
+
+#### Server Registry
+
+Each server maintains a local copy of the server registry, which contains one record per known server instance:
+
+| Field | Description |
+| :---- | :---------- |
+| `ServerID` | Unique identifier for the server instance |
+| `ServerURL` | HTTPS endpoint used for inter-server API calls |
+| `Region` | Geographic region this server serves |
+| `Status` | Current availability status (`Active`, `Inactive`) |
+| `LastSeen` | Timestamp of the last successful health check response |
+
+The registry is replicated across all servers using the same hourly sync mechanism as the user table.
+
+#### New Server Onboarding
+
+When a new Google Cloud instance is provisioned:
+
+1. An administrator manually adds the new server's entry to the registry on one existing server.
+
+2. The next hourly sync propagates the new server record to all other peers.
+
+3. On first startup, the new server pulls the full user table and server registry from any known peer.
+
+4. The new server begins accepting traffic once initial synchronization is complete.
+
+#### Health Checks
+
+Each server periodically contacts all known peers to confirm availability:
+
+- If a server does not respond within a timeout window, its `Status` is set to `Inactive` in the local registry.
+
+- When a previously inactive server responds again, its `Status` is restored to `Active` and normal routing resumes.
+
+- Health check state is maintained locally by each server and is not propagated via the hourly sync — each server independently determines peer availability.
 
 ## 7. Security and Data Protection
 
