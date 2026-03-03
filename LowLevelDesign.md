@@ -88,9 +88,7 @@ Table of contents:
 
 ### 1.1 Purpose
 
-The purpose of this document is to provide a detailed, technical blueprint for the CodePop system. It outlines the specific classes, database schemas, security protocols, and deployment strategies necessary for the development sprints.
-
-This document serves as the authoritative reference for developers implementing the system. It covers the full deployment stack — from the ReactJS frontend to the Django backend, from the PostgreSQL database schema to the Google Cloud infrastructure on which all server instances run. Each server instance is packaged as a Docker container, ensuring environment consistency across all deployments. The same application codebase is deployed to every instance; instances are differentiated only by their associated database, which is scoped to the individual store it serves.
+The purpose of this document is to provide a detailed, technical blueprint for the CodePop system. It outlines the specific classes, database schemas, security protocols, and deployment strategies necessary for the development sprints. It serves as the authoritative reference for developers implementing the system. It covers the full deployment stack — from the ReactJS frontend to the Django backend, from the PostgreSQL database schema to the Google Cloud infrastructure on which all server instances run. Each server instance is packaged as a Docker container, ensuring environment consistency across all deployments. The same application codebase is deployed to every instance; instances are differentiated only by their associated database, which is scoped to the individual store it serves.
 
 ### 1.2 Consistency with High-Level Design
 
@@ -105,8 +103,6 @@ The decentralized peer-to-peer architecture described in the HLD is further oper
 Additionally, the LLD supports the HLD’s goals regarding inventory tracking, predictive maintenance, and IoT telemetry by defining the Inventory table, Notification system, order and telemetry logging structures, and scalable REST-based device communication endpoints.
 
 The infrastructure choices made in this document are consistent with the HLD's operational goals. All server instances are hosted on Google Cloud, which provides the geographic distribution and reliability required by the P2P architecture. Each server instance runs inside a Docker container, ensuring reproducible, environment-agnostic deployments that match the HLD's goal of horizontal scalability. Because every instance runs identical application code and differs only in its connected database, new store locations can be onboarded by provisioning a new Google Cloud instance and database without any code changes — directly realizing the HLD's vision of an extensible, decentralized network.
-
-Overall, the Low-Level Design does not deviate from the High-Level Design. Instead, it provides detailed technical implementations that reinforce and expand upon the architectural decisions previously established.
 
 ### 1.3 System Architecture
 
@@ -1509,8 +1505,6 @@ Monitoring systems themselves are tested:
 ## 10. Task Breakdown and Team Assignments
 
 ### 10.1 Key Tasks and Feature Teams
-
-[_Identify, prioritize, and assign key tasks required to implement each subsystem._]
 
 | Priority | Task Description                           | Subsystem | Assigned Team   |
 | :------- | :----------------------------------------- | :-------- | :-------------- |
