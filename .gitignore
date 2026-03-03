@@ -26,3 +26,13 @@ mise.toml
 # ignore virtual environments
 venv/
 .python-version
+
+# Ignore PyProject Config
+pyproject.toml
+
+# Ignore Gemini-cli
+.gemini/
+conductor/
+
+# Ignore continue
+.continue/
