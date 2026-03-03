@@ -25,6 +25,7 @@ Table of contents:
       - [**Table: `user` (`auth_user`)**](#table-user-auth_user)
       - [**Table: `master_list`**](#table-master_list)
       - [**Table: `server_registry`**](#table-server_registry)
+      - [**Table: `user_movement`**](#table-user_movement)
       - [**Table: `preference`**](#table-preference)
       - [**Table: `drink`**](#table-drink)
       - [**Table: `Flavors`**](#table-flavors)
@@ -462,6 +463,16 @@ A global registry of all active store servers in the P2P network. It contains th
 | ServerID      | ServerURL      | PublicKey                     | Status          | LastSeen |
 | :------------ | :------------- | :---------------------------- | :-------------- | :------- |
 | `primary_key` | String (HTTPS) | Text (RSA/ED25519 Public Key) | Active/Inactive | DateTime |
+
+---
+
+#### **Table: `user_movement`**
+
+Acts as an immutable audit log for when a user's authoritative Home Server is reassigned. This ensures that if a server is offline during a migration, it can process this log upon reconnection to accurately update its `master_list` and maintain synchronization across the P2P network.
+
+| MovementID            | UserID                        | PreviousServerID        | NewServerID             | Timestamp              | Status                                |
+| :-------------------- | :---------------------------- | :---------------------- | :---------------------- | :--------------------- | :------------------------------------ |
+| `primary_key` (UUID7) | `id` (UUID7) from `auth_user` | FK to `server_registry` | FK to `server_registry` | DateTime (default now) | String (Initiated, Completed, Failed) |
 
 ---
 
