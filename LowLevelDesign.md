@@ -1290,7 +1290,7 @@ There are various common security risks potentially involved in the development 
 ### 7.2 Data Protection (In Transit and At Rest)
 
 - **In Transit:** All communications between the ReactJS app and Django backend will be encrypted using HTTPS/TLS.
-- **At Rest:** Sensitive user data (like passwords) will not be stored in plaintext. Django’s default PBKDF2 password hasher will be used, with the possibility of easily updating later to a newer algorithm (e.g. Argon2id) based on OWASP and NIST recommendations. Payment information is solely handled by Stripe.
+- **At Rest:** Sensitive user data (like passwords) will not be stored in plaintext. Django’s default PBKDF2 password hasher will be used, with the possibility of easily updating later to a newer algorithm (e.g. Argon2id) based on OWASP and NIST recommendations. Payment information is solely handled by Stripe. `django-encrypted-model-fields` will be used where possible (fields that aren't queried or filtered within the database).
 
 ---
 
