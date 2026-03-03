@@ -22,16 +22,18 @@ Table of contents:
     - [3.3 UML Class Diagrams](#33-uml-class-diagrams)
   - [4. Database Design](#4-database-design)
     - [4.1 Database Tables and Schema](#41-database-tables-and-schema)
+      - [**Table: `user` (`auth_user`)**](#table-user-auth_user)
+      - [**Table: `master_list`**](#table-master_list)
+      - [**Table: `server_registry`**](#table-server_registry)
       - [**Table: `preference`**](#table-preference)
       - [**Table: `drink`**](#table-drink)
       - [**Table: `Flavors`**](#table-flavors)
-      - [**Table: `drink_favorite`** (Many-to-Many Join Table)](#table-drink_favorite-many-to-many-join-table)
       - [**Table: `inventory`**](#table-inventory)
       - [**Table: `notification`**](#table-notification)
       - [**Table: `order`**](#table-order)
-      - [**Table: `order_drinks`** (Many-to-Many Join Table)](#table-order_drinks-many-to-many-join-table)
       - [**Table: `revenue`**](#table-revenue)
-      - [**Table: `USER_Home_Server`** (Many-to-Many Join Table)](#table-user_home_server-many-to-many-join-table)
+      - [**Table: `order_drinks`** (Many-to-Many Join Table)](#table-order_drinks-many-to-many-join-table)
+      - [**Table: `drink_favorite`** (Many-to-Many Join Table)](#table-drink_favorite-many-to-many-join-table)
       - [Implementation Notes](#implementation-notes)
     - [4.2 Normalization Justification](#42-normalization-justification)
       - [**First Normal Form (1NF):** Eliminating Repeating Groups](#first-normal-form-1nf-eliminating-repeating-groups)
@@ -39,7 +41,18 @@ Table of contents:
       - [**Third Normal Form (3NF):** Eliminating Transitive Dependencies](#third-normal-form-3nf-eliminating-transitive-dependencies)
   - [5. User Interface (UI) and Experience (UX)](#5-user-interface-ui-and-experience-ux)
     - [5.1 UI Prototypes](#51-ui-prototypes)
+      - [User](#user)
+        - [Manager](#manager)
+        - [Admin](#admin)
+        - [Super Admin](#super-admin)
     - [5.2 User Flow](#52-user-flow)
+      - [Account Creation and Profile Setup](#account-creation-and-profile-setup)
+      - [Login Process](#login-process)
+      - [Logout Process](#logout-process)
+      - [AI-Generated Drink Selection](#ai-generated-drink-selection)
+      - [Super Admin Capabilities](#super-admin-capabilities)
+      - [Regular Admin Capabilities](#regular-admin-capabilities)
+      - [Store Manager Responsibilities](#store-manager-responsibilities)
     - [5.3 Usability and Accessibility](#53-usability-and-accessibility)
   - [6. Peer to Peer Networking](#6-peer-to-peer-networking)
     - [6.0 Terms](#60-terms)
@@ -55,16 +68,18 @@ Table of contents:
       - [Cross-Store Users](#cross-store-users)
     - [6.2 Cross-Server User Session Handling](#62-cross-server-user-session-handling)
       - [Account Creation](#account-creation)
-      - [Login Process](#login-process)
+      - [Login Process](#login-process-1)
       - [Data Transfer Rules](#data-transfer-rules)
       - [Payment and Order Processing](#payment-and-order-processing)
-      - [The visiting server never handles raw payment data.](#the-visiting-server-never-handles-raw-payment-data)
     - [6.3 Data Synchronization and API Optimization](#63-data-synchronization-and-api-optimization)
       - [Login Discovery Process](#login-discovery-process)
       - [User Table Updates](#user-table-updates)
       - [Caching Strategy](#caching-strategy)
     - [6.4 Security Requirements for Peer-to-Peer Servers](#64-security-requirements-for-peer-to-peer-servers)
     - [6.5 Server Failure and Fault Tolerance](#65-server-failure-and-fault-tolerance)
+      - [Visiting Server Failure](#visiting-server-failure)
+      - [Home Server Failure](#home-server-failure)
+      - [Home Server Recovery](#home-server-recovery)
     - [6.6 Scalability and Load Balancing](#66-scalability-and-load-balancing)
     - [6.7 Data Privacy Model](#67-data-privacy-model)
     - [6.8 Server Registration and Discovery](#68-server-registration-and-discovery)
@@ -76,9 +91,15 @@ Table of contents:
     - [7.2 Data Protection (In Transit and At Rest)](#72-data-protection-in-transit-and-at-rest)
   - [8. Third-Party Integrations](#8-third-party-integrations)
     - [8.1 Integration Details](#81-integration-details)
+      - [**Payments: Stripe**](#payments-stripe)
+      - [**AI Drink Recommendations: OpenAI API**](#ai-drink-recommendations-openai-api)
+      - [**Location Services: Google Maps API**](#location-services-google-maps-api)
   - [9. Deployment Plan and DevOps](#9-deployment-plan-and-devops)
     - [9.1 Deployment Strategy](#91-deployment-strategy)
+  - [Deployment Architecture](#deployment-architecture)
     - [9.2 Automated Testing and Monitoring](#92-automated-testing-and-monitoring)
+      - [Testing Strategy](#testing-strategy)
+      - [Monitoring and Observability](#monitoring-and-observability)
   - [10. Task Breakdown and Team Assignments](#10-task-breakdown-and-team-assignments)
     - [10.1 Key Tasks and Feature Teams](#101-key-tasks-and-feature-teams)
 
@@ -143,13 +164,11 @@ This architecture maps directly onto the P2P model: each Docker container is an 
 
 ### 2.2 Justification
 
-- **Design Choice:**
-The system uses ReactJS for frontend and Django for the backend with PostgreSQL as the database and Stripe for payment.
+- **Design Choice:** The system uses ReactJS for frontend and Django for the backend with PostgreSQL as the database and Stripe for payment.
 
 - **Alternatives Considered:** Native iOS (Swift) / Android (Kotlin) for frontend were considered but would require separate codebases overall slowing deployment and updates., Node.js with express was considered as a backend alternative, but we stuck with Django for it's security defaults and PostgreSQL integration.
 
-- **Rationale:**
-ReactJS enables cross-platform deployment through a single progressive app which supports both desktop and mobile. Django provides the framework with built-in authentication handling, ORM support, and administrative tools which help with the system's decentralized architecture. PostgreSQL helps with foreign key enforcement and scalability, along with Django having built-in support for it. Stripe was chosen to allow sensitive payment information to be stored elsewhere, this allows the decentralized network to not have to send saved payment info between servers.
+- **Rationale:** ReactJS enables cross-platform deployment through a single progressive app which supports both desktop and mobile. Django provides the framework with built-in authentication handling, ORM support, and administrative tools which help with the system's decentralized architecture. PostgreSQL helps with foreign key enforcement and scalability, along with Django having built-in support for it. Stripe was chosen to allow sensitive payment information to be stored elsewhere, this allows the decentralized network to not have to send saved payment info between servers.
 
 ---
 
@@ -215,7 +234,7 @@ Each subsystem is structured so that model classes own only data and domain-leve
 **Subsystem 3: Drink Management**
 
 - `Drink` _(extends `Model`)_: Represents a drink recipe; the central entity of the catalog.
-  - _Fields:_ `DrinkID (AutoField PK)`, `Name (CharField, max 255)`, `SyrupsUsed (ArrayField)`, `SodaUsed (ArrayField)`, `AddIns (ArrayField)`, `Rating (FloatField, nullable)`, `Price (FloatField)`, `Size (CharField, default "m")`, `Ice (CharField, default "normal")`, `User_Created (BooleanField)`, `Favorite (ManyToManyField → auth_user)`
+  - _Fields:_ `DrinkID (UUID7)`, `Name (CharField, max 255)`, `SyrupsUsed (ArrayField)`, `SodaUsed (ArrayField)`, `AddIns (ArrayField)`, `Rating (FloatField, nullable)`, `Price (FloatField)`, `Size (CharField, default "m")`, `Ice (CharField, default "normal")`, `User_Created (BooleanField)`, `Favorite (ManyToManyField → auth_user)`
   - _Methods:_ `addFavorite(userToAdd)`, `removeFavorite(userToRemove)`, `__str__()`
 - `DrinkOperations` _(extends `ModelViewSet`)_: Full CRUD for drinks; filters non-user-created drinks on list.
   - _Methods:_ `list()`, `create()`, `retrieve()`, `update()`, `destroy()`; PATCH actions for adding/removing favorites
@@ -230,7 +249,7 @@ Each subsystem is structured so that model classes own only data and domain-leve
 **Subsystem 4: Order Management**
 
 - `Order` _(extends `Model`)_: Represents a customer order and its full lifecycle state.
-  - _Fields:_ `OrderID (AutoField PK)`, `UserID (ForeignKey → auth_user, nullable)`, `Drinks (ManyToManyField → Drink)`, `OrderStatus (CharField: pending/processing/completed/cancelled)`, `PaymentStatus (CharField: pending/paid/failed/remade)`, `PickupTime (DateTimeField, nullable)`, `CreationTime (DateTimeField, auto)`, `LockerCombo (BigIntegerField, nullable)`, `StripeID (CharField)`
+  - _Fields:_ `OrderID (UUID7)`, `UserID (ForeignKey → auth_user, nullable)`, `Drinks (ManyToManyField → Drink)`, `OrderStatus (CharField: pending/processing/completed/cancelled)`, `PaymentStatus (CharField: pending/paid/failed/remade)`, `PickupTime (DateTimeField, nullable)`, `CreationTime (DateTimeField, auto)`, `LockerCombo (BigIntegerField, nullable)`, `StripeID (CharField)`, `Synced (Boolean)`
   - _Methods:_ `add_drinks(drink_ids)`, `remove_drinks(drink_ids)`, `__str__()`
 - `OrderOperations` _(extends `ModelViewSet`)_: Full CRUD for orders, including PATCH support for drink modifications.
   - _Methods:_ `list()`, `create()`, `retrieve()`, `update()`, `partial_update()`, `destroy()`
@@ -275,7 +294,7 @@ Each subsystem is structured so that model classes own only data and domain-leve
 **Subsystem 7: Payment & Revenue**
 
 - `Revenue` _(extends `Model`)_: Records the financial outcome of a completed order.
-  - _Fields:_ `RevenueID (AutoField PK)`, `OrderID (IntegerField)`, `TotalAmount (FloatField, default 0.0)`, `SaleDate (DateTimeField, default now)`, `Refunded (BooleanField, default False)`
+  - _Fields:_ `RevenueID (UUID7)`, `OrderID (UUID7)`, `TotalAmount (FloatField, default 0.0)`, `SaleDate (DateTimeField, default now)`, `Refunded (BooleanField, default False)`
   - _Methods:_ `calculate_total_amount()` — sums `Price` for all drinks in the linked order; `save()` — overridden to auto-populate `TotalAmount` before insert; `__str__()`
 - `StripePaymentIntentView` _(extends `View`, CSRF exempt)_: Creates a Stripe PaymentIntent for the client-side payment flow.
   - _Methods:_ `post(request)` — creates Stripe customer, ephemeral key, and payment intent; returns `paymentIntent`, `ephemeralKey`, `customer`, `publishableKey`
@@ -316,7 +335,7 @@ The diagram below shows the six Django model classes, their fields, key methods,
 ```mermaid
 classDiagram
     class User {
-        +id : int
+        +id : uuid
         +username : str
         +password : str
         +first_name : str
@@ -334,7 +353,7 @@ classDiagram
     }
 
     class Drink {
-        +DrinkID : int
+        +DrinkID : uuid
         +Name : str
         +SyrupsUsed : list[str]
         +SodaUsed : list[str]
@@ -351,8 +370,9 @@ classDiagram
     }
 
     class Order {
-        +OrderID : int
+        +OrderID : uuid
         +UserID : FK → User
+        +OriginatingServer : FK → server_registry
         +Drinks : M2M → Drink
         +OrderStatus : str
         +PaymentStatus : str
@@ -360,6 +380,7 @@ classDiagram
         +CreationTime : datetime
         +LockerCombo : int
         +StripeID : str
+        +Synced : boolean
         +add_drinks(drink_ids)
         +remove_drinks(drink_ids)
         +__str__() str
@@ -387,8 +408,8 @@ classDiagram
     }
 
     class Revenue {
-        +RevenueID : int
-        +OrderID : int
+        +RevenueID : uuid
+        +OrderID : FK → order
         +TotalAmount : float
         +SaleDate : datetime
         +Refunded : bool
@@ -411,6 +432,39 @@ classDiagram
 
 ### 4.1 Database Tables and Schema
 
+#### **Table: `user` (`auth_user`)**
+
+Stores the user credentials and basic information. This table is **local** to each server and contains sensitive data (password hashes) only for users whose Home Server is this specific instance.
+
+| id                    | username        | password        | email           | first_name | last_name | is_staff | is_superuser |
+| :-------------------- | :-------------- | :-------------- | :-------------- | :--------- | :-------- | :------- | :----------- |
+| `primary_key` (UUID7) | String (unique) | String (hashed) | String (unique) | String     | String    | Boolean  | Boolean      |
+
+- **Security Note:** Password hashes are never synchronized. A server only contains `auth_user` records for users who registered at that specific store.
+- **UUID7 Usage:** This is used to make it easier to sort users and query the database for synchronization, as the first part is a timestamp.
+
+---
+
+#### **Table: `master_list`**
+
+A global mapping table synchronized across all servers in the network. It allows a visiting server to identify which Home Server possesses a user's authoritative credentials.
+
+| UserID                | Username | HomeServerID            |
+| :-------------------- | :------- | ----------------------- |
+| `primary_key` (UUID7) | String   | FK to `server_registry` |
+
+---
+
+#### **Table: `server_registry`**
+
+A global registry of all active store servers in the P2P network. It contains the network addresses and public keys required for secure inter-server communication and JWT verification.
+
+| ServerID      | ServerURL      | PublicKey                     | Status          | LastSeen |
+| :------------ | :------------- | :---------------------------- | :-------------- | :------- |
+| `primary_key` | String (HTTPS) | Text (RSA/ED25519 Public Key) | Active/Inactive | DateTime |
+
+---
+
 #### **Table: `preference`**
 
 Stores user-specific app or drink preferences.
@@ -425,11 +479,9 @@ Stores user-specific app or drink preferences.
 
 Stores the recipes and metadata for custom sodas, whether they are standard menu items or created by a user.
 
-| DrinkID       | Name               | SyrupsUsed       | SodaUsed         | AddIns           | Rating           | Price | Size                 | Ice                       | User_Created |
-| :------------ | :----------------- | :--------------- | :--------------- | :--------------- | :--------------- | :---- | :------------------- | :------------------------ | :----------- |
-| `primary_key` | String (max `255`) | Array of Strings | Array of Strings | Array of Strings | Float (nullable) | Float | String (default `m`) | String (default `normal`) | Boolean      |
-
----
+| DrinkID               | Name               | SyrupsUsed       | SodaUsed         | AddIns           | Rating           | Price | Size                 | Ice                       | User_Created |
+| :-------------------- | :----------------- | :--------------- | :--------------- | :--------------- | :--------------- | :---- | :------------------- | :------------------------ | :----------- |
+| `primary_key` (UUID7) | String (max `255`) | Array of Strings | Array of Strings | Array of Strings | Float (nullable) | Float | String (default `m`) | String (default `normal`) | Boolean      |
 
 ---
 
@@ -439,16 +491,6 @@ Stores the types of flavors inside of the syrup or soda so the AI can better mat
 | Syrup ID | Name | Primary Flavor | Secondary Flavor | Tertiary Flavor |
 | :------------ | :----------------- | :--------------- | :--------------- | :--------------- |
 | `primary_key` | String (max `255`) | String | String | String |
-
----
-
-#### **Table: `drink_favorite`** (Many-to-Many Join Table)
-
-Automatically generated by Django to handle the `ManyToManyField` for users favoriting specific drinks.
-
-| id            | drink_id               | user_id               |
-| :------------ | :--------------------- | :-------------------- |
-| `primary_key` | `DrinkID` from `drink` | `id` from `auth_user` |
 
 ---
 
@@ -474,11 +516,21 @@ Stores alerts and messages to be sent to users (e.g., when their soda is ready i
 
 #### **Table: `order`**
 
-Manages customer orders, their payment statuses, and fulfillment details (like locker combinations).
+Manages customer orders, their payment statuses, fulfillment details (like locker combinations), and acts as the authoritative historical ledger for a user's transactions across the entire peer-to-peer network.
 
-| OrderID       | UserID                           | OrderStatus                                        | PaymentStatus                          | PickupTime          | CreationTime        | LockerCombo           | StripeID |
-| :------------ | :------------------------------- | :------------------------------------------------- | :------------------------------------- | :------------------ | :------------------ | :-------------------- | :------- |
-| `primary_key` | `id` from `auth_user` (nullable) | String (Pending, Processing, Completed, Cancelled) | String (Pending, Paid, Failed, Remade) | DateTime (nullable) | DateTime (Auto-add) | BigInteger (nullable) | String   |
+| OrderID               | UserID                           | OrderStatus                                        | PaymentStatus                          | PickupTime          | CreationTime        | LockerCombo           | StripeID                  | Synced                    |
+| :-------------------- | :------------------------------- | :------------------------------------------------- | :------------------------------------- | :------------------ | :------------------ | :-------------------- | :------------------------ | :------------------------ |
+| `primary_key` (UUID7) | `id` from `auth_user` (nullable) | String (Pending, Processing, Completed, Cancelled) | String (Pending, Paid, Failed, Remade) | DateTime (nullable) | DateTime (Auto-add) | BigInteger (nullable) | String (Unique, nullable) | Boolean (default `False`) |
+
+---
+
+#### **Table: `revenue`**
+
+Tracks accounting and financial metrics associated with orders.
+
+| RevenueID             | OrderID                        | TotalAmount           | SaleDate                 | Refunded                  |
+| :-------------------- | :----------------------------- | :-------------------- | :----------------------- | :------------------------ |
+| `primary_key` (UUID7) | `OrderID` (UUID7) from `order` | Float (default `0.0`) | DateTime (default `now`) | Boolean (default `False`) |
 
 ---
 
@@ -486,29 +538,19 @@ Manages customer orders, their payment statuses, and fulfillment details (like l
 
 Automatically generated by Django to handle the `ManyToManyField` linking multiple drinks to a single order.
 
-| id            | order_id               | drink_id               |
-| :------------ | :--------------------- | :--------------------- |
-| `primary_key` | `OrderID` from `order` | `DrinkID` from `drink` |
+| id            | order_id                       | drink_id                       |
+| :------------ | :----------------------------- | :----------------------------- |
+| `primary_key` | `OrderID` (UUID7) from `order` | `DrinkID` (UUID7) from `drink` |
 
 ---
 
-#### **Table: `revenue`**
+#### **Table: `drink_favorite`** (Many-to-Many Join Table)
 
-Tracks accounting and financial metrics associated with orders. _(Note: `OrderID` here is strictly an Integer field rather than a hard Foreign Key, based on your model)._
+Automatically generated by Django to handle the `ManyToManyField` for users favoriting specific drinks.
 
-| RevenueID     | OrderID                      | TotalAmount           | SaleDate                 | Refunded                  |
-| :------------ | :--------------------------- | :-------------------- | :----------------------- | :------------------------ |
-| `primary_key` | Integer (References `order`) | Float (default `0.0`) | DateTime (default `now`) | Boolean (default `False`) |
-
----
-
-#### **Table: `USER_Home_Server`** (Many-to-Many Join Table)
-
-Tracks user credentials with their home server.
-
-| id            | UserName               | Home Server      |
-| :------------ | :--------------------- | :--------------- |
-| `primary_key` | `Username` from `user` | `Home Server id` |
+| id            | drink_id               | user_id               |
+| :------------ | :--------------------- | :-------------------- |
+| `primary_key` | `DrinkID` from `drink` | `id` from `auth_user` |
 
 ---
 
@@ -534,7 +576,7 @@ Below is a breakdown of how these tables satisfy these rules:
 
 2NF further requires that all non-key attributes are fully functionally dependent on the entire primary key.
 
-- **How we achieve it:** Partial dependencies can only occur in tables with composite primary keys (a primary key made of two or more columns). Because every standard model in our schema (`Preference`, `Drink`, `Inventory`, `Notification`, `Order`, `Revenue`) relies on a _single-column_, _auto-incrementing_ integer as its Primary Key (e.g., `PreferenceID`, `DrinkID`), partial dependency is structurally impossible. Every attribute in these tables depends entirely on that single ID.
+- **How we achieve it:** Partial dependencies can only occur in tables with composite primary keys (a primary key made of two or more columns). Because every standard model in our schema (`Preference`, `Drink`, `Inventory`, `Notification`, `Order`, `Revenue`) relies on a _single-column_ identifier (whether an auto-incrementing integer or a UUID) as its Primary Key (e.g., `PreferenceID`, `DrinkID`), partial dependency is structurally impossible. Every attribute in these tables depends entirely on that single ID.
 
 #### **Third Normal Form (3NF):** Eliminating Transitive Dependencies
 
@@ -551,20 +593,28 @@ Below is a breakdown of how these tables satisfy these rules:
 
 A working prototype for the application can be found [here](https://www.figma.com/make/BtypY8RxTDdqVOn2As0ygv/CodePop).
 
-#### User 
+#### User
+
 - ![Home Screen](/UI_UX/Home_Screen.png)
 - ![Drink Order Screen](UI_UX/Drink_Order.png)
 - ![User Profile](UI_UX/User_profile.png)
+
 ##### Manager
+
 - ![Manager](UI_UX/Manager.png)
 - ![Logistics](UI_UX/Logistics.png)
+
 ##### Admin
+
 - ![Admin](UI_UX/Admin.png)
+
 ##### Super Admin
+
 - ![Super Admin](UI_UX/Super_Admin.png)
 - ![Super Admin Modules](UI_UX/Super_Admin_Modules.png)
 
 ### 5.2 User Flow
+
 #### Account Creation and Profile Setup
 
 1. User navigates to the registration page
@@ -644,62 +694,68 @@ Regular admins can:
 Store managers must:
 
 1. **Daily Operations**
-  - Monitor real-time order queue and fulfillment status
-  - Manage locker assignments and pickup coordination
-  - Track inventory levels via `inventory` table
-  - Respond to customer notifications and issues
+
+- Monitor real-time order queue and fulfillment status
+- Manage locker assignments and pickup coordination
+- Track inventory levels via `inventory` table
+- Respond to customer notifications and issues
 
 2. **Inventory Management**
-  - Check `ThresholdLevel` alerts in `inventory` table
-  - Reorder syrups, sodas, add-ins, and physical supplies when stock drops below threshold
-  - Log all inventory updates with timestamps
-  - Monitor expiration dates for perishable items
 
+- Check `ThresholdLevel` alerts in `inventory` table
+- Reorder syrups, sodas, add-ins, and physical supplies when stock drops below threshold
+- Log all inventory updates with timestamps
+- Monitor expiration dates for perishable items
 
 3. **Order Management**
-  - Review pending orders from `order` table
-  - Coordinate drink preparation
-  - Assign locker combinations from `LockerCombo` field
-  - Update `OrderStatus` (Pending → Processing → Completed)
-  - Send pickup notifications when drinks are ready
+
+- Review pending orders from `order` table
+- Coordinate drink preparation
+- Assign locker combinations from `LockerCombo` field
+- Update `OrderStatus` (Pending → Processing → Completed)
+- Send pickup notifications when drinks are ready
 
 4. **Financial Oversight**
-  - Review daily revenue reports from `revenue` table
-  - Monitor payment statuses in `order` table (Pending, Paid, Failed)
-  - Process refunds for failed payments or customer complaints
-  - Generate end-of-day financial summaries
+
+- Review daily revenue reports from `revenue` table
+- Monitor payment statuses in `order` table (Pending, Paid, Failed)
+- Process refunds for failed payments or customer complaints
+- Generate end-of-day financial summaries
 
 5. **Quality Control**
-  - Ensure drinks match saved recipes from `drink` table
-  - Monitor customer ratings and feedback
-  - Address low-rated drinks or recurring complaints
-  - Update drink recipes if quality issues arise
+
+- Ensure drinks match saved recipes from `drink` table
+- Monitor customer ratings and feedback
+- Address low-rated drinks or recurring complaints
+- Update drink recipes if quality issues arise
 
 6. **Customer Service**
-  - Handle customer inquiries and complaints
-  - Process special orders or custom modifications
-  - Manage loyalty and preference programs
-  - Send promotional notifications via `notification` table
+
+- Handle customer inquiries and complaints
+- Process special orders or custom modifications
+- Manage loyalty and preference programs
+- Send promotional notifications via `notification` table
 
 7. **System Maintenance**
-  - Perform equipment checks and preventive maintenance
-  - Report technical issues to IT/Support team
-  - Ensure P2P server connectivity and data synchronization
-  - Monitor cache synchronization status with home server
 
+- Perform equipment checks and preventive maintenance
+- Report technical issues to IT/Support team
+- Ensure P2P server connectivity and data synchronization
+- Monitor cache synchronization status with home server
 
 ### 5.3 Usability and Accessibility
-
 
 The CodePop interface is designed to prioritize usability and accessibility across all user types and devices:
 
 **Visual Accessibility**
+
 - All text meets WCAG AA contrast ratios (minimum 4.5:1 for body text, 3:1 for large text)
 - Font sizes scale responsively with a minimum of 16px on mobile devices
 - Interactive elements have minimum touch targets of 44x44 pixels
 - Color is never the sole indicator of information; icons and text labels accompany all UI states
 
 **Navigation and Wayfinding**
+
 - Consistent header and navigation placement across all screens
 - Breadcrumb trails on multi-step workflows (account creation, checkout, order tracking)
 - Clear focus indicators for keyboard navigation
@@ -707,18 +763,21 @@ The CodePop interface is designed to prioritize usability and accessibility acro
 - Logical tab order following reading direction
 
 **Error Handling and Feedback**
+
 - Clear, plain-language error messages that explain what went wrong and how to fix it
 - Real-time validation feedback as users complete forms
 - Success confirmations after critical actions
 - Toast notifications for non-critical updates
 
 **Responsive Design**
+
 - Single-column, mobile-first layout that scales to desktop
 - Touch-friendly spacing for mobile interactions
 - Optimized layouts for screen readers
 - Support for system-level font scaling preferences
 
 **Assistive Technology Support**
+
 - Semantic HTML and ARIA labels for all interactive components
 - Form labels properly associated with inputs
 - Alternative text descriptions for all images
@@ -726,10 +785,10 @@ The CodePop interface is designed to prioritize usability and accessibility acro
 - Compatible with screen readers (NVDA, JAWS, VoiceOver)
 
 **Progressive Enhancement**
+
 - Base functionality works without JavaScript
 - Service workers enable offline capabilities
 - Graceful degradation for older browsers
-
 
 ---
 
@@ -938,6 +997,7 @@ Since user data resides on a single home server, the visiting server must coordi
 2. Server checks the local user registry to identify the user's home server.
 
 3. If the username is not found in the local registry, the login attempt is rejected. The client is informed that the account does not exist or that a sync delay may be in effect (see User Table Updates).
+   1. A one-time discovery ping may be applied to see if nearby stores contain the user info before synchronization has occurred.
 
 4. Home server validates the submitted credentials against the stored password hash.
 
@@ -999,7 +1059,6 @@ When a user initiates payment on any server:
 
 5. If order is on visiting server, order is saved to visiting server and home server.
 
-
 ---
 
 ### 6.3 Data Synchronization and API Optimization
@@ -1012,6 +1071,7 @@ To reduce system-wide API load:
 
 2. Once a username match is found:
    - Home server is contacted for logging in.
+   - If a match is not found, a one-time ping to other servers can be done to see if the user hasn't been synced yet.
 
 3. This reduces:
    - Broadcast authentication overhead
@@ -1167,15 +1227,16 @@ For servers to communicate with each other, each server must be known to the res
 
 #### Server Registry
 
-Each server maintains a local copy of the server registry, which contains one record per known server instance:
+Each server maintains a local copy of the server registry, which contains metadata and security keys for all known store instances:
 
-| Field | Description |
-| :---- | :---------- |
-| `ServerID` | Unique identifier for the server instance |
-| `ServerURL` | HTTPS endpoint used for inter-server API calls |
-| `RegionID` | Unique identifier for the region this server is dedicated to |
-| `Status` | Current availability status (`Active`, `Inactive`) |
-| `LastSeen` | Timestamp of the last successful health check response |
+| Field       | Description                                                         |
+| :---------- | :------------------------------------------------------------------ |
+| `ServerID`  | Unique identifier for the server instance                           |
+| `ServerURL` | HTTPS endpoint used for inter-server API calls                      |
+| `PublicKey` | The asymmetric public key used to verify JWTs signed by this server |
+| `RegionID`  | Unique identifier for the region this server is dedicated to        |
+| `Status`    | Current availability status (`Active`, `Inactive`)                  |
+| `LastSeen`  | Timestamp of the last successful health check response              |
 
 The registry is replicated across all servers using the same hourly sync mechanism as the user table.
 
@@ -1226,17 +1287,20 @@ There are various common security risks potentially involved in the development 
 
 ### 8.1 Integration Details
 
-The CodePop system integrates three key third-party services to enhance functionality and security. **Stripe** handles all payment processing through tokenization, ensuring raw card data never touches CodePop servers; payment intents are created server-side and processed client-side via Stripe Elements with webhook listeners for status updates, while all payment data is securely stored in Stripe's vault with only transaction IDs retained in the `order` table, maintaining PCI DSS compliance through server-side API authentication and HTTPS/TLS encryption. **OpenAI API** powers the AI drink recommendation engine by analyzing user preferences, order history, and flavor profiles to generate custom drink recipe recommendations using dynamically constructed prompts; responses are validated, parsed, and mapped to existing drink recipes in the `drink` table or used to create new entries, with request caching preventing duplicate API calls and fallback to predefined popular drinks if the API fails. **Google Maps API** provides geographic routing and location services for home server assignment during account creation, store locating functionality on the frontend, and visiting server detection during cross-region logins; Geocoding and Distance Matrix APIs determine user locations and calculate distances to nearby stores with results cached to optimize quota usage, while user location data is not permanently stored unless explicitly requested to prioritize privacy.
+The CodePop system integrates three key third-party services to enhance functionality and security.
 
-## 8. Third-Party Integrations
+**Stripe** handles all payment processing through tokenization, ensuring raw card data never touches CodePop servers; payment intents are created server-side and processed client-side via Stripe Elements with webhook listeners for status updates, while all payment data is securely stored in Stripe's vault with only transaction IDs retained in the `order` table, maintaining PCI DSS compliance through server-side API authentication and HTTPS/TLS encryption.
 
-### 8.1 Integration Details
+**OpenAI API** powers the AI drink recommendation engine by analyzing user preferences, order history, and flavor profiles to generate custom drink recipe recommendations using dynamically constructed prompts; responses are validated, parsed, and mapped to existing drink recipes in the `drink` table or used to create new entries, with request caching preventing duplicate API calls and fallback to predefined popular drinks if the API fails.
+
+**Google Maps API** provides geographic routing and location services for home server assignment during account creation, store locating functionality on the frontend, and visiting server detection during cross-region logins; Geocoding and Distance Matrix APIs determine user locations and calculate distances to nearby stores with results cached to optimize quota usage, while user location data is not permanently stored unless explicitly requested to prioritize privacy.
 
 #### **Payments: Stripe**
 
 Stripe is integrated as the primary payment processor for all transactions within the CodePop system. The implementation follows PCI DSS compliance standards to ensure secure card handling.
 
 **Integration Details:**
+
 - Stripe's tokenization system ensures that raw card data never touches CodePop servers
 - Payment intent is created on the backend and processed client-side using Stripe Elements
 - Webhook endpoints listen for payment status updates (e.g., `payment_intent.succeeded`, `payment_intent.payment_failed`)
@@ -1244,6 +1308,7 @@ Stripe is integrated as the primary payment processor for all transactions withi
 - All payment data is stored in Stripe's secure vault; CodePop only stores the Stripe transaction ID in the `order` table
 
 **Security Measures:**
+
 - No card data is cached or stored locally
 - All Stripe API calls use server-side authentication with secret keys
 - HTTPS/TLS encryption protects all client-server payment communication
@@ -1259,14 +1324,15 @@ The OpenAI API powers the AI-generated drink recommendation engine. This system 
 The system constructs prompts dynamically based on user data:
 
 ```
-"Given a user with the following preferences: {user_preferences}, 
-past order history: {order_history}, 
-and flavor profile: {flavor_analysis}, 
-suggest a custom soda recipe using available syrups: {available_syrups}. 
+"Given a user with the following preferences: {user_preferences},
+past order history: {order_history},
+and flavor profile: {flavor_analysis},
+suggest a custom soda recipe using available syrups: {available_syrups}.
 Include drink name, syrup combinations, add-ins, and estimated price."
 ```
 
 **Response Parsing:**
+
 - OpenAI returns a structured JSON response containing:
   - Drink name
   - List of syrup IDs with flavor profiles from the `Flavors` table
@@ -1276,9 +1342,11 @@ Include drink name, syrup combinations, add-ins, and estimated price."
 - If the recommended combination doesn't exist, a new drink record is created and added to `drink_favorite`
 
 **Implementation:**
+
 - Requests are made server-side (Django backend) to avoid exposing API keys
 - Response caching prevents duplicate API calls for similar user profiles
 - Fallback to predefined "popular drinks" if API fails
+- Requests will be rate limited to avoid an overly expensive bill from a malicious party accessing the system
 
 ---
 
@@ -1304,6 +1372,7 @@ Google Maps integration provides geographic routing, store locating, and regiona
    - User location is updated in cache but not permanently stored on visiting server
 
 **Implementation:**
+
 - Geocoding API converts user addresses to coordinates
 - Distance Matrix API calculates travel distances between user and stores
 - Maps Embed API displays interactive map on storefront pages
@@ -1311,10 +1380,10 @@ Google Maps integration provides geographic routing, store locating, and regiona
 - Results are cached to reduce API quota usage
 
 **Privacy Considerations:**
+
 - User precise location data is not permanently stored unless explicitly requested
 - Location queries are necessary only for account setup and visiting server assignment
 - Users can manually assign a preferred home server regardless of geography
-
 
 ---
 
@@ -1325,6 +1394,7 @@ Google Maps integration provides geographic routing, store locating, and regiona
 ## Deployment Architecture
 
 **Frontend Deployment (React PWA)**
+
 - Built as a Progressive Web App using React
 - Static assets (HTML, CSS, JS) hosted on Google Cloud Storage or Cloud CDN
 - Service workers enable offline functionality and caching
@@ -1332,6 +1402,7 @@ Google Maps integration provides geographic routing, store locating, and regiona
 - Users access via HTTPS; PWA installs to home screen on mobile/desktop
 
 **Backend Deployment (Django)**
+
 - Django application packaged in Docker containers
 - Each container runs on a separate Google Cloud Compute Engine instance
 - Environment configuration (database connection, API keys, secrets) injected at runtime
@@ -1339,22 +1410,24 @@ Google Maps integration provides geographic routing, store locating, and regiona
 - API endpoints exposed over HTTPS; all requests validated and authenticated
 
 **Inter-Service Communication**
+
 - Frontend communicates with backend via REST API over HTTPS
 - Backend instances communicate securely via TLS for P2P operations
 - API Gateway (optional) routes requests to appropriate backend instance based on region/home server assignment
 
 **Continuous Deployment (CI/CD)**
+
 - Git commits trigger automated testing and linting
 - On merge to main branch, Docker image is built and pushed to Container Registry
 - All running instances pull and deploy the new image with zero-downtime rolling updates
 - Database migrations applied automatically during deployment
 
 **Monitoring & Scaling**
+
 - Google Cloud Monitoring tracks CPU, memory, disk, and network metrics across instances
 - Auto-scaling policies adjust instance count based on traffic and resource utilization
 - Logs aggregated to Google Cloud Logging with alerts for errors and anomalies
 - Health checks ensure failed instances are replaced automatically
-
 
 ### 9.2 Automated Testing and Monitoring
 
@@ -1498,7 +1571,6 @@ Monitoring systems themselves are tested:
 - Synthetic transactions are periodically executed to ensure the full request/response flow works end-to-end.
 - Alert routing is tested to confirm that critical alerts reach on-call staff.
 - Log parsing and aggregation is validated to ensure logs are correctly indexed and searchable.
-
 
 ---
 
