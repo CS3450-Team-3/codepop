@@ -1,0 +1,1 @@
+// endpoints to get popular drinks, new drinks, etc.
