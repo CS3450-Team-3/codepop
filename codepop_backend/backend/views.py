@@ -384,9 +384,6 @@ class OrderOperations(viewsets.ModelViewSet):
         stripe_id = request.data.get("StripeID", None)
         originating_server = request.data.get("OriginatingServer", None)
 
-         # Log extracted values
-        print(f"UserID: {user_id}, Drinks: {drinks}, OrderStatus: {order_status}, PaymentStatus: {payment_status}, StripeID: {stripe_id}")
-
         # Create a new order
         order_data = {
             "UserID": user_id,
@@ -408,7 +405,6 @@ class OrderOperations(viewsets.ModelViewSet):
             # Return the created order's data
             return Response(self.get_serializer(order).data, status=status.HTTP_201_CREATED)
 
-        print("Serializer errors:", serializer.errors)
         # Handle validation errors
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -614,7 +610,7 @@ class RevenueViewSet(viewsets.ModelViewSet):
     """
     queryset = Revenue.objects.all()
     serializer_class = RevenueSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def create(self, request, *args, **kwargs):
         """
@@ -626,18 +622,6 @@ class RevenueViewSet(viewsets.ModelViewSet):
         """
         Custom update method to ensure the total amount is recalculated when updating the revenue.
         """
-        revenue_instance = self.get_object()  # Retrieve the specific revenue instance
-
-        # Check if 'TotalAmount' is provided in the request
-        if 'TotalAmount' in request.data:
-            # Update TotalAmount with the provided value
-            revenue_instance.TotalAmount = request.data['TotalAmount']
-        else:
-            # Calculate and set the total amount if it wasn't provided
-            revenue_instance.calculate_total_amount()
-
-        revenue_instance.save()
-
         # Proceed with the standard update process
         return super().update(request, *args, **kwargs)
     

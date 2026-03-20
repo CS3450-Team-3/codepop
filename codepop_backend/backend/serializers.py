@@ -139,8 +139,22 @@ class RevenueSerializer(serializers.ModelSerializer):
         """Override the create method to ensure total amount calculation when a revenue instance is created."""
         revenue_instance = Revenue(**validated_data)
         # Ensure TotalAmount is calculated if not provided in the request data
-        if 'TotalAmount' not in validated_data or not validated_data['TotalAmount']:
+        if 'TotalAmount' not in validated_data:
             revenue_instance.calculate_total_amount()
         revenue_instance.save()
         return revenue_instance
+
+    def update(self, instance, validated_data):
+        """Override update to ensure total amount is recalculated if not provided."""
+        instance.OrderID = validated_data.get('OrderID', instance.OrderID)
+        instance.SaleDate = validated_data.get('SaleDate', instance.SaleDate)
+        instance.Refunded = validated_data.get('Refunded', instance.Refunded)
+        
+        if 'TotalAmount' in validated_data:
+            instance.TotalAmount = validated_data['TotalAmount']
+        else:
+            instance.calculate_total_amount()
+            
+        instance.save()
+        return instance
 

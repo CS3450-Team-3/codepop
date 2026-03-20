@@ -171,7 +171,7 @@ class Order(models.Model):
 class Revenue(models.Model):
     RevenueID = models.UUIDField(primary_key=True, default=uuid7.create, editable=False)
     OrderID = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='revenues')
-    TotalAmount = models.FloatField(default=0.0)
+    TotalAmount = models.FloatField(null=True, blank=True)
     SaleDate = models.DateTimeField(default=timezone.now)
     Refunded = models.BooleanField(default=False)
 
@@ -189,7 +189,7 @@ class Revenue(models.Model):
         """Override the save method to automatically calculate the total amount if not set."""
         # Note: self.OrderID.Drinks might not be accessible before the order is saved if we're creating them both.
         # But we'll try to calculate if it's 0.
-        if self.TotalAmount == 0.0 and self.pk:
+        if self.TotalAmount is None and self.pk:
             self.calculate_total_amount()
         super(Revenue, self).save(*args, **kwargs)
 
