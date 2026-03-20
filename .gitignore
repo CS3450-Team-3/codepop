@@ -36,3 +36,7 @@ conductor/
 
 # Ignore continue
 .continue/
+
+# Ignore next
+.next/
+out/
