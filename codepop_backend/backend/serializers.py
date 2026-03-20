@@ -113,10 +113,10 @@ class OrderSerializer(serializers.ModelSerializer):
     class Meta:
         model = Order
         fields = [
-            'OrderID', 'UserID', 'Drinks', 
+            'OrderID', 'UserID', 'OriginatingServer', 'Drinks', 
             'OrderStatus', 'PaymentStatus', 
             'PickupTime', 'CreationTime','LockerCombo',
-            'StripeID'
+            'StripeID', 'Synced'
         ]
 
     def create(self, validated_data):

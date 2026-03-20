@@ -1,7 +1,8 @@
 from django.core.management.base import BaseCommand
-from backend.models import Inventory, Drink, Preference
-from django.contrib.auth.models import User
+from backend.models import Inventory, Drink, Preference, CustomUser
 import random
+
+User = CustomUser
 
 class Command(BaseCommand):
     help = 'Populates the database with initial data'
@@ -87,7 +88,7 @@ class Command(BaseCommand):
             Inventory.objects.create(**generate_inventory_data(add_in, 'Add In'))
 
         for physical_item in physical_items:
-            Inventory.objects.create(**generate_inventory_data(physical_item, 'Physical Item'))
+            Inventory.objects.create(**generate_inventory_data(physical_item, 'Physical'))
 
         
 
@@ -153,7 +154,7 @@ class Command(BaseCommand):
             {'UserID': user1, 'Preference': 'mtn. dew'},
             
             {'UserID': user2, 'Preference': 'peach'},
-            {'UserID': user2, 'Preference': 'pumpkin_spice'},
+            {'UserID': user2, 'Preference': 'pumpkin spice'},
             {'UserID': user2, 'Preference': 'dr. pepper'},
 
             {'UserID': super_user, 'Preference': 'pear'},

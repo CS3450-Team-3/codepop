@@ -1,9 +1,9 @@
-from django.contrib.auth import get_user_model
+from .models import Preference, Drink, Inventory, Notification, Order, Revenue, CustomUser
 from django.shortcuts import get_object_or_404
 from django.db.models import F
 from django.db import models
 from django.utils import timezone
-from django.contrib.auth.models import User
+User = CustomUser
 from rest_framework.generics import CreateAPIView, ListAPIView, ListCreateAPIView, RetrieveUpdateDestroyAPIView, RetrieveUpdateAPIView
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -11,7 +11,6 @@ from rest_framework.authtoken.views import ObtainAuthToken
 from rest_framework.authtoken.models import Token
 from rest_framework import status, viewsets
 from rest_framework.views import APIView
-from .models import Preference, Drink, Inventory, Notification, Order, Revenue
 from .serializers import CreateUserSerializer, GetUserSerializer, PreferenceSerializer, DrinkSerializer, InventorySerializer, NotificationSerializer, OrderSerializer, RevenueSerializer
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 import stripe
@@ -183,7 +182,7 @@ class UserDrinksLookup(ListAPIView):
         Retrieve drinks that are marked as favorites by the provided user ID.
         """
         user_id = self.kwargs['user_id']  # Retrieve the 'user_id' from the URL
-        user = get_object_or_404(User, pk=user_id)
+        # user = get_object_or_404(User, pk=user_id)
         return Drink.objects.filter(Favorite=user_id)
 
 
@@ -380,9 +379,10 @@ class OrderOperations(viewsets.ModelViewSet):
         # Extract data from the request
         user_id = request.data.get("UserID", None)
         drinks = request.data.get("Drinks", [])
-        order_status = request.data.get("OrderStatus", "processing")
-        payment_status = request.data.get("PaymentStatus", "pending")
+        order_status = request.data.get("OrderStatus", "Pending")
+        payment_status = request.data.get("PaymentStatus", "Pending")
         stripe_id = request.data.get("StripeID", None)
+        originating_server = request.data.get("OriginatingServer", None)
 
          # Log extracted values
         print(f"UserID: {user_id}, Drinks: {drinks}, OrderStatus: {order_status}, PaymentStatus: {payment_status}, StripeID: {stripe_id}")
@@ -390,10 +390,11 @@ class OrderOperations(viewsets.ModelViewSet):
         # Create a new order
         order_data = {
             "UserID": user_id,
-            "order_status": order_status,
+            "OrderStatus": order_status,
             "Drinks": drinks,
             "PaymentStatus": payment_status,
             "StripeID": stripe_id,
+            "OriginatingServer": originating_server,
         }
 
         serializer = self.get_serializer(data=order_data)
