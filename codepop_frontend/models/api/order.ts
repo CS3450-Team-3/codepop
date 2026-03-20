@@ -1,0 +1,1 @@
+// endpoints related to ordering a drink. accessable to all users authenticated or not.

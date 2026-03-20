@@ -296,79 +296,79 @@ The User Stories below describe the functional requirements from the perspective
 
 ## Customer
 
-- As any Customer I want to contact someone to get a refund, make a complaint, or get a drink remade so that I can get my issues resolved and feel satisfied with the service.
+1. As any Customer I want to contact someone to get a refund, make a complaint, or get a drink remade so that I can get my issues resolved and feel satisfied with the service.
 
 ## Guest Customer
 
-- As a Guest Customer I want to order a drink without having to make an account so that I can get my drink quickly.
+2. As a Guest Customer I want to order a drink without having to make an account so that I can get my drink quickly.
 
-- As a Guest Customer, I want to filter or view popular drink options so that I am not overwhelmed by the endless customization possibilities.
+3. As a Guest Customer, I want to filter or view popular drink options so that I am not overwhelmed by the endless customization possibilities.
 
-- As a Guest Customer, I might want to create or sign into an account so that I can save my order history for future convenience.
+4. As a Guest Customer, I might want to create or sign into an account so that I can save my order history for future convenience.
 
 ## Registered Customer
 
-- As a Registered Customer I want to see drinks that I have ordered before so that I can re-order my favorites without customizing them from scratch.
+5. As a Registered Customer I want to see drinks that I have ordered before so that I can re-order my favorites without customizing them from scratch.
 
-- As a Registered Customer I want to be recommended new drinks based on personal preferences so that I can discover new drink combinations that I might like.
+6. As a Registered Customer I want to be recommended new drinks based on personal preferences so that I can discover new drink combinations that I might like.
 
-- As a Registered Customer I want to save my payment info so that I don't need to input it each time
+7. As a Registered Customer I want to save my payment info so that I don't need to input it each time
 
-- As a Registered Customer, I want to be able to sign out so that I can protect my account information.
+8. As a Registered Customer, I want to be able to sign out so that I can protect my account information.
 
-- As a Registered Customer, I want to delete my account so that I can remove my personal data from the system permanently.
+9. As a Registered Customer, I want to delete my account so that I can remove my personal data from the system permanently.
 
-- As a Registered Customer I want to be able to edit my profile so that I can keep my contact and payment information up to date.
+10. As a Registered Customer I want to be able to edit my profile so that I can keep my contact and payment information up to date.
 
-- As a Registered Customer I want to be able to save my favorite drinks and view/modify/delete them so that I can keep a personal menu of my favorite drinks.
+11. As a Registered Customer I want to be able to save my favorite drinks and view/modify/delete them so that I can keep a personal menu of my favorite drinks.
 
-- As a Registered Customer, I want to be able to have my drink fresh and ready for me right as I arrive to pick it up so that I don't have to wait or have a watered-down drink.
+12. As a Registered Customer, I want to be able to have my drink fresh and ready for me right as I arrive to pick it up so that I don't have to wait or have a watered-down drink.
 
-- As a Registered Customer, I want to be able to add payment options to my account so I can pay through the app when I order my drinks.
+13. As a Registered Customer, I want to be able to add payment options to my account so I can pay through the app when I order my drinks.
 
-- As a Registered Customer, I want to be refunded if I cancel my drink order so that I do not lose money if I made a mistake or change my mind.
+14. As a Registered Customer, I want to be refunded if I cancel my drink order so that I do not lose money if I made a mistake or change my mind.
 
 ## Store Manager
 
-- As a Store Manager I want to view stock inventory so that I can request restocks as needed
+15. As a Store Manager I want to view stock inventory so that I can request restocks as needed
 
-- As a Store Manager I want access to non-sensitive payment transaction information to help administer refunds, verify transactions, and other payment-related issues
+16. As a Store Manager I want access to non-sensitive payment transaction information to help administer refunds, verify transactions, and other payment-related issues
 
-- As a Store Manager I want to be able to see store revenue reports from the database so that I can track the financial performance of my store.
+17. As a Store Manager I want to be able to see store revenue reports from the database so that I can track the financial performance of my store.
 
-- As a store manager I want to be able to view the status of my machines so that I can immediately identify if my machines are working properly or if they need maintenance.
+18. As a store manager I want to be able to view the status of my machines so that I can immediately identify if my machines are working properly or if they need maintenance.
 
 ## Logistics Manager
 
-- As a Logistics Manager I want to view the supply usage of each store so that I can use recognize patterns in the supply usage of each store
+19. As a Logistics Manager I want to view the supply usage of each store so that I can use recognize patterns in the supply usage of each store
 
-- As a Logistics Manager I want to manage the routing of supplies to stores so that I can ensure supplies can reach each store before they run out
+20. As a Logistics Manager I want to manage the routing of supplies to stores so that I can ensure supplies can reach each store before they run out
 
-- As a Logistics Manager I want to update and create supply schedules based on patterns I've found so that I can ensure each store is sufficiently stocked on time for their individual needs
+21. As a Logistics Manager I want to update and create supply schedules based on patterns I've found so that I can ensure each store is sufficiently stocked on time for their individual needs
 
 ## Repair Staff
 
-- As a Repair Staff I want to stay updated on robot conditions so that I can repair them when needed
+22. As a Repair Staff I want to stay updated on robot conditions so that I can repair them when needed
 
-- As a Repair Staff I want to be assigned to stores that require less of a distance to travel so I can go from one store to another quickly
+23. As a Repair Staff I want to be assigned to stores that require less of a distance to travel so I can go from one store to another quickly
 
-- As a Repair Staff I want to notify the system that repairs are in progress so that customers can't order from the location while repairs are underway
+24. As a Repair Staff I want to notify the system that repairs are in progress so that customers can't order from the location while repairs are underway
 
 ## Admin (Local)
 
-- As an Admin I want to access store data so I can add and manage Store Manager accounts
+25. As an Admin I want to access store data so I can add and manage Store Manager accounts
 
-- As an Admin I want to update/remove/unlock user accounts so that I can help users and protect the system from misuse
+26. As an Admin I want to update/remove/unlock user accounts so that I can help users and protect the system from misuse
 
 ## Super Admin
 
-- As a Super Admin I want to access data for any store location so that I can manage new Admins and other roles across the region
+27. As a Super Admin I want to access data for any store location so that I can manage new Admins and other roles across the region
 
-- As a Super Admin I want to manage supply hubs and regions so that when new stores are added we can adjust boundaries as needed for efficiency
+28. As a Super Admin I want to manage supply hubs and regions so that when new stores are added we can adjust boundaries as needed for efficiency
 
-- As a Super Admin I need to make nation-wide updates so that I can keep all the stores up to date
+29. As a Super Admin I need to make nation-wide updates so that I can keep all the stores up to date
 
-- As a Super Admin I want to add new ingredients to every store and supply hub so that when a new flavor is added we can deploy it quickly and efficiently
+30. As a Super Admin I want to add new ingredients to every store and supply hub so that when a new flavor is added we can deploy it quickly and efficiently
 
 # Use Case Diagrams
 

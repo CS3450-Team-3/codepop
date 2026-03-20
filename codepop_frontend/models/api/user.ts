@@ -1,0 +1,1 @@
+// here we create functions to get authenticated user information. profile, favorite drinks, etc.
