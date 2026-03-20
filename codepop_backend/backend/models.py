@@ -1,44 +1,93 @@
+import uuid7
 from django.db import models
-from django.contrib.auth.models import User
+from django.contrib.auth.models import AbstractUser, UserManager
 from django.contrib.postgres.fields import ArrayField
 from django.utils import timezone
 
+class CustomUser(AbstractUser):
+    id = models.UUIDField(primary_key=True, default=uuid7.create, editable=False)
+    
+    objects = UserManager()
+
+    def __str__(self):
+        return self.username
+
+class ServerRegistry(models.Model):
+    ServerID = models.AutoField(primary_key=True)
+    ServerURL = models.URLField(max_length=255)
+    PublicKey = models.TextField()
+    Status = models.CharField(max_length=20, default='Active')
+    LastSeen = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Server {self.ServerID}: {self.ServerURL}"
+
+class MasterList(models.Model):
+    UserID = models.UUIDField(primary_key=True, default=uuid7.create, editable=False)
+    Username = models.CharField(max_length=150)
+    HomeServerID = models.ForeignKey(ServerRegistry, on_delete=models.CASCADE)
+
+    def __str__(self):
+        return self.Username
+
+class UserMovement(models.Model):
+    MovementID = models.UUIDField(primary_key=True, default=uuid7.create, editable=False)
+    UserID = models.UUIDField()
+    PreviousServerID = models.ForeignKey(ServerRegistry, related_name='previous_movements', on_delete=models.CASCADE)
+    NewServerID = models.ForeignKey(ServerRegistry, related_name='new_movements', on_delete=models.CASCADE)
+    Timestamp = models.DateTimeField(default=timezone.now)
+    Status = models.CharField(max_length=50) # Initiated, Completed, Failed
+
+    def __str__(self):
+        return f"Movement {self.MovementID} for User {self.UserID}"
+
 class Preference(models.Model):
-    # Primary key will be automatically created as 'id' unless you specify otherwise
-    # You can also explicitly declare PreferenceID if needed
     PreferenceID = models.AutoField(primary_key=True)
-
-    # Foreign key referencing the User model
-    UserID = models.ForeignKey(User, on_delete=models.CASCADE)
-
-    # Preference field with a string data type
+    UserID = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
     Preference = models.CharField(max_length=100, blank=False, null=False)
 
     def __str__(self):
         return f'Preference {self.PreferenceID} for User {self.UserID}: {self.Preference}'
-    
+
+class Flavor(models.Model):
+    SyrupID = models.AutoField(primary_key=True)
+    Name = models.CharField(max_length=255)
+    PrimaryFlavor = models.CharField(max_length=100)
+    SecondaryFlavor = models.CharField(max_length=100)
+    TertiaryFlavor = models.CharField(max_length=100)
+
+    class Meta:
+        db_table = 'Flavors'
+
+    def __str__(self):
+        return self.Name
+
 class Drink(models.Model):
-    DrinkID = models.AutoField(primary_key=True)
+    DrinkID = models.UUIDField(primary_key=True, default=uuid7.create, editable=False)
     Name = models.CharField(max_length=255)
     SyrupsUsed = ArrayField(models.CharField(max_length=255), blank=True, null=True)
     SodaUsed = ArrayField(models.CharField(max_length=255))
     AddIns = ArrayField(models.CharField(max_length=255), blank=True, null=True)
     Rating = models.FloatField(null=True, blank=True)
     Price = models.FloatField()
-    Size = models.CharField(default="m")
-    Ice = models.CharField(default="normal")
+    Size = models.CharField(default="16oz", max_length=10)
+    Ice = models.CharField(default="regular", max_length=10)
     User_Created = models.BooleanField()
-    Favorite = models.ManyToManyField('auth.User', blank=True)
+    Favorite = models.ManyToManyField(CustomUser, blank=True, related_name='favorite_drinks')
 
     def addFavorite(self, userToAdd):
-        self.Favorite.add(User.objects.filter(id = userToAdd))
+        user = CustomUser.objects.filter(id=userToAdd).first()
+        if user:
+            self.Favorite.add(user)
 
     def removeFavorite(self, userToRemove):
-        self.Favorite.remove(User.objects.filter(id = userToRemove))
+        user = CustomUser.objects.filter(id=userToRemove).first()
+        if user:
+            self.Favorite.remove(user)
 
     def __str__(self):
         return self.Name
-    
+
 class Inventory(models.Model):
     ITEM_TYPES = [
         ('Soda', 'Soda'),
@@ -55,7 +104,6 @@ class Inventory(models.Model):
     LastUpdated = models.DateTimeField(auto_now=True)
 
     def is_out_of_stock(self):
-        """Check if the item is out of stock (Quantity <= 0)."""
         return self.Quantity <= 0
 
     def __str__(self):
@@ -63,84 +111,87 @@ class Inventory(models.Model):
 
 class Notification(models.Model):
     NotificationID = models.AutoField(primary_key=True)
-    UserID = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
-    Message = models.CharField(max_length=500)  # Adjust max_length as needed
-    Timestamp = models.DateTimeField(default=timezone.now)  # Sets timestamp to the creation date/time
-    Type = models.CharField(max_length=50)  # Adjust max_length as needed
+    UserID = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='notifications')
+    Message = models.CharField(max_length=500)
+    Timestamp = models.DateTimeField(default=timezone.now)
+    Type = models.CharField(max_length=50)
     Global = models.BooleanField(default=False)
 
     def __str__(self):
-        return f"Notification for {self.UserID.username}: {self.Message[:50]} at time {self.Timestamp}"
-    
+        return f"Notification for {self.UserID.username}: {self.Message[:50]}"
+
 class Order(models.Model):
     ORDER_STATUS_CHOICES = [
-        ('pending', 'Pending'),
-        ('processing', 'Processing'),
-        ('completed', 'Completed'),
-        ('cancelled', 'Cancelled'),
+        ('Pending', 'Pending'),
+        ('Processing', 'Processing'),
+        ('Completed', 'Completed'),
+        ('Cancelled', 'Cancelled'),
     ]
 
     PAYMENT_STATUS_CHOICES = [
-        ('pending', 'Pending'),
-        ('paid', 'Paid'),
-        ('failed', 'Failed'),
-        ('remade', 'Remade')
+        ('Pending', 'Pending'),
+        ('Paid', 'Paid'),
+        ('Failed', 'Failed'),
+        ('Remade', 'Remade')
     ]
 
-    OrderID = models.AutoField(primary_key=True)
-    UserID = models.ForeignKey(User, on_delete=models.CASCADE, null=True)
+    OrderID = models.UUIDField(primary_key=True, default=uuid7.create, editable=False)
+    UserID = models.ForeignKey(CustomUser, on_delete=models.CASCADE, null=True)
+    OriginatingServer = models.ForeignKey(ServerRegistry, on_delete=models.CASCADE, null=True, blank=True)
     Drinks = models.ManyToManyField(Drink)
-    OrderStatus = models.CharField(max_length=50, choices=ORDER_STATUS_CHOICES, default='pending')
-    PaymentStatus = models.CharField(max_length=50, choices=PAYMENT_STATUS_CHOICES, default='pending')
+    OrderStatus = models.CharField(max_length=50, choices=ORDER_STATUS_CHOICES, default='Pending')
+    PaymentStatus = models.CharField(max_length=50, choices=PAYMENT_STATUS_CHOICES, default='Pending')
     PickupTime = models.DateTimeField(null=True, blank=True)
     CreationTime = models.DateTimeField(auto_now_add=True)
-    LockerCombo = models.BigIntegerField(null=True)
-    StripeID = models.CharField()
-    
+    LockerCombo = models.BigIntegerField(null=True, blank=True)
+    StripeID = models.CharField(max_length=255, unique=True, null=True, blank=True)
+    Synced = models.BooleanField(default=False)
+
     def add_drinks(self, drink_ids):
-        # Assuming you have a ManyToMany field for drinks in your Order model
         for drink_id in drink_ids:
-            drink = Drink.objects.get(DrinkID=drink_id)  # Assuming you have a Drink model
-            self.Drinks.add(drink)  # Add the drink to the order
-        self.save()  # Save the changes to the order
-            
-    def remove_drinks(self, drink_ids):
-        """Remove drinks from the order."""
-        for drink_id in drink_ids:
-            drink = Drink.objects.get(DrinkID=drink_id)
-            self.Drinks.remove(drink)  # Remove the drink from the order
+            try:
+                drink = Drink.objects.get(DrinkID=drink_id)
+                self.Drinks.add(drink)
+            except Drink.DoesNotExist:
+                pass
         self.save()
-        
+
+    def remove_drinks(self, drink_ids):
+        for drink_id in drink_ids:
+            try:
+                drink = Drink.objects.get(DrinkID=drink_id)
+                self.Drinks.remove(drink)
+            except Drink.DoesNotExist:
+                pass
+        self.save()
+
     def __str__(self):
         return f"Order {self.OrderID} by User {self.UserID}"
 
 class Revenue(models.Model):
-    RevenueID = models.AutoField(primary_key=True)
-    OrderID = models.IntegerField(default=1)
-    TotalAmount = models.FloatField(default=0.0)
+    RevenueID = models.UUIDField(primary_key=True, default=uuid7.create, editable=False)
+    OrderID = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='revenues')
+    TotalAmount = models.FloatField(null=True, blank=True)
     SaleDate = models.DateTimeField(default=timezone.now)
-    Refunded = models.BooleanField(default= False)
+    Refunded = models.BooleanField(default=False)
 
     def calculate_total_amount(self):
         """Calculate the total revenue for the order by summing the price of each drink."""
         try:
-            order = Order.objects.get(OrderID=self.OrderID)
-            total = sum(drink.Price for drink in order.Drinks.all())
+            total = sum(drink.Price for drink in self.OrderID.Drinks.all())
             self.TotalAmount = total
             return total
-        except Order.DoesNotExist:
-            self.TotalAmount = 0  # Handle the case where the order doesn't exist
-            return 0
+        except Exception:
+            self.TotalAmount = 0.0
+            return 0.0
 
     def save(self, *args, **kwargs):
-        """Override the save method to automatically calculate the total amount unless explicitly set to 0."""
-        if self.TotalAmount is None:  # Only calculate if TotalAmount is not set
+        """Override the save method to automatically calculate the total amount if not set."""
+        # Note: self.OrderID.Drinks might not be accessible before the order is saved if we're creating them both.
+        # But we'll try to calculate if it's 0.
+        if self.TotalAmount is None and self.pk:
             self.calculate_total_amount()
         super(Revenue, self).save(*args, **kwargs)
 
     def __str__(self):
-        """Return a human-readable string representation of the revenue."""
-        try:
-            return f"Revenue {self.RevenueID} for Order {self.OrderID}: ${self.TotalAmount:.2f}"
-        except Order.DoesNotExist:
-            return f"Revenue {self.RevenueID} for unknown Order {self.OrderID}: ${self.TotalAmount:.2f}"
+        return f"Revenue {self.RevenueID} for Order {self.OrderID}: ${self.TotalAmount:.2f}"
