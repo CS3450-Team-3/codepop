@@ -12,12 +12,28 @@ class CustomUser(AbstractUser):
     def __str__(self):
         return self.username
 
+class Region(models.Model):
+    RegionID = models.AutoField(primary_key=True)
+    RegionName = models.CharField(max_length=100, unique=True)
+
+    def __str__(self):
+        return self.RegionName
+
+
 class ServerRegistry(models.Model):
     ServerID = models.AutoField(primary_key=True)
     ServerURL = models.URLField(max_length=255)
     PublicKey = models.TextField()
     Status = models.CharField(max_length=20, default='Active')
     LastSeen = models.DateTimeField(auto_now=True)
+    Region = models.ForeignKey(
+        'Region',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='servers',
+    )
+    IsRegionLeader = models.BooleanField(default=False)
 
     def __str__(self):
         return f"Server {self.ServerID}: {self.ServerURL}"

@@ -1,6 +1,6 @@
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
-from .models import Preference, Drink, Inventory, Order, Notification, Revenue
+from .models import Preference, Drink, Inventory, Order, Notification, Revenue, Region, ServerRegistry, MasterList
 
 
 class CreateUserSerializer(serializers.ModelSerializer):
@@ -158,3 +158,20 @@ class RevenueSerializer(serializers.ModelSerializer):
         instance.save()
         return instance
 
+
+class RegionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Region
+        fields = ['RegionID', 'RegionName']
+
+
+class ServerRegistrySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ServerRegistry
+        fields = ['ServerID', 'ServerURL', 'PublicKey', 'Status', 'LastSeen', 'Region', 'IsRegionLeader']
+
+
+class MasterListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MasterList
+        fields = ['UserID', 'Username', 'HomeServerID']

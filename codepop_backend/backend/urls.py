@@ -10,7 +10,7 @@ from .views import OrderOperations, UserOrdersLookup
 from .views import GenerateAIDrink
 from .views import RevenueViewSet
 from .views import UserOperations
-from .views import emailAPI
+from .views import emailAPI, MasterListSyncView
 from .customerAI import Chatbot
 
 #this ensures that the url calls the right function from the views for each type of request
@@ -211,5 +211,8 @@ urlpatterns = [
     path('users/delete/<uuid:user_id>/', user_operations, name='delete_user'),
     path('users/edit/<uuid:user_id>/', user_operations, name='edit_user'),
 
-    path('email/<uuid:orderId>/', emailAPI.as_view(), name='Create Email')
+    path('email/<uuid:orderId>/', emailAPI.as_view(), name='Create Email'),
+
+    # Inter-server sync endpoints (consumed by peer servers, not end-user clients)
+    path('sync/masterlist/', MasterListSyncView.as_view(), name='sync_masterlist'),
 ]

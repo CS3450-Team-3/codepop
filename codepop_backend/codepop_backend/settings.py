@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -146,5 +147,11 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# ── Inter-server sync ─────────────────────────────────────────────────────────
+# The ServerRegistry primary key (integer) for this deployed instance.
+# Each server must set the LOCAL_SERVER_ID environment variable so the sync
+# framework can identify itself when making or receiving inter-server calls.
+LOCAL_SERVER_ID = int(os.environ.get('LOCAL_SERVER_ID', 0)) or None
 
 AUTH_USER_MODEL = 'backend.CustomUser'
