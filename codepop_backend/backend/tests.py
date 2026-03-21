@@ -273,6 +273,12 @@ class DrinkTests(APITestCase):
         response = self.client.post('/backend/drinks/', data, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
+    def test_get_drinks_without_auth(self):
+        """Test listing drinks without authentication (should succeed based on AllowAny)"""
+        response = self.client.get('/backend/drinks/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+
     def test_get_drinks_for_specific_user(self):
         """Test retrieving drinks based on a specific user's favorites"""
         self.authenticate(self.token2)
@@ -305,13 +311,27 @@ class InventoryTests(APITestCase):
 
     def setUp(self):
         self.user1 = User.objects.create_user(username='inv_user1', password='password123')
+        self.user1.user_type = 'admin'
+        self.user1.save()
         self.token1 = str(RefreshToken.for_user(self.user1).access_token)
+        
+        self.customer_user = User.objects.create_user(username='inv_customer', password='password123')
+        self.customer_token = str(RefreshToken.for_user(self.customer_user).access_token)
+        
         Inventory.objects.create(ItemName="Coke", ItemType="Soda", Quantity=10, ThresholdLevel=2)
         Inventory.objects.create(ItemName="Syrup A", ItemType="Syrup", Quantity=0, ThresholdLevel=5)
         Inventory.objects.create(ItemName="Cup", ItemType="Physical", Quantity=50, ThresholdLevel=10)
 
     def authenticate(self, token):
         self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + token)  # type: ignore
+
+    def test_update_inventory_forbidden_for_customer(self):
+        """Test that a non-manager user is forbidden from updating inventory."""
+        self.authenticate(self.customer_token)
+        coke = Inventory.objects.get(ItemName="Coke")
+        data = {'used_quantity': 5}
+        response = self.client.patch(f'/backend/inventory/{coke.pk}/', data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_get_inventory_list(self):
         self.authenticate(self.token1)

@@ -30,9 +30,9 @@ class InventoryReportResponseSerializer(serializers.Serializer):
     below_threshold = serializers.IntegerField()
 
 class MasterListSyncItemSerializer(serializers.Serializer):
-    UserID = serializers.IntegerField()
+    UserID = serializers.CharField()
     Username = serializers.CharField()
-    HomeServerID = serializers.IntegerField()
+    HomeServerID = serializers.CharField()
 
 class MasterListSyncRequestSerializer(serializers.Serializer):
     items = MasterListSyncItemSerializer(many=True)

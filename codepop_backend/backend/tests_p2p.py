@@ -147,6 +147,64 @@ class P2PAuthTests(APITestCase):
         shadow = CustomUser.objects.get(username='remote_shadow')
         self.assertEqual(str(shadow.id), remote_user_id)
 
+    @patch('jwt.decode')
+    def test_p2p_authentication_missing_user_type(self, mock_jwt_decode):
+        """
+        Verify that if user_type is missing from the token payload,
+        P2PJWTAuthentication defaults to 'customer'.
+        """
+        remote_user_id = "00000000-0000-0000-0000-000000000002"
+        payload = {
+            'user_id': remote_user_id,
+            'username': 'shadow_no_type',
+            'iss': str(self.remote_server.ServerID),
+            'home_server_id': str(self.remote_server.ServerID)
+        }
+
+        mock_jwt_decode.side_effect = [payload, payload]
+
+        from rest_framework.test import APIRequestFactory
+        from .authentication import P2PJWTAuthentication
+        
+        factory = APIRequestFactory()
+        request = factory.get('/backend/drinks/', HTTP_AUTHORIZATION='Bearer dummy-token')
+        
+        auth = P2PJWTAuthentication()
+        user, _ = auth.authenticate(request)
+
+        self.assertIsNotNone(user)
+        self.assertEqual(user.user_type, 'customer')
+
+    @patch('backend.authentication.logger')
+    @patch('jwt.decode')
+    def test_p2p_authentication_missing_identity(self, mock_jwt_decode, mock_logger):
+        """
+        Verify that P2PJWTAuthentication raises an exception if essential
+        identity claims (user_id or username) are missing.
+        """
+        payload_no_id = {
+            'username': 'ghost',
+            'iss': str(self.remote_server.ServerID)
+        }
+
+        mock_jwt_decode.side_effect = [payload_no_id, payload_no_id]
+
+        from rest_framework.test import APIRequestFactory
+        from .authentication import P2PJWTAuthentication
+        from rest_framework.exceptions import AuthenticationFailed
+        
+        factory = APIRequestFactory()
+        request = factory.get('/backend/drinks/', HTTP_AUTHORIZATION='Bearer dummy-token')
+        
+        auth = P2PJWTAuthentication()
+        
+        with self.assertRaises(AuthenticationFailed) as context:
+            auth.authenticate(request)
+        self.assertIn("Token missing user identity claims", str(context.exception))
+        
+        # Verify that the error was indeed logged (but now it's silenced by the mock)
+        mock_logger.error.assert_called()
+
     @patch('requests.post')
     def test_proxy_login_flow(self, mock_post):
         """
