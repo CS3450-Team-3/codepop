@@ -204,19 +204,17 @@ class CustomAuthToken(TokenObtainPairView):
                                 user.set_unusable_password()
                                 user.save()
                                 
-                            # 5. Issue local tokens for the visiting user
-                            # This ensures that even on a visiting server, the user's JWT 
-                            # includes the correct home_server_id for future refresh calls.
-                            token_data = get_tokens_for_user(user)
-                            
-                            # Inject the same extra data as CustomTokenObtainPairSerializer
+                            # 5. Pass through the authoritative tokens from the Home Server
+                            # This ensures that the user's JWT is signed by the Home Server
+                            # and includes the correct claims for future P2P authentication and refresh calls.
                             data = {
-                                **token_data,
-                                'user_type': user.user_type,
+                                'refresh': remote_data.get('refresh'),
+                                'access': remote_data.get('access'),
+                                'user_type': remote_data.get('user_type', user.user_type),
                                 'user_id': str(user.id),
-                                'first_name': user.first_name,
+                                'first_name': remote_data.get('first_name', user.first_name),
                                 'is_proxy': True,
-                                'home_server_id': home_server.ServerID
+                                'home_server_id': str(home_server.ServerID)
                             }
                             return Response(data, status=status.HTTP_200_OK)
                         

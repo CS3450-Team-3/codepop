@@ -246,10 +246,42 @@ def main():
         print("Test A: Correct Password Proxy Login (B -> A)...")
         resp = requests.post(f"http://localhost:{PORT_B}/backend/auth/login/", 
                             json={"username": "traveler_joe", "password": "password123"})
+        
+        # Track tokens for later tests
+        proxy_access_token = None
+        proxy_refresh_token = None
+
         if resp.status_code == 200:
-            print("  SUCCESS: Proxy login worked with correct password.")
+            data = resp.json()
+            proxy_access_token = data.get('access')
+            proxy_refresh_token = data.get('refresh')
+            
+            # Deep Token Inspection: Verify it was actually signed by Server A
+            # We decode WITHOUT verification just to check the 'iss' claim
+            payload = jwt.decode(proxy_access_token, options={"verify_signature": False})
+            
+            if payload.get('iss') == "1" and payload.get('home_server_id') == "1":
+                print("  SUCCESS: Proxy login worked and returned an authoritative token from Server A.")
+            else:
+                print(f"  FAILURE: Proxy login returned a locally signed token (iss: {payload.get('iss')}).")
+                failure_count += 1
         else:
             print(f"  FAILURE: Proxy login failed with {resp.status_code}")
+            failure_count += 1
+
+        # Test A.1: Using Proxied Token on Visiting Server
+        test_count += 1
+        print("Test A.1: Using Proxied Token on Visiting Server (B)...")
+        if proxy_access_token:
+            headers = {"Authorization": f"Bearer {proxy_access_token}"}
+            resp = requests.get(f"http://localhost:{PORT_B}/backend/users/me/", headers=headers)
+            if resp.status_code == 200:
+                print("  SUCCESS: Server B correctly verified and accepted Server A's proxied token.")
+            else:
+                print(f"  FAILURE: Server B rejected the proxied token ({resp.status_code}: {resp.text})")
+                failure_count += 1
+        else:
+            print("  SKIPPING Test A.1: No proxy token available.")
             failure_count += 1
 
         # Test B: Incorrect Password Proxy Login
@@ -338,28 +370,28 @@ def main():
         # Test F: Token Refresh Proxy (B -> A)
         test_count += 1
         print("Test F: Token Refresh Proxy (B -> A)...")
-        # Get a FRESH refresh token for this test to avoid blacklist issues from Test E
-        resp = requests.post(f"http://localhost:{PORT_A}/backend/auth/login/", 
-                            json={"username": "traveler_joe", "password": "password123"})
-        refresh_a_fresh = resp.json()['refresh']
-        
-        resp = requests.post(f"http://localhost:{PORT_B}/backend/auth/refresh/", 
-                            json={"refresh": refresh_a_fresh})
-        if resp.status_code == 200:
-            print("  SUCCESS: Server B proxied the refresh request to Server A.")
-            new_access_b_proxied = resp.json()['access']
-            refresh_a_after_proxy = resp.json().get('refresh') # The new rotated refresh token
-            
-            # Verify the new access token actually works on B
-            headers = {"Authorization": f"Bearer {new_access_b_proxied}"}
-            resp = requests.get(f"http://localhost:{PORT_B}/backend/users/me/", headers=headers)
+        # Use the refresh token we got from the Proxy Login on Server B earlier
+        if proxy_refresh_token:
+            resp = requests.post(f"http://localhost:{PORT_B}/backend/auth/refresh/", 
+                                json={"refresh": proxy_refresh_token})
             if resp.status_code == 200:
-                print("  SUCCESS: Proxied access token is valid on Server B.")
+                print("  SUCCESS: Server B proxied the refresh request to Server A.")
+                new_access_b_proxied = resp.json()['access']
+                refresh_a_after_proxy = resp.json().get('refresh') # The new rotated refresh token
+                
+                # Verify the new access token actually works on B
+                headers = {"Authorization": f"Bearer {new_access_b_proxied}"}
+                resp = requests.get(f"http://localhost:{PORT_B}/backend/users/me/", headers=headers)
+                if resp.status_code == 200:
+                    print("  SUCCESS: Proxied access token is valid on Server B.")
+                else:
+                    print(f"  FAILURE: Proxied access token rejected by Server B ({resp.status_code})")
+                    failure_count += 1
             else:
-                print(f"  FAILURE: Proxied access token rejected by Server B ({resp.status_code})")
+                print(f"  FAILURE: Server B failed to proxy refresh request ({resp.status_code}: {resp.text})")
                 failure_count += 1
         else:
-            print(f"  FAILURE: Server B failed to proxy refresh request ({resp.status_code}: {resp.text})")
+            print("  SKIPPING Test F: Dependency from Test A not met.")
             failure_count += 1
 
         # Test G: Logout Proxy (B -> A)
