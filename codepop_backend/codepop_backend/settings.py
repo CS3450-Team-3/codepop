@@ -111,7 +111,8 @@ REST_FRAMEWORK = {
 }
 
 # Asymmetric Key Setup for P2P Authentication
-# For production, load these from secure environment variables or a volume mount
+# For production, load these from secure environment variables or a secrets manager.
+# THE PRIVATE KEY IS NEVER STORED IN SOURCE CONTROL.
 PRIVATE_KEY = os.environ.get('SERVER_PRIVATE_KEY', 'TODO: Generate and load a real RSA Private Key')
 
 SPECTACULAR_SETTINGS = {
@@ -126,8 +127,9 @@ SIMPLE_JWT = {
     'REFRESH_TOKEN_LIFETIME': timedelta(days=30),
     'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': False,
-    'ALGORITHM': 'HS256',
-    'SIGNING_KEY': SECRET_KEY,
+    'ALGORITHM': 'RS256',
+    'SIGNING_KEY': PRIVATE_KEY,
+    'VERIFYING_KEY': None, # SimpleJWT handles this via PRIVATE_KEY if it's RSA
     'AUTH_HEADER_TYPES': ('Bearer',),
     'USER_ID_FIELD': 'id',
     'USER_ID_CLAIM': 'user_id',

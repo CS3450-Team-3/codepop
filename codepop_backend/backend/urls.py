@@ -9,7 +9,7 @@ from .views import NotificationOperations, UserNotificationLookup
 from .views import OrderOperations, UserOrdersLookup
 from .views import RevenueViewSet
 from .views import UserOperations
-from .views import MasterListSyncView, MenuView, UserProfileView, ServerRegistryAPIView, GeneralGenerateAIDrink, UserGenerateAIDrink, emailAPI
+from .views import MasterListSyncView, PublicDiscoveryView, MenuView, UserProfileView, ServerRegistryAPIView, GeneralGenerateAIDrink, UserGenerateAIDrink, emailAPI
 from rest_framework_simplejwt.views import TokenRefreshView
 from .customerAI import Chatbot
 
@@ -227,6 +227,7 @@ urlpatterns = [
 
     # Inter-server sync endpoints (consumed by peer servers, not end-user clients)
     path('sync/masterlist/', MasterListSyncView.as_view(), name='sync_masterlist'),
+    path('p2p/discover/', PublicDiscoveryView.as_view(), name='p2p_discovery'),
 
     # Menu API
     path('menu/', MenuView.as_view(), name='menu_list'),
