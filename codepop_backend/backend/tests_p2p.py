@@ -94,6 +94,7 @@ class P2PAuthTests(APITestCase):
 
         # Mock successful proxy response
         mock_post.return_value.status_code = 200
+        mock_post.return_value.json.return_value = {"detail": "Successfully logged out."}
 
         with self.settings(LOCAL_SERVER_ID=1):
             response = self.client.post('/backend/auth/logout/', {'refresh': str(refresh)})

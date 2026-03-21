@@ -284,14 +284,28 @@ class LogoutUserAPIView(APIView):
                     proxy_url = home_server.ServerURL.rstrip('/') + '/backend/auth/logout/'
                     
                     # Forward the logout request to the authoritative Home Server
-                    requests.post(
+                    headers = {}
+                    if 'Authorization' in request.headers:
+                        headers['Authorization'] = request.headers['Authorization']
+
+                    remote_resp = requests.post(
                         proxy_url, 
                         json={'refresh': refresh_token},
+                        headers=headers,
                         timeout=5
                     )
-                except (ServerRegistry.DoesNotExist, requests.RequestException):
-                    # If home server is unreachable, we still blacklist locally as a fallback
+                    
+                    # Return the authoritative response from the Home Server
+                    return Response(remote_resp.json(), status=remote_resp.status_code)
+                    
+                except ServerRegistry.DoesNotExist:
+                    # Fallback to local blacklist if registry is out of sync
                     pass
+                except requests.RequestException:
+                    return Response(
+                        {"error": "Home server unreachable for logout."}, 
+                        status=status.HTTP_503_SERVICE_UNAVAILABLE
+                    )
 
             # 3. Blacklist locally (Authoritative if this is the Home Server)
             token = RefreshToken(refresh_token)

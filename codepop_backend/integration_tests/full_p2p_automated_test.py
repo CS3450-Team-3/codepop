@@ -10,7 +10,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.backends import default_backend
 
 # CONFIGURATION
-SECTION_TOTAL = 6
+SECTION_TOTAL = 7
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 BACKEND_DIR = os.path.abspath(os.path.join(SCRIPT_DIR, ".."))
 
@@ -309,6 +309,86 @@ def main():
             else:
                 print(f"  FAILURE: Server B accepted a malicious token signed with the wrong key! ({resp.status_code})")
                 failure_count += 1
+
+        # 7. TEST: TOKEN REFRESH AND LOGOUT PROXYING
+        print(f"\n[7/{SECTION_TOTAL}] TESTING TOKEN REFRESH AND LOGOUT PROXYING...")
+
+        # Initialize variable to avoid NameError if Test F fails
+        new_access_b_proxied = None
+
+        # Test E: Token Refresh on Home Server (A)
+        test_count += 1
+        print("Test E: Token Refresh on Home Server (A)...")
+        resp = requests.post(f"http://localhost:{PORT_A}/backend/auth/login/", 
+                            json={"username": "traveler_joe", "password": "password123"})
+        if resp.status_code != 200:
+            print(f"  ERROR: Could not get login response from Server A: {resp.text}")
+            failure_count += 1
+        else:
+            refresh_a = resp.json()['refresh']
+            resp = requests.post(f"http://localhost:{PORT_A}/backend/auth/refresh/", 
+                                json={"refresh": refresh_a})
+            if resp.status_code == 200:
+                print("  SUCCESS: Home server correctly refreshed its own token.")
+                # Note: refresh_a is now blacklisted because ROTATE_REFRESH_TOKENS=True
+            else:
+                print(f"  FAILURE: Home server failed to refresh its own token ({resp.status_code}: {resp.text})")
+                failure_count += 1
+
+        # Test F: Token Refresh Proxy (B -> A)
+        test_count += 1
+        print("Test F: Token Refresh Proxy (B -> A)...")
+        # Get a FRESH refresh token for this test to avoid blacklist issues from Test E
+        resp = requests.post(f"http://localhost:{PORT_A}/backend/auth/login/", 
+                            json={"username": "traveler_joe", "password": "password123"})
+        refresh_a_fresh = resp.json()['refresh']
+        
+        resp = requests.post(f"http://localhost:{PORT_B}/backend/auth/refresh/", 
+                            json={"refresh": refresh_a_fresh})
+        if resp.status_code == 200:
+            print("  SUCCESS: Server B proxied the refresh request to Server A.")
+            new_access_b_proxied = resp.json()['access']
+            refresh_a_after_proxy = resp.json().get('refresh') # The new rotated refresh token
+            
+            # Verify the new access token actually works on B
+            headers = {"Authorization": f"Bearer {new_access_b_proxied}"}
+            resp = requests.get(f"http://localhost:{PORT_B}/backend/users/me/", headers=headers)
+            if resp.status_code == 200:
+                print("  SUCCESS: Proxied access token is valid on Server B.")
+            else:
+                print(f"  FAILURE: Proxied access token rejected by Server B ({resp.status_code})")
+                failure_count += 1
+        else:
+            print(f"  FAILURE: Server B failed to proxy refresh request ({resp.status_code}: {resp.text})")
+            failure_count += 1
+
+        # Test G: Logout Proxy (B -> A)
+        test_count += 1
+        print("Test G: Logout Proxy (B -> A)...")
+        if new_access_b_proxied and refresh_a_after_proxy:
+            # Logout using Server B, providing the latest rotated refresh token
+            headers = {"Authorization": f"Bearer {new_access_b_proxied}"}
+            resp = requests.post(f"http://localhost:{PORT_B}/backend/auth/logout/", 
+                                json={"refresh": refresh_a_after_proxy}, headers=headers)
+            if resp.status_code == 200:
+                print("  SUCCESS: Server B proxied the logout/blacklist request to Server A.")
+                
+                # Now verify the refresh token is blacklisted on Server A
+                print("  Verifying token is blacklisted on Server A...")
+                resp = requests.post(f"http://localhost:{PORT_A}/backend/auth/refresh/", 
+                                    json={"refresh": refresh_a_after_proxy})
+                if resp.status_code == 401 or resp.status_code == 400:
+                    # SimpleJWT might return 401 or 400 depending on version/config for blacklisted tokens
+                    print(f"  SUCCESS: Refresh token is now invalid on Server A ({resp.status_code}).")
+                else:
+                    print(f"  FAILURE: Refresh token still valid on Server A after logout proxy ({resp.status_code})")
+                    failure_count += 1
+            else:
+                print(f"  FAILURE: Server B failed to proxy logout request ({resp.status_code}: {resp.text})")
+                failure_count += 1
+        else:
+            print("  SKIPPING Test G: Dependency from Test F not met.")
+            failure_count += 1
 
     except TestFailure:
         # Step-level failure already tracked in failure_count
