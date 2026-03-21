@@ -68,8 +68,16 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         
         # Inject the Issuer (ServerID)
         # This is critical for the P2P authentication backend to lookup the public key
-        if getattr(settings, 'LOCAL_SERVER_ID', None):
-            token['iss'] = str(settings.LOCAL_SERVER_ID)
+        local_id = getattr(settings, 'LOCAL_SERVER_ID', None)
+        if local_id:
+            token['iss'] = str(local_id)
+        
+        # Domain Logic Claim (Who owns this user?)
+        if user.home_server:
+            token['home_server_id'] = str(user.home_server.ServerID)
+        elif local_id:
+            # If no HomeServer is set, assume the local server is the home
+            token['home_server_id'] = str(local_id)
         
         return token
 

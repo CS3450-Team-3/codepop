@@ -54,30 +54,37 @@ class P2PJWTAuthentication(authentication.BaseAuthentication):
             user_id = payload.get('user_id')
             username = payload.get('username')
             user_type = payload.get('user_type', 'customer')
+            home_server_id = payload.get('home_server_id')
 
             if not user_id or not username:
                 raise AuthenticationFailed("Token missing user identity claims.")
 
             # 5. Get or Create the "Shadow" user record locally
             # We first try to find by ID (UUID), then by Username.
-            # This handles cases where a local shadow user might have been created
-            # without an ID previously (e.g. during a legacy proxy login).
             user = CustomUser.objects.filter(id=user_id).first()
             if not user:
                 user = CustomUser.objects.filter(username=username).first()
             
+            # Resolve Home Server if provided
+            home_server = None
+            if home_server_id:
+                home_server = ServerRegistry.objects.filter(pk=home_server_id).first()
+
             if user:
                 # Update existing user to match remote identity
                 user.id = user_id
                 user.username = username
                 user.user_type = user_type
+                if home_server:
+                    user.home_server = home_server
                 user.save()
             else:
                 # Create new shadow user
                 user = CustomUser.objects.create(
                     id=user_id,
                     username=username,
-                    user_type=user_type
+                    user_type=user_type,
+                    home_server=home_server
                 )
                 user.set_unusable_password()
                 user.save()
