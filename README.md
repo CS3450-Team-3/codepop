@@ -40,8 +40,10 @@ Follow these instructions to set up the CodePop project on your machine.
      ----------------------------- ---------------
      asgiref                       3.8.1
      certifi                       2024.8.30
+     cffi                          2.0.0
      charset-normalizer            3.4.0
      colorama                      0.4.6
+     cryptography                  46.0.5
      Django                        5.1.2
      django-cors-headers           4.4.0
      djangorestframework           3.15.2
@@ -63,6 +65,7 @@ Follow these instructions to set up the CodePop project on your machine.
      pandas                        2.2.3
      pip                           24.0
      psycopg2                      2.9.9
+     pycparser                     3.0
      PyJWT                         2.12.1
      python-dateutil               2.9.0.post0
      pytz                          2024.2

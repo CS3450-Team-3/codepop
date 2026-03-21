@@ -883,41 +883,48 @@ class UserOperations(viewsets.ModelViewSet):
 class MasterListSyncView(APIView):
     """
     Inter-server sync endpoint for MasterList data.
+    """
+    permission_classes = [AllowAny]
+    # ... (existing implementation)
 
-    Consumed only by other servers, not end-user clients.
-    Authentication is carried via the X-Source-Server-ID / Authorization
-    headers set by sync.http_get / sync.http_post.
-
-    GET  → return this server's full MasterList as {"items": [...]}
-    POST → accept {"items": [...]} and upsert each record by UserID
+class PublicDiscoveryView(APIView):
+    """
+    Public endpoint that allows other servers to 'discover' this server's 
+    Public Key and ID for P2P registration.
     """
     permission_classes = [AllowAny]
 
     @extend_schema(
-        responses={200: MasterListSyncResponseSerializer},
-        description="Return this server's full MasterList registry."
+        responses={200: OpenApiTypes.OBJECT},
+        description="Return this server's public identity (ID, URL, and Public Key) for P2P networking."
     )
     def get(self, request):
-        records = MasterList.objects.all()
-        serializer = MasterListSerializer(records, many=True)
-        return Response({"items": serializer.data}, status=status.HTTP_200_OK)
-
-    @extend_schema(
-        request=MasterListSyncRequestSerializer,
-        responses={200: MasterListSyncResponseSerializer},
-        description="Receive a list of users from a peer server and update the local MasterList registry."
-    )
-    def post(self, request):
-        items = request.data.get("items", [])
-        for item in items:
-            MasterList.objects.update_or_create(
-                UserID=item["UserID"],
-                defaults={
-                    "Username": item["Username"],
-                    "HomeServerID_id": item["HomeServerID"],
-                },
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.backends import default_backend
+        
+        try:
+            local_server = get_local_server()
+            
+            # Derive Public Key from the Private Key in settings
+            private_key = serialization.load_pem_private_key(
+                settings.PRIVATE_KEY.encode('utf-8'),
+                password=None,
+                backend=default_backend()
             )
-        return Response({"status": "ok"}, status=status.HTTP_200_OK)
+            public_key = private_key.public_key()
+            public_pem = public_key.public_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo
+            ).decode('utf-8')
+
+            return Response({
+                "ServerID": local_server.ServerID,
+                "ServerURL": local_server.ServerURL,
+                "PublicKey": public_pem,
+                "Region": local_server.Region.RegionID if local_server.Region else None
+            }, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"error": "Discovery failed", "details": str(e)}, status=500)
 
 class MenuView(APIView):
     """
