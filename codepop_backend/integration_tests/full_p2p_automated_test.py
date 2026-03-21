@@ -4,11 +4,13 @@ import requests
 import os
 import jwt
 import sys
+import concurrent.futures
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.backends import default_backend
 
 # CONFIGURATION
+SECTION_TOTAL = 6
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 BACKEND_DIR = os.path.abspath(os.path.join(SCRIPT_DIR, ".."))
 
@@ -165,40 +167,60 @@ def main():
         priv_b, pub_b = generate_keypair("B")
         priv_malicious, pub_malicious = generate_keypair("Malicious")
 
-        # 1. Setup Databases and Self-Identify
-        print("\n[1/6] Setting up databases and self-identification...")
-        for db, s_id, url, key, leader, label in [
-            (DB_A, 1, f"http://localhost:{PORT_A}", pub_a, True, "A"),
-            (DB_B, 2, f"http://localhost:{PORT_B}", pub_b, False, "B")
-        ]:
+        # 1. Setup Databases and Self-Identify (PARALLEL)
+        print(f"\n[1/{SECTION_TOTAL}] Setting up databases and self-identification...")
+        
+        def setup_single_server(db, s_id, url, key, leader, label):
             ensure_postgresql_db_exists(db)
             if not run_cmd(["python", "manage.py", "migrate"], env_update={"DATABASE_NAME": db}):
-                failure_count += 1; raise TestFailure("Migration failed")
+                return False, "Migration failed"
             
             cmd = ["python", "manage.py", "register_peer", "--id", str(s_id), "--url", url, "--key", key]
             if leader: cmd.append("--leader")
             if not run_cmd(cmd, env_update={"DATABASE_NAME": db}):
-                failure_count += 1; raise TestFailure("Register peer failed")
+                return False, "Register peer failed"
+            return True, None
+
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            futures = [
+                executor.submit(setup_single_server, DB_A, 1, f"http://localhost:{PORT_A}", pub_a, True, "A"),
+                executor.submit(setup_single_server, DB_B, 2, f"http://localhost:{PORT_B}", pub_b, False, "B")
+            ]
+            for future in concurrent.futures.as_completed(futures):
+                success, error_msg = future.result()
+                if not success:
+                    failure_count += 1
+                    raise TestFailure(error_msg)
 
         # 2. Launch Background Servers (PARALLEL)
-        print("\n[2/6] Launching background servers in parallel...")
+        print(f"\n[2/{SECTION_TOTAL}] Launching background servers...")
         s1 = spawn_server(PORT_A, DB_A, 1, priv_a, pub_a, "A")
         s2 = spawn_server(PORT_B, DB_B, 2, priv_b, pub_b, "B")
         
         if not wait_for_servers([s1, s2]):
             failure_count += 1; raise TestFailure("Servers failed to reach READY state")
 
-        # 3. Cross-Register via AUTO-DISCOVERY
-        print("\n[3/6] Performing Cross-Registration via AUTO-DISCOVERY...")
-        if not run_cmd(["python", "manage.py", "register_peer", "--url", f"http://localhost:{PORT_B}", "--discover"], 
-                env_update={"DATABASE_NAME": DB_A, "SERVER_PRIVATE_KEY": priv_a}):
-            failure_count += 1; raise TestFailure("Discovery on A failed")
-        if not run_cmd(["python", "manage.py", "register_peer", "--url", f"http://localhost:{PORT_A}", "--discover"], 
-                env_update={"DATABASE_NAME": DB_B, "SERVER_PRIVATE_KEY": priv_b}):
-            failure_count += 1; raise TestFailure("Discovery on B failed")
+        # 3. Cross-Register via AUTO-DISCOVERY (PARALLEL)
+        print(f"\n[3/{SECTION_TOTAL}] Performing Cross-Registration via AUTO-DISCOVERY...")
+        
+        def discover_peer(db, url, key):
+            if not run_cmd(["python", "manage.py", "register_peer", "--url", url, "--discover"], 
+                    env_update={"DATABASE_NAME": db, "SERVER_PRIVATE_KEY": key}):
+                return False
+            return True
+
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            futures = [
+                executor.submit(discover_peer, DB_A, f"http://localhost:{PORT_B}", priv_a),
+                executor.submit(discover_peer, DB_B, f"http://localhost:{PORT_A}", priv_b)
+            ]
+            for future in concurrent.futures.as_completed(futures):
+                if not future.result():
+                    failure_count += 1
+                    raise TestFailure("Discovery failed")
 
         # 4. Create User on Server A
-        print("\n[4/6] Creating user 'traveler_joe' on Server A...")
+        print(f"\n[4/{SECTION_TOTAL}] Creating user 'traveler_joe' on Server A...")
         user_cmd = (
             "from backend.models import CustomUser; "
             "user, created = CustomUser.objects.get_or_create(username='traveler_joe', defaults={'email': 'joe@test.com', 'first_name': 'Joe'}); "
@@ -210,20 +232,20 @@ def main():
         
         # Inject MasterList entry into Server B
         if not run_cmd(["python", "manage.py", "shell", "-c", 
-                 "from backend.models import MasterList, ServerRegistry; "
-                 "home = ServerRegistry.objects.get(ServerID=1); "
-                 "MasterList.objects.update_or_create(Username='traveler_joe', defaults={'HomeServerID': home})"], 
+                "from backend.models import MasterList, ServerRegistry; "
+                "home = ServerRegistry.objects.get(ServerID=1); "
+                "MasterList.objects.update_or_create(Username='traveler_joe', defaults={'HomeServerID': home})"], 
                 env_update={"DATABASE_NAME": DB_B, "SERVER_PRIVATE_KEY": priv_b}):
             failure_count += 1; raise TestFailure("MasterList injection failed")
 
         # 5. TEST: Authentication Flows
-        print("\n[5/6] TESTING AUTHENTICATION FLOWS...")
+        print(f"\n[5/{SECTION_TOTAL}] TESTING AUTHENTICATION FLOWS...")
 
         # Test A: Correct Password Proxy Login
         test_count += 1
         print("Test A: Correct Password Proxy Login (B -> A)...")
         resp = requests.post(f"http://localhost:{PORT_B}/backend/auth/login/", 
-                             json={"username": "traveler_joe", "password": "password123"})
+                            json={"username": "traveler_joe", "password": "password123"})
         if resp.status_code == 200:
             print("  SUCCESS: Proxy login worked with correct password.")
         else:
@@ -234,7 +256,7 @@ def main():
         test_count += 1
         print("Test B: Incorrect Password Proxy Login (B -> A)...")
         resp = requests.post(f"http://localhost:{PORT_B}/backend/auth/login/", 
-                             json={"username": "traveler_joe", "password": "WRONG_PASSWORD"})
+                            json={"username": "traveler_joe", "password": "WRONG_PASSWORD"})
         if resp.status_code == 401:
             print("  SUCCESS: Server correctly rejected wrong password.")
         else:
@@ -242,12 +264,12 @@ def main():
             failure_count += 1
 
         # 6. TEST: Cross-Server JWT Verification (P2P)
-        print("\n[6/6] TESTING CROSS-SERVER JWT VERIFICATION...")
+        print(f"\n[6/{SECTION_TOTAL}] TESTING CROSS-SERVER JWT VERIFICATION...")
 
         # Get a real token from Server A
         print("Fetching valid token from Server A...")
         resp = requests.post(f"http://localhost:{PORT_A}/backend/auth/login/", 
-                             json={"username": "traveler_joe", "password": "password123"})
+                            json={"username": "traveler_joe", "password": "password123"})
         if resp.status_code != 200:
             print(f"  ERROR: Could not get token from Server A: {resp.text}")
             failure_count += 1
