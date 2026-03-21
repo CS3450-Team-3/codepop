@@ -173,6 +173,8 @@ If you pull new changes and the database is in an inconsistent state:
 
 ## Running Backend Tests
 
+### Standard Tests
+
 1. Navigate to `codepop_backend`.
 2. Run migrations:
 
@@ -186,6 +188,26 @@ If you pull new changes and the database is in an inconsistent state:
    ```bash
    python manage.py test
    ```
+
+### P2P & Integration Testing Suite
+
+CodePop includes a specialized suite for testing decentralized P2P functionality, including multi-instance orchestration.
+
+#### Level 1: Logic Verification (Fast)
+Validates P2P logic and JWT claims using mocks. Run from `codepop_backend`:
+
+```bash
+python manage.py test backend.tests_p2p
+```
+
+#### Level 2: Full Integration (Multi-Instance)
+Orchestrates two real servers and validates discovery and network-level proxying. Run from the **project root**:
+
+```bash
+python codepop_backend/integration_tests/full_p2p_automated_test.py
+```
+
+For more detailed information on P2P testing, see the [Integration Tests README](codepop_backend/integration_tests/README.md).
 
 ## Basic Data (Default)
 
