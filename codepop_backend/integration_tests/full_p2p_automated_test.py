@@ -183,8 +183,8 @@ def main():
 
         with concurrent.futures.ThreadPoolExecutor() as executor:
             futures = [
-                executor.submit(setup_single_server, DB_A, 1, f"http://localhost:{PORT_A}", pub_a, True, "A"),
-                executor.submit(setup_single_server, DB_B, 2, f"http://localhost:{PORT_B}", pub_b, False, "B")
+                executor.submit(setup_single_server, DB_A, "server_a", f"http://localhost:{PORT_A}", pub_a, True, "A"),
+                executor.submit(setup_single_server, DB_B, "server_b", f"http://localhost:{PORT_B}", pub_b, False, "B")
             ]
             for future in concurrent.futures.as_completed(futures):
                 success, error_msg = future.result()
@@ -194,8 +194,8 @@ def main():
 
         # 2. Launch Background Servers (PARALLEL)
         print(f"\n[2/{SECTION_TOTAL}] Launching background servers...")
-        s1 = spawn_server(PORT_A, DB_A, 1, priv_a, pub_a, "A")
-        s2 = spawn_server(PORT_B, DB_B, 2, priv_b, pub_b, "B")
+        s1 = spawn_server(PORT_A, DB_A, "server_a", priv_a, pub_a, "A")
+        s2 = spawn_server(PORT_B, DB_B, "server_b", priv_b, pub_b, "B")
         
         if not wait_for_servers([s1, s2]):
             failure_count += 1; raise TestFailure("Servers failed to reach READY state")
@@ -203,16 +203,16 @@ def main():
         # 3. Cross-Register via AUTO-DISCOVERY (PARALLEL)
         print(f"\n[3/{SECTION_TOTAL}] Performing Cross-Registration via AUTO-DISCOVERY...")
         
-        def discover_peer(db, url, key):
+        def discover_peer(db, url, key, s_id):
             if not run_cmd(["python", "manage.py", "register_peer", "--url", url, "--discover"], 
-                    env_update={"DATABASE_NAME": db, "SERVER_PRIVATE_KEY": key}):
+                    env_update={"DATABASE_NAME": db, "SERVER_PRIVATE_KEY": key, "LOCAL_SERVER_ID": s_id}):
                 return False
             return True
 
         with concurrent.futures.ThreadPoolExecutor() as executor:
             futures = [
-                executor.submit(discover_peer, DB_A, f"http://localhost:{PORT_B}", priv_a),
-                executor.submit(discover_peer, DB_B, f"http://localhost:{PORT_A}", priv_b)
+                executor.submit(discover_peer, DB_A, f"http://localhost:{PORT_B}", priv_a, "server_a"),
+                executor.submit(discover_peer, DB_B, f"http://localhost:{PORT_A}", priv_b, "server_b")
             ]
             for future in concurrent.futures.as_completed(futures):
                 if not future.result():
@@ -227,15 +227,15 @@ def main():
             "user.set_password('password123'); "
             "user.save()"
         )
-        if not run_cmd(["python", "manage.py", "shell", "-c", user_cmd], env_update={"DATABASE_NAME": DB_A, "SERVER_PRIVATE_KEY": priv_a}):
+        if not run_cmd(["python", "manage.py", "shell", "-c", user_cmd], env_update={"DATABASE_NAME": DB_A, "SERVER_PRIVATE_KEY": priv_a, "LOCAL_SERVER_ID": "server_a"}):
             failure_count += 1; raise TestFailure("User creation failed")
         
         # Inject MasterList entry into Server B
         if not run_cmd(["python", "manage.py", "shell", "-c", 
                 "from backend.models import MasterList, ServerRegistry; "
-                "home = ServerRegistry.objects.get(ServerID=1); "
+                "home = ServerRegistry.objects.get(ServerID='server_a'); "
                 "MasterList.objects.update_or_create(Username='traveler_joe', defaults={'HomeServerID': home})"], 
-                env_update={"DATABASE_NAME": DB_B, "SERVER_PRIVATE_KEY": priv_b}):
+                env_update={"DATABASE_NAME": DB_B, "SERVER_PRIVATE_KEY": priv_b, "LOCAL_SERVER_ID": "server_b"}):
             failure_count += 1; raise TestFailure("MasterList injection failed")
 
         # 5. TEST: Authentication Flows
@@ -260,7 +260,7 @@ def main():
             # We decode WITHOUT verification just to check the 'iss' claim
             payload = jwt.decode(proxy_access_token, options={"verify_signature": False})
             
-            if payload.get('iss') == "1" and payload.get('home_server_id') == "1":
+            if payload.get('iss') == "server_a" and payload.get('home_server_id') == "server_a":
                 print("  SUCCESS: Proxy login worked and returned an authoritative token from Server A.")
             else:
                 print(f"  FAILURE: Proxy login returned a locally signed token (iss: {payload.get('iss')}).")
@@ -328,7 +328,7 @@ def main():
             malicious_payload = {
                 "user_id": user_id_a,
                 "username": "traveler_joe",
-                "iss": "1", # Claim to be from Server 1 (A)
+                "iss": "server_a", # Claim to be from Server A
                 "exp": int(time.time()) + 3600
             }
             malicious_token = jwt.encode(malicious_payload, priv_malicious, algorithm='RS256')

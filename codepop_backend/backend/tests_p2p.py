@@ -9,9 +9,9 @@ from .serializers import get_tokens_for_user
 
 class P2PAuthTests(APITestCase):
     def setUp(self):
-        # 1. Setup a "Remote" server in our registry (ServerID=100)
+        # 1. Setup a "Remote" server in our registry (ServerID='remote-store')
         self.remote_server = ServerRegistry.objects.create(
-            ServerID=100,
+            ServerID="remote-store",
             ServerURL="https://remote-store.com",
             PublicKey="dummy-public-key",
             Status="Active"
@@ -33,15 +33,15 @@ class P2PAuthTests(APITestCase):
         user.save()
 
         # Test with local server ID set
-        with self.settings(LOCAL_SERVER_ID=5):
+        with self.settings(LOCAL_SERVER_ID="local-store"):
             tokens = get_tokens_for_user(user)
             payload = jwt.decode(tokens['access'], options={"verify_signature": False})
             
-            self.assertEqual(payload['iss'], '5')
+            self.assertEqual(payload['iss'], 'local-store')
             self.assertEqual(payload['user_id'], str(user.id))
             self.assertEqual(payload['username'], user.username)
             self.assertEqual(payload['user_type'], 'admin')
-            self.assertEqual(payload['home_server_id'], '5')
+            self.assertEqual(payload['home_server_id'], 'local-store')
 
     @patch('requests.post')
     def test_proxy_refresh_token(self, mock_post):
@@ -66,7 +66,7 @@ class P2PAuthTests(APITestCase):
         }
 
         # Request refresh from local server
-        with self.settings(LOCAL_SERVER_ID=1):
+        with self.settings(LOCAL_SERVER_ID="local-store"):
             response = self.client.post('/backend/auth/refresh/', {'refresh': str(refresh)})
 
         # Assertions
@@ -96,7 +96,7 @@ class P2PAuthTests(APITestCase):
         mock_post.return_value.status_code = 200
         mock_post.return_value.json.return_value = {"detail": "Successfully logged out."}
 
-        with self.settings(LOCAL_SERVER_ID=1):
+        with self.settings(LOCAL_SERVER_ID="local-store"):
             response = self.client.post('/backend/auth/logout/', {'refresh': str(refresh)})
 
         # Assertions
@@ -166,7 +166,7 @@ class P2PAuthTests(APITestCase):
         
         # We need to mock get_local_server to return something different than remote_server
         with patch('backend.views.get_local_server') as mock_local:
-            mock_local.return_value.ServerID = 999
+            mock_local.return_value.ServerID = "local-store"
             response = self.client.post('/backend/auth/login/', login_data)
 
         # ASSERTIONS
@@ -187,13 +187,13 @@ class P2PAuthTests(APITestCase):
         local_user = CustomUser.objects.create_user(username="local_girl", password="password123")
         
         # Ensure LOCAL_SERVER_ID is set for the test
-        with self.settings(LOCAL_SERVER_ID=1):
+        with self.settings(LOCAL_SERVER_ID="local-store"):
             login_data = {'username': "local_girl", 'password': "password123"}
             response = self.client.post('/backend/auth/login/', login_data)
             
             # Decode token without verification to check claims
             payload = jwt.decode(response.data['access'], options={"verify_signature": False})
-            self.assertEqual(payload['iss'], '1')
+            self.assertEqual(payload['iss'], 'local-store')
             self.assertEqual(payload['user_type'], 'customer')
 
     def test_unregistered_user_fails(self):

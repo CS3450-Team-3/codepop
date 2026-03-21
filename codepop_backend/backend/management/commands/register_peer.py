@@ -7,7 +7,7 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument('--url', type=str, required=True, help='URL of the remote server')
-        parser.add_argument('--id', type=int, help='ID of the remote server (optional if using --discover)')
+        parser.add_argument('--id', type=str, help='ID of the remote server (optional if using --discover)')
         parser.add_argument('--key', type=str, help='Public Key of the remote server (optional if using --discover)')
         parser.add_argument('--leader', action='store_true', help='Set this server as a region leader')
         parser.add_argument('--discover', action='store_true', help='Automatically fetch ID and Public Key from the URL')

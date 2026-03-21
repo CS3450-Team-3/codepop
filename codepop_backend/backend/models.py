@@ -52,7 +52,7 @@ class Region(models.Model):
 
 
 class ServerRegistry(models.Model):
-    ServerID = models.AutoField(primary_key=True)
+    ServerID = models.CharField(primary_key=True, max_length=100)
     ServerURL = models.URLField(max_length=255)
     PublicKey = models.TextField()
     Status = models.CharField(max_length=20, default='Active')
