@@ -2,7 +2,37 @@ from django.contrib.auth import get_user_model
 from django.conf import settings
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework_simplejwt.tokens import RefreshToken
 from .models import Preference, Drink, Inventory, Order, Notification, Revenue, Region, ServerRegistry, MasterList
+
+
+def get_tokens_for_user(user):
+    """
+    Generate a RefreshToken for a user, injecting P2P-specific claims (iss, home_server_id).
+    This ensures that tokens issued during registration, proxy-login, or normal login
+    all have the metadata required for the P2P authentication backend.
+    """
+    refresh = RefreshToken.for_user(user)
+
+    # Inject custom P2P claims
+    refresh['user_type'] = user.user_type
+    refresh['username'] = user.username
+
+    # Inject the Issuer (ServerID)
+    local_id = getattr(settings, 'LOCAL_SERVER_ID', None)
+    if local_id:
+        refresh['iss'] = str(local_id)
+
+    # Domain Logic Claim (Who owns this user?)
+    if user.home_server:
+        refresh['home_server_id'] = str(user.home_server.ServerID)
+    elif local_id:
+        refresh['home_server_id'] = str(local_id)
+
+    return {
+        'refresh': str(refresh),
+        'access': str(refresh.access_token),
+    }
 
 
 class CreateUserSerializer(serializers.ModelSerializer):

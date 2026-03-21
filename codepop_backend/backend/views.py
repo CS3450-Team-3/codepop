@@ -7,15 +7,16 @@ User = CustomUser
 from rest_framework.generics import CreateAPIView, ListAPIView, ListCreateAPIView, RetrieveUpdateDestroyAPIView, RetrieveUpdateAPIView
 from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser, BasePermission
 from rest_framework.response import Response
-from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.tokens import RefreshToken, TokenError
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework import status, viewsets
 from rest_framework.views import APIView, exception_handler
 from .serializers import (
     CreateUserSerializer, GetUserSerializer, UserProfileSerializer, 
     PreferenceSerializer, DrinkSerializer, InventorySerializer, 
     NotificationSerializer, OrderSerializer, RevenueSerializer, 
-    MasterListSerializer, ServerRegistrySerializer, CustomTokenObtainPairSerializer
+    MasterListSerializer, ServerRegistrySerializer, CustomTokenObtainPairSerializer,
+    get_tokens_for_user
 )
 from .documentation_serializers import (
     EmailAPIResponseSerializer, InventoryReportResponseSerializer, 
@@ -30,6 +31,7 @@ from django.views import View
 from django.utils.decorators import method_decorator
 import json
 import requests
+import jwt
 from rest_framework.decorators import action
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
 from django.utils.dateparse import parse_datetime
@@ -37,6 +39,61 @@ from .drinkAI import generate_soda
 from .sync import get_local_server
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
+
+
+class CustomTokenRefreshView(TokenRefreshView):
+    """
+    Overridden Refresh view that proxies the refresh request to the user's
+    Home Server if the local server is just a visiting server.
+    """
+    @extend_schema(
+        description="Refresh an access token. If the refresh token was issued by a remote Home Server, "
+                    "the request is proxied to that server for authoritative validation."
+    )
+    def post(self, request, *args, **kwargs):
+        refresh_token = request.data.get('refresh')
+        if not refresh_token:
+            return Response({"error": "Refresh token required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            # 1. Unverified decode to find the Home Server
+            unverified_payload = jwt.decode(refresh_token, options={"verify_signature": False})
+            home_server_id = unverified_payload.get('home_server_id')
+            local_id = getattr(settings, 'LOCAL_SERVER_ID', None)
+
+            # 2. If Home Server is remote, proxy the request
+            if home_server_id and str(home_server_id) != str(local_id):
+                try:
+                    home_server = ServerRegistry.objects.get(pk=home_server_id)
+                    proxy_url = home_server.ServerURL.rstrip('/') + '/backend/auth/refresh/'
+                    
+                    remote_resp = requests.post(
+                        proxy_url, 
+                        json={'refresh': refresh_token},
+                        timeout=10
+                    )
+                    
+                    # Return the authoritative response from the Home Server
+                    return Response(remote_resp.json(), status=remote_resp.status_code)
+                    
+                except ServerRegistry.DoesNotExist:
+                    # Fallback to local refresh if registry is out of sync, 
+                    # but log it as it might indicate a security issue.
+                    pass
+                except requests.RequestException:
+                    return Response(
+                        {"error": "Home server unreachable for token refresh."}, 
+                        status=status.HTTP_503_SERVICE_UNAVAILABLE
+                    )
+
+            # 3. Local refresh (Home Server logic)
+            return super().post(request, *args, **kwargs)
+
+        except jwt.InvalidTokenError:
+            return Response({"error": "Invalid token"}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
 
 class IsSuperAdmin(BasePermission):
     """
@@ -148,11 +205,13 @@ class CustomAuthToken(TokenObtainPairView):
                                 user.save()
                                 
                             # 5. Issue local tokens for the visiting user
-                            refresh = RefreshToken.for_user(user)
+                            # This ensures that even on a visiting server, the user's JWT 
+                            # includes the correct home_server_id for future refresh calls.
+                            token_data = get_tokens_for_user(user)
+                            
                             # Inject the same extra data as CustomTokenObtainPairSerializer
                             data = {
-                                'refresh': str(refresh),
-                                'access': str(refresh.access_token),
+                                **token_data,
                                 'user_type': user.user_type,
                                 'user_id': str(user.id),
                                 'first_name': user.first_name,
@@ -189,12 +248,8 @@ class CreateUserAPIView(CreateAPIView):
         headers = self.get_success_headers(serializer.data)
         
         user = serializer.instance
-        refresh = RefreshToken.for_user(user)
+        token_data = get_tokens_for_user(user)
         
-        token_data = {
-            "refresh": str(refresh),
-            "access": str(refresh.access_token),
-        }
         return Response(
             {**serializer.data, **token_data},
             status=status.HTTP_201_CREATED,
@@ -206,12 +261,47 @@ class LogoutUserAPIView(APIView):
     serializer_class = None
 
     @extend_schema(
-        request=None,
+        request=OpenApiTypes.OBJECT,
         responses={200: OpenApiTypes.OBJECT},
-        description="Logout the user by clearing tokens from the client-side. JWTs are stateless, so this endpoint just returns a success message."
+        description="Logout the user by blacklisting the refresh token. "
+                    "If the token belongs to a remote Home Server, the request is proxied there."
     )
     def post(self, request, *args, **kwargs):
-        return Response({"detail": "Successfully logged out."}, status=status.HTTP_200_OK)
+        try:
+            refresh_token = request.data.get("refresh")
+            if not refresh_token:
+                return Response({"detail": "Successfully logged out (client-side)."}, status=status.HTTP_200_OK)
+
+            # 1. Determine the Home Server from the token
+            unverified_payload = jwt.decode(refresh_token, options={"verify_signature": False})
+            home_server_id = unverified_payload.get('home_server_id')
+            local_id = getattr(settings, 'LOCAL_SERVER_ID', None)
+
+            # 2. If Home Server is remote, proxy the logout
+            if home_server_id and str(home_server_id) != str(local_id):
+                try:
+                    home_server = ServerRegistry.objects.get(pk=home_server_id)
+                    proxy_url = home_server.ServerURL.rstrip('/') + '/backend/auth/logout/'
+                    
+                    # Forward the logout request to the authoritative Home Server
+                    requests.post(
+                        proxy_url, 
+                        json={'refresh': refresh_token},
+                        timeout=5
+                    )
+                except (ServerRegistry.DoesNotExist, requests.RequestException):
+                    # If home server is unreachable, we still blacklist locally as a fallback
+                    pass
+
+            # 3. Blacklist locally (Authoritative if this is the Home Server)
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+            
+            return Response({"detail": "Successfully logged out."}, status=status.HTTP_200_OK)
+        except (TokenError, jwt.InvalidTokenError):
+            return Response({"error": "Invalid or expired token"}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
     
 class PreferencesOperations(viewsets.ModelViewSet):
     queryset = Preference.objects.all()
