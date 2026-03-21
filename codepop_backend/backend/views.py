@@ -7,8 +7,8 @@ User = CustomUser
 from rest_framework.generics import CreateAPIView, ListAPIView, ListCreateAPIView, RetrieveUpdateDestroyAPIView, RetrieveUpdateAPIView
 from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser, BasePermission
 from rest_framework.response import Response
-from rest_framework.authtoken.views import ObtainAuthToken
-from rest_framework.authtoken.models import Token
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework import status, viewsets
 from rest_framework.views import APIView, exception_handler
 from .serializers import (
@@ -16,6 +16,11 @@ from .serializers import (
     PreferenceSerializer, DrinkSerializer, InventorySerializer, 
     NotificationSerializer, OrderSerializer, RevenueSerializer, 
     MasterListSerializer, ServerRegistrySerializer
+)
+from .documentation_serializers import (
+    EmailAPIResponseSerializer, InventoryReportResponseSerializer, 
+    MasterListSyncRequestSerializer, MasterListSyncResponseSerializer,
+    SimpleStatusSerializer
 )
 import stripe
 from django.conf import settings
@@ -25,6 +30,7 @@ from django.views import View
 from django.utils.decorators import method_decorator
 import json
 from rest_framework.decorators import action
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
 from django.utils.dateparse import parse_datetime
 from .drinkAI import generate_soda
 
@@ -70,34 +76,43 @@ def custom_exception_handler(exc, context):
 
 # Custom login to so that it get's a token but also the user's first name and the user id
 
-class CustomAuthToken(ObtainAuthToken):
+class CustomAuthToken(TokenObtainPairView):
+    @extend_schema(
+        description="Login with username and password to receive JWT access and refresh tokens."
+    )
     def post(self, request, *args, **kwargs):
-        serializer = self.serializer_class(data=request.data, context={'request': request})
-        serializer.is_valid(raise_exception=True)
-        user = serializer.validated_data['user']
-        token, created = Token.objects.get_or_create(user=user)
-        return Response({
-            'token': token.key,
-            'user_id': user.pk,
-            'first_name': user.first_name,
-            'is_admin' : user.is_superuser,
-            'is_manager' : user.is_staff,
-            
-        })
+        response = super().post(request, *args, **kwargs)
+        if response.status_code == 200:
+            user = User.objects.get(username=request.data['username'])
+            response.data.update({
+                'user_id': user.pk,
+                'first_name': user.first_name,
+                'is_admin': user.is_superuser,
+                'is_manager': user.is_staff,
+            })
+        return response
 
 #Code to create a user in the database
 class CreateUserAPIView(CreateAPIView):
     serializer_class = CreateUserSerializer
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        description="Register a new user and receive initial JWT access and refresh tokens."
+    )
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
         headers = self.get_success_headers(serializer.data)
-        # We create a token than will be used for future auth
-        token = Token.objects.create(user=serializer.instance)
-        token_data = {"token": token.key}
+        
+        user = serializer.instance
+        refresh = RefreshToken.for_user(user)
+        
+        token_data = {
+            "refresh": str(refresh),
+            "access": str(refresh.access_token),
+        }
         return Response(
             {**serializer.data, **token_data},
             status=status.HTTP_201_CREATED,
@@ -106,10 +121,14 @@ class CreateUserAPIView(CreateAPIView):
 
 class LogoutUserAPIView(APIView):
     permission_classes = [IsAuthenticated]
+    serializer_class = None
 
+    @extend_schema(
+        request=None,
+        responses={200: OpenApiTypes.OBJECT},
+        description="Logout the user by clearing tokens from the client-side. JWTs are stateless, so this endpoint just returns a success message."
+    )
     def post(self, request, *args, **kwargs):
-        # Delete the token to log out the user
-        request.user.auth_token.delete()
         return Response({"detail": "Successfully logged out."}, status=status.HTTP_200_OK)
     
 class PreferencesOperations(viewsets.ModelViewSet):
@@ -244,6 +263,10 @@ class InventoryListAPIView(ListAPIView):
 
 class InventoryReportAPIView(APIView):
     """Generate an inventory report."""
+    @extend_schema(
+        responses={200: InventoryReportResponseSerializer},
+        description="Generate a detailed report of current inventory including out-of-stock and low-stock counts."
+    )
     def get(self, request):
         inventory = Inventory.objects.all()
         report_data = {
@@ -538,6 +561,10 @@ def refund_order(client_secret_or_id):
         return False
     
 class emailAPI(APIView):
+    @extend_schema(
+        responses={200: EmailAPIResponseSerializer},
+        description="Generate and display an email preview in the server terminal for a specific order."
+    )
     def get(self, request, orderId):
         try:
             # Fetch order details
@@ -610,24 +637,9 @@ class emailAPI(APIView):
         return email_content
 
     
-class GenerateAIDrink(APIView):
+class GenerateAIDrinkBase(APIView):
     permission_classes = [AllowAny]
 
-    def get(self, request, user_id=None):
-        try:
-            if user_id:
-                # Generate drink for account user
-                response_data = self.generate_account_user(user_id)
-            else:
-                # Generate drink for general user
-                response_data = self.generate_general_user()
-            return Response(response_data)
-        except Exception as e:
-            return Response(
-                {"error": "AI Generation failed", "details": {"message": str(e)}}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
-    
     def generate_account_user(self, user_id):
         """Generate AI drink for a registered user using their preferences."""
         user = get_object_or_404(User, pk=user_id)
@@ -659,6 +671,38 @@ class GenerateAIDrink(APIView):
             'Ice': "regular",
             "UserCreated": user_created,
         }
+
+class GeneralGenerateAIDrink(GenerateAIDrinkBase):
+    @extend_schema(
+        operation_id="generate_guest_drink",
+        responses={200: OpenApiTypes.OBJECT},
+        description="Generate a beverage recommendation using AI for a guest user."
+    )
+    def get(self, request):
+        try:
+            response_data = self.generate_general_user()
+            return Response(response_data)
+        except Exception as e:
+            return Response(
+                {"error": "AI Generation failed", "details": {"message": str(e)}}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+class UserGenerateAIDrink(GenerateAIDrinkBase):
+    @extend_schema(
+        operation_id="generate_user_drink",
+        responses={200: OpenApiTypes.OBJECT},
+        description="Generate a beverage recommendation using AI for a registered user based on their preferences."
+    )
+    def get(self, request, user_id):
+        try:
+            response_data = self.generate_account_user(user_id)
+            return Response(response_data)
+        except Exception as e:
+            return Response(
+                {"error": "AI Generation failed", "details": {"message": str(e)}}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
 
 class RevenueViewSet(viewsets.ModelViewSet):
@@ -771,11 +815,20 @@ class MasterListSyncView(APIView):
     """
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        responses={200: MasterListSyncResponseSerializer},
+        description="Return this server's full MasterList registry."
+    )
     def get(self, request):
         records = MasterList.objects.all()
         serializer = MasterListSerializer(records, many=True)
         return Response({"items": serializer.data}, status=status.HTTP_200_OK)
 
+    @extend_schema(
+        request=MasterListSyncRequestSerializer,
+        responses={200: MasterListSyncResponseSerializer},
+        description="Receive a list of users from a peer server and update the local MasterList registry."
+    )
     def post(self, request):
         items = request.data.get("items", [])
         for item in items:
@@ -794,6 +847,10 @@ class MenuView(APIView):
     """
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        responses={200: DrinkSerializer(many=True)}, # Simplified, it actually returns a dict but this tells Swagger there are drinks here.
+        description="Fetch all menu categories including inventory items and featured house drinks."
+    )
     def get(self, request):
         sodas = Inventory.objects.filter(ItemType='Soda')
         syrups = Inventory.objects.filter(ItemType='Syrup')
@@ -814,6 +871,25 @@ class UserProfileView(RetrieveUpdateAPIView):
     """
     permission_classes = [IsAuthenticated]
     serializer_class = UserProfileSerializer
+
+    @extend_schema(
+        description="Retrieve the profile of the currently authenticated user.",
+        responses={200: UserProfileSerializer}
+    )
+    def get(self, *args, **kwargs):
+        return super().get(*args, **kwargs)
+
+    @extend_schema(
+        description="Update the profile details (first name, last name, email) of the authenticated user.",
+        request=UserProfileSerializer,
+        responses={200: UserProfileSerializer}
+    )
+    def patch(self, *args, **kwargs):
+        return super().patch(*args, **kwargs)
+
+    @extend_schema(exclude=True) # Hide PUT if you only want to support PATCH
+    def put(self, *args, **kwargs):
+        return super().put(*args, **kwargs)
 
     def get_object(self):
         return self.request.user

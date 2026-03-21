@@ -7,10 +7,10 @@ from .views import DrinkOperations, UserDrinksLookup
 from .views import InventoryListAPIView, InventoryReportAPIView, InventoryUpdateAPIView
 from .views import NotificationOperations, UserNotificationLookup
 from .views import OrderOperations, UserOrdersLookup
-from .views import GenerateAIDrink
 from .views import RevenueViewSet
 from .views import UserOperations
-from .views import MasterListSyncView, MenuView, UserProfileView, ServerRegistryAPIView, emailAPI
+from .views import MasterListSyncView, MenuView, UserProfileView, ServerRegistryAPIView, GeneralGenerateAIDrink, UserGenerateAIDrink, emailAPI
+from rest_framework_simplejwt.views import TokenRefreshView
 from .customerAI import Chatbot
 
 #this ensures that the url calls the right function from the views for each type of request
@@ -88,6 +88,10 @@ urlpatterns = [
     # Endpoint for user registration
     # - POST: Registers a new user and returns the user details.
     path('auth/register/', CreateUserAPIView.as_view(), name='auth_user_create'),
+
+    # Endpoint for token refresh
+    # - POST: Accepts a refresh token and returns a new access token.
+    path('auth/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 
     # Endpoint for user logout
     # - POST: Logs out the user by invalidating the auth token.
@@ -194,10 +198,10 @@ urlpatterns = [
     # One for account users and one for general users
     # - GET: Retrive generated-drink information the AI sends back
     # For account users: expects a user_id to be provided
-    path('generate/<uuid:user_id>/', GenerateAIDrink.as_view(), name='account_ai_drink'),
+    path('generate/<uuid:user_id>/', UserGenerateAIDrink.as_view(), name='account_ai_drink'),
     
     # For general users: no user_id provided
-    path('generate/', GenerateAIDrink.as_view(), name='general_ai_drink'),
+    path('generate/', GeneralGenerateAIDrink.as_view(), name='general_ai_drink'),
 
     # Revenue related URLs
     # Endpoint to list all revenues or create a new revenue.
