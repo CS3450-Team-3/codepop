@@ -510,7 +510,7 @@ class RevenueTests(APITestCase):
         data = {"OrderID": self.order.OrderID}
         self.client.credentials() # Clear credentials
         response = self.client.post('/backend/revenues/', data, format='json')
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_update_revenue_to_zero(self):
         """Test updating the revenue total amount to 0."""

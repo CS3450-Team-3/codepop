@@ -128,12 +128,16 @@ class CustomAuthToken(TokenObtainPairView):
                         
                         if remote_resp.status_code == 200:
                             remote_data = remote_resp.json()
+                            remote_user_id = remote_data.get('user_id')
                             
                             # 4. Create/Update a "cached" local user record for this visitor
-                            # Note: We do NOT store the password hash locally.
+                            # Use the remote user_id to ensure P2P consistency
+                            user_lookup = {'id': remote_user_id} if remote_user_id else {'username': username}
+                            
                             user, created = User.objects.update_or_create(
-                                username=username,
+                                **user_lookup,
                                 defaults={
+                                    'username': username,
                                     'first_name': remote_data.get('first_name', ''),
                                     'user_type': remote_data.get('user_type', 'customer'),
                                 }
@@ -883,9 +887,41 @@ class UserOperations(viewsets.ModelViewSet):
 class MasterListSyncView(APIView):
     """
     Inter-server sync endpoint for MasterList data.
+
+    Consumed only by other servers, not end-user clients.
+    Authentication is carried via the X-Source-Server-ID / Authorization
+    headers set by sync.http_get / sync.http_post.
+
+    GET  → return this server's full MasterList as {"items": [...]}
+    POST → accept {"items": [...]} and upsert each record by UserID
     """
     permission_classes = [AllowAny]
-    # ... (existing implementation)
+
+    @extend_schema(
+        responses={200: MasterListSyncResponseSerializer},
+        description="Return this server's full MasterList registry."
+    )
+    def get(self, request):
+        records = MasterList.objects.all()
+        serializer = MasterListSerializer(records, many=True)
+        return Response({"items": serializer.data}, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        request=MasterListSyncRequestSerializer,
+        responses={200: MasterListSyncResponseSerializer},
+        description="Receive a list of users from a peer server and update the local MasterList registry."
+    )
+    def post(self, request):
+        items = request.data.get("items", [])
+        for item in items:
+            MasterList.objects.update_or_create(
+                UserID=item["UserID"],
+                defaults={
+                    "Username": item["Username"],
+                    "HomeServerID_id": item["HomeServerID"],
+                },
+            )
+        return Response({"status": "ok"}, status=status.HTTP_200_OK)
 
 class PublicDiscoveryView(APIView):
     """

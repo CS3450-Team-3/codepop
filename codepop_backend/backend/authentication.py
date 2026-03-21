@@ -1,8 +1,11 @@
+import logging
 import jwt
 from django.conf import settings
 from rest_framework import authentication
 from rest_framework.exceptions import AuthenticationFailed
 from .models import ServerRegistry, CustomUser, MasterList
+
+logger = logging.getLogger(__name__)
 
 class P2PJWTAuthentication(authentication.BaseAuthentication):
     """
@@ -31,10 +34,10 @@ class P2PJWTAuthentication(authentication.BaseAuthentication):
             try:
                 issuer_server = ServerRegistry.objects.get(pk=issuer_id)
             except ServerRegistry.DoesNotExist:
+                logger.warning(f"P2P Auth: Issuer server {issuer_id} not found in registry.")
                 raise AuthenticationFailed(f"Issuer server {issuer_id} not found in registry.")
 
             # 3. Verify the token signature using the Home Server's Public Key
-            # We assume the Public Key is stored in PEM format in the database
             try:
                 payload = jwt.decode(
                     raw_token, 
@@ -44,6 +47,7 @@ class P2PJWTAuthentication(authentication.BaseAuthentication):
             except jwt.ExpiredSignatureError:
                 raise AuthenticationFailed("Token has expired.")
             except jwt.InvalidTokenError as e:
+                logger.warning(f"P2P Auth: Asymmetric verification failed for issuer {issuer_id}: {str(e)}")
                 raise AuthenticationFailed(f"Invalid token: {str(e)}")
 
             # 4. Extract user identity
@@ -55,26 +59,33 @@ class P2PJWTAuthentication(authentication.BaseAuthentication):
                 raise AuthenticationFailed("Token missing user identity claims.")
 
             # 5. Get or Create the "Shadow" user record locally
-            # This ensures we have a valid User object for foreign keys (Orders, etc.)
-            # but we never store the sensitive password hash.
-            user, created = CustomUser.objects.update_or_create(
-                id=user_id,
-                defaults={
-                    'username': username,
-                    'user_type': user_type,
-                }
-            )
-
-            if created:
+            # We first try to find by ID (UUID), then by Username.
+            # This handles cases where a local shadow user might have been created
+            # without an ID previously (e.g. during a legacy proxy login).
+            user = CustomUser.objects.filter(id=user_id).first()
+            if not user:
+                user = CustomUser.objects.filter(username=username).first()
+            
+            if user:
+                # Update existing user to match remote identity
+                user.id = user_id
+                user.username = username
+                user.user_type = user_type
+                user.save()
+            else:
+                # Create new shadow user
+                user = CustomUser.objects.create(
+                    id=user_id,
+                    username=username,
+                    user_type=user_type
+                )
                 user.set_unusable_password()
                 user.save()
 
             return (user, payload)
 
         except Exception as e:
-            # If asymmetric verification fails, we don't raise an error immediately
-            # so that other authentication backends (like local) can try.
-            # However, if it looked like a P2P token, we should be strict.
-            if 'iss' in locals() and issuer_id:
+            if 'issuer_id' in locals() and issuer_id:
+                logger.error(f"P2P Authentication exception for issuer {issuer_id}: {str(e)}")
                 raise AuthenticationFailed(f"P2P Authentication failed: {str(e)}")
             return None
