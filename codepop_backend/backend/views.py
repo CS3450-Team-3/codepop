@@ -140,6 +140,7 @@ class CustomAuthToken(TokenObtainPairView):
                                     'username': username,
                                     'first_name': remote_data.get('first_name', ''),
                                     'user_type': remote_data.get('user_type', 'customer'),
+                                    'home_server': home_server,
                                 }
                             )
                             if created:

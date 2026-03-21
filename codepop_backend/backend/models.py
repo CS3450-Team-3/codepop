@@ -30,6 +30,13 @@ class CustomUser(AbstractUser):
         choices=USER_TYPE_CHOICES,
         default='customer'
     )
+    home_server = models.ForeignKey(
+        'ServerRegistry',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='local_users'
+    )
     
     objects = CustomUserManager()
 
