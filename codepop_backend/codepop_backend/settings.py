@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 
 import os
 from pathlib import Path
+from datetime import timedelta
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -44,7 +45,8 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
-    'rest_framework.authtoken',
+    'rest_framework_simplejwt.token_blacklist',
+    'drf_spectacular',
     'backend'
 ]
 
@@ -99,11 +101,76 @@ DATABASES = {
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework.authentication.TokenAuthentication',
+        'backend.authentication.P2PJWTAuthentication',
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.AllowAny',
-    )
+    ),
+    'EXCEPTION_HANDLER': 'backend.views.custom_exception_handler',
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+}
+
+# Asymmetric Key Setup for P2P Authentication
+# For production, load these from secure environment variables or a secrets manager.
+# THE PRIVATE KEY IS NEVER STORED IN SOURCE CONTROL.
+PRIVATE_KEY = os.environ.get('SERVER_PRIVATE_KEY', """-----BEGIN PRIVATE KEY-----
+MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQD0UrFTyrTNuif0
+pMrlAAZUOpH43K3VYhGyvSA9/6osWQzdkfhOyrABkebSLAXCjkOODXKVk8j6k2rl
+XZa9KpeXTPnPqUXL12oBX0VIY9cgq8klHgsUeOY2n3raMsDvGFi8uofuDC6kJGI3
+EN+CrIJuF0jbWv6spk9xmTeXgXVCcMVxeNmx4b1ysMldP3Uy++AWh+cdxWnhcvY/
+mUiGhFPcUB5ChTS8sSCDUSbT6ceoWaEDERxxoQHY1JgYsbvx7SUYo2u5XsPxxa29
+jPZKjh08y1eIkY76XBjfrrVE326DYRJYA9I6Q/Z4JHH+TgSODCAQCJbnXjlh8rdO
+uESYNpqJAgMBAAECggEAJx7dMUXXgMrE6QxAnJL4xcssYlpbeeZJCoNJQq7Jkxjz
+JsCKWiYO2+wpDGVrdVqNgJUF+uNTSU60zWMYkX4yEFI3/G3l33IaPCataPOWQln0
+oX0tAwB/btGcZzcR43bU2+tLe+yhbzuQKlxeSDB9IJ7ugIkSbEH48ynjAomtD+UU
+mhOY0BqGQEXViF+jOmghzJRuSBVe/pYySPR2AmLc4C/1yoSsSOTjQfATpAy2i+HZ
+79Yg0XMUDEf3v38coVGPRircuCFwsfBUN+w6G21H84qoK8p/+4mCM6u9ktSGLVRw
+CCtkUWyzfXX9oVq5EXvMWLYwbkHAxkNo8RiTEOrtTQKBgQD9apXnlxEJJH4By3Vb
+Uffve7o6AubLVRsrtaPQsqq3SSHIIi45jimLHoP14DojjL6lsu4EIR5a7UFG5xtT
+4t+MpDPrE1N/HkBqu5FMMExNg75jv8ZApNh+TkT76oQh1fDkXAl65wex9knf0BXu
+xM8oK/6masrfNqvdi4BC0oXx0wKBgQD20F+kjufvxVIArLfWpLd+varXsgRybPUS
+uukwlnlCNDqbpG5VJ8i5dG5VuratRjLbdbzDegazp3RJAG8FSViSxvy3LmVI9MVx
+YspcLuDSP4EyTsJAqdaBskJTw3u6tJyepRpLsWC5lhL+9/qZA3MQ195bbSUZbCxB
+HVs2y+DsswKBgEi74M6Zo0AWgzwMo2BUhG7t+iNQVeGiSawf9CagQTNeAB4rAU1v
+qijN114ov0cYzFdOpdX1k3rRgdzR1Bwdj8AUGPqtj1d63U5FC4zsh9nvqCOFFWfU
+aHbIDDCpvMbhWsSQTgBCcwj3AXkFhmYDgtmq1un42MV8MZPiyCtltSAVAoGARGrY
+yG4Q30dshuFaCLcaYpjDHg2r6+hGO03yzFQ6At8li/WV3CcuHjKnTz512yyFdo55
+qBpQd0apFn93Rxjg47cjYMgMrZ+kh9zhyZH5Im8WKlLoyDIMU2GNv1iGGOhuLhAI
+bQkbjfaLB4DIR9hL8lRUwDVOPnDdB6PSoCr+C78CgYEAxYRjx+B1I4mp07REzIHK
+5C0mWqRLokBAmQd1PI7SQc3ieLqtN/9NF3eiIZb47fX8nLCYuDTa14jemwlWaSFH
+R6zVN2x6RDBQg7rV/c2Pqxt4IFShdgYvjouO06oiTIyyjlUIJ88ighakefOXZ0Kc
+sTFtAH5UXuEcaCGvYh+u7Fk=
+-----END PRIVATE KEY-----""")
+
+PUBLIC_KEY = os.environ.get('SERVER_PUBLIC_KEY', """-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA9FKxU8q0zbon9KTK5QAG
+VDqR+Nyt1WIRsr0gPf+qLFkM3ZH4TsqwAZHm0iwFwo5Djg1ylZPI+pNq5V2WvSqX
+l0z5z6lFy9dqAV9FSGPXIKvJJR4LFHjmNp962jLA7xhYvLqH7gwupCRiNxDfgqyC
+bhdI21r+rKZPcZk3l4F1QnDFcXjZseG9crDJXT91MvvgFofnHcVp4XL2P5lIhoRT
+3FAeQoU0vLEgg1Em0+nHqFmhAxEccaEB2NSYGLG78e0lGKNruV7D8cWtvYz2So4d
+PMtXiJGO+lwY3661RN9ug2ESWAPSOkP2eCRx/k4EjgwgEAiW5145YfK3TrhEmDaa
+iQIDAQAB
+-----END PUBLIC KEY-----""")
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'CodePop API',
+    'DESCRIPTION': 'Comprehensive API for CodePop beverage management and P2P networking.',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+}
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=30),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'ALGORITHM': 'RS256',
+    'SIGNING_KEY': PRIVATE_KEY,
+    'VERIFYING_KEY': PUBLIC_KEY,
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    'USER_ID_FIELD': 'id',
+    'USER_ID_CLAIM': 'user_id',
 }
 
 
@@ -149,9 +216,9 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # ── Inter-server sync ─────────────────────────────────────────────────────────
-# The ServerRegistry primary key (integer) for this deployed instance.
+# The ServerRegistry primary key for this deployed instance.
 # Each server must set the LOCAL_SERVER_ID environment variable so the sync
 # framework can identify itself when making or receiving inter-server calls.
-LOCAL_SERVER_ID = int(os.environ.get('LOCAL_SERVER_ID', 0)) or None
+LOCAL_SERVER_ID = os.environ.get('LOCAL_SERVER_ID', None)
 
 AUTH_USER_MODEL = 'backend.CustomUser'

@@ -1,6 +1,38 @@
 from django.contrib.auth import get_user_model
+from django.conf import settings
 from rest_framework import serializers
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework_simplejwt.tokens import RefreshToken
 from .models import Preference, Drink, Inventory, Order, Notification, Revenue, Region, ServerRegistry, MasterList
+
+
+def get_tokens_for_user(user):
+    """
+    Generate a RefreshToken for a user, injecting P2P-specific claims (iss, home_server_id).
+    This ensures that tokens issued during registration, proxy-login, or normal login
+    all have the metadata required for the P2P authentication backend.
+    """
+    refresh = RefreshToken.for_user(user)
+
+    # Inject custom P2P claims
+    refresh['user_type'] = user.user_type
+    refresh['username'] = user.username
+
+    # Inject the Issuer (ServerID)
+    local_id = getattr(settings, 'LOCAL_SERVER_ID', None)
+    if local_id:
+        refresh['iss'] = str(local_id)
+
+    # Domain Logic Claim (Who owns this user?)
+    if user.home_server:
+        refresh['home_server_id'] = str(user.home_server.ServerID)
+    elif local_id:
+        refresh['home_server_id'] = str(local_id)
+
+    return {
+        'refresh': str(refresh),
+        'access': str(refresh.access_token),
+    }
 
 
 class CreateUserSerializer(serializers.ModelSerializer):
@@ -10,14 +42,33 @@ class CreateUserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = get_user_model()
-        fields = ('username', 'password', 'first_name', 'last_name')
+        fields = ('username', 'password', 'first_name', 'last_name', 'user_type')
         write_only_fields = ('password')
         read_only_fields = ('is_staff', 'is_superuser', 'is_active',)
 
     def create(self, validated_data):
-        user = super(CreateUserSerializer, self).create(validated_data)
-        user.set_password(validated_data['password'])
-        user.save()
+        user_type = validated_data.get('user_type', 'customer')
+        
+        # Determine staff/superuser based on user_type
+        if user_type == 'super_admin':
+            is_staff = True
+            is_superuser = True
+        elif user_type in ['admin', 'store_manager', 'logistics_manager', 'repair_staff']:
+            is_staff = True
+            is_superuser = False
+        else:
+            is_staff = False
+            is_superuser = False
+
+        user = get_user_model().objects.create_user(
+            username=validated_data['username'],
+            password=validated_data['password'],
+            first_name=validated_data.get('first_name', ''),
+            last_name=validated_data.get('last_name', ''),
+            user_type=user_type,
+            is_staff=is_staff,
+            is_superuser=is_superuser
+        )
         return user
 
 class GetUserSerializer(serializers.ModelSerializer):
@@ -27,9 +78,55 @@ class GetUserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = get_user_model()
-        fields = ('id', 'username', 'password', 'first_name', 'last_name', 'is_staff', 'is_superuser')
+        fields = ('id', 'username', 'password', 'first_name', 'last_name', 'is_staff', 'is_superuser', 'user_type')
         write_only_fields = ('password')
         read_only_fields = ('is_staff', 'is_superuser', 'is_active',)
+
+
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    @classmethod
+    def get_token(cls, user):
+        # We're bypassing SimpleJWT's default signing for P2P-ready asymmetric keys
+        # For simplicity in this demo, we can just let simplejwt do its thing 
+        # but the real power is in the P2PJWTAuthentication we added.
+        
+        token = super().get_token(user)
+
+        # Add custom claims
+        token['user_type'] = user.user_type
+        token['username'] = user.username
+        
+        # Inject the Issuer (ServerID)
+        # This is critical for the P2P authentication backend to lookup the public key
+        local_id = getattr(settings, 'LOCAL_SERVER_ID', None)
+        if local_id:
+            token['iss'] = str(local_id)
+        
+        # Domain Logic Claim (Who owns this user?)
+        if user.home_server:
+            token['home_server_id'] = str(user.home_server.ServerID)
+        elif local_id:
+            # If no HomeServer is set, assume the local server is the home
+            token['home_server_id'] = str(local_id)
+        
+        return token
+
+    def validate(self, attrs):
+        data = super().validate(attrs)
+        
+        # Add extra response data
+        data['user_type'] = self.user.user_type
+        data['user_id'] = str(self.user.id)
+        data['first_name'] = self.user.first_name
+        
+        return data
+
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = get_user_model()
+        fields = ('id', 'username', 'first_name', 'last_name', 'email')
+        read_only_fields = ('id', 'username') # Username usually shouldn't be changeable easily if it's used as unique identifier, but the requirement says "Fetch their full profile (Username, First Name, Last Name, Email)". Let's allow updating first_name, last_name, email.
 
 
 class PreferenceSerializer(serializers.ModelSerializer):

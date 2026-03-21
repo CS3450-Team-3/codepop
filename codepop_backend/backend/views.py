@@ -1,70 +1,253 @@
-from .models import Preference, Drink, Inventory, Notification, Order, Revenue, CustomUser, MasterList
+from .models import Preference, Drink, Inventory, Notification, Order, Revenue, CustomUser, MasterList, Flavor, ServerRegistry
 from django.shortcuts import get_object_or_404
 from django.db.models import F
 from django.db import models
 from django.utils import timezone
 User = CustomUser
 from rest_framework.generics import CreateAPIView, ListAPIView, ListCreateAPIView, RetrieveUpdateDestroyAPIView, RetrieveUpdateAPIView
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser, BasePermission
 from rest_framework.response import Response
-from rest_framework.authtoken.views import ObtainAuthToken
-from rest_framework.authtoken.models import Token
+from rest_framework_simplejwt.tokens import RefreshToken, TokenError
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework import status, viewsets
-from rest_framework.views import APIView
-from .serializers import CreateUserSerializer, GetUserSerializer, PreferenceSerializer, DrinkSerializer, InventorySerializer, NotificationSerializer, OrderSerializer, RevenueSerializer, MasterListSerializer
-from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from rest_framework.views import APIView, exception_handler
+from .serializers import (
+    CreateUserSerializer, GetUserSerializer, UserProfileSerializer, 
+    PreferenceSerializer, DrinkSerializer, InventorySerializer, 
+    NotificationSerializer, OrderSerializer, RevenueSerializer, 
+    MasterListSerializer, ServerRegistrySerializer, CustomTokenObtainPairSerializer,
+    get_tokens_for_user
+)
+from .documentation_serializers import (
+    EmailAPIResponseSerializer, InventoryReportResponseSerializer, 
+    MasterListSyncRequestSerializer, MasterListSyncResponseSerializer,
+    SimpleStatusSerializer
+)
 import stripe
 from django.conf import settings
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-from django.views import View #maybe delete these three?
+from django.views import View
 from django.utils.decorators import method_decorator
 import json
+import requests
+import jwt
 from rest_framework.decorators import action
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
 from django.utils.dateparse import parse_datetime
 from .drinkAI import generate_soda
-from rest_framework.permissions import BasePermission
+from .sync import get_local_server
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
-class IsSuperUser(BasePermission):
-    """
-    Custom permission to allow access only to superusers.
-    """
 
-    def has_permission(self, request, view):
-        # Check if the user is authenticated and a superuser
-        return request.user and request.user.is_authenticated and request.user.is_superuser
-    
-#Custom login to so that it get's a token but also the user's first name and the user id
-class CustomAuthToken(ObtainAuthToken):
+class CustomTokenRefreshView(TokenRefreshView):
+    """
+    Overridden Refresh view that proxies the refresh request to the user's
+    Home Server if the local server is just a visiting server.
+    """
+    @extend_schema(
+        description="Refresh an access token. If the refresh token was issued by a remote Home Server, "
+                    "the request is proxied to that server for authoritative validation."
+    )
     def post(self, request, *args, **kwargs):
-        serializer = self.serializer_class(data=request.data, context={'request': request})
-        serializer.is_valid(raise_exception=True)
-        user = serializer.validated_data['user']
-        token, created = Token.objects.get_or_create(user=user)
-        return Response({
-            'token': token.key,
-            'user_id': user.pk,
-            'first_name': user.first_name,
-            'is_admin' : user.is_superuser,
-            'is_manager' : user.is_staff,
-            
-        })
+        refresh_token = request.data.get('refresh')
+        if not refresh_token:
+            return Response({"error": "Refresh token required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            # 1. Unverified decode to find the Home Server
+            unverified_payload = jwt.decode(refresh_token, options={"verify_signature": False})
+            home_server_id = unverified_payload.get('home_server_id')
+            local_id = getattr(settings, 'LOCAL_SERVER_ID', None)
+
+            # 2. If Home Server is remote, proxy the request
+            if home_server_id and str(home_server_id) != str(local_id):
+                try:
+                    home_server = ServerRegistry.objects.get(pk=home_server_id)
+                    proxy_url = home_server.ServerURL.rstrip('/') + '/backend/auth/refresh/'
+                    
+                    remote_resp = requests.post(
+                        proxy_url, 
+                        json={'refresh': refresh_token},
+                        timeout=10
+                    )
+                    
+                    # Return the authoritative response from the Home Server
+                    return Response(remote_resp.json(), status=remote_resp.status_code)
+                    
+                except ServerRegistry.DoesNotExist:
+                    # Fallback to local refresh if registry is out of sync, 
+                    # but log it as it might indicate a security issue.
+                    pass
+                except requests.RequestException:
+                    return Response(
+                        {"error": "Home server unreachable for token refresh."}, 
+                        status=status.HTTP_503_SERVICE_UNAVAILABLE
+                    )
+
+            # 3. Local refresh (Home Server logic)
+            return super().post(request, *args, **kwargs)
+
+        except jwt.InvalidTokenError:
+            return Response({"error": "Invalid token"}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class IsSuperAdmin(BasePermission):
+    """
+    Allows access only to super_admin users.
+    """
+    def has_permission(self, request, view):
+        return (request.user and request.user.is_authenticated and 
+                request.user.user_type == 'super_admin')
+
+class IsAdmin(BasePermission):
+    """
+    Allows access to admin and super_admin users.
+    """
+    def has_permission(self, request, view):
+        return (request.user and request.user.is_authenticated and 
+                request.user.user_type in ['admin', 'super_admin'])
+
+class IsManager(BasePermission):
+    """
+    Allows access to store_manager, logistics_manager, repair_staff, admin, and super_admin.
+    """
+    def has_permission(self, request, view):
+        allowed = ['store_manager', 'logistics_manager', 'repair_staff', 'admin', 'super_admin']
+        return (request.user and request.user.is_authenticated and 
+                request.user.user_type in allowed)
+    
+
+def custom_exception_handler(exc, context):
+    # Call REST framework's default exception handler first,
+    # to get the standard error response.
+    response = exception_handler(exc, context)
+
+    # Now add the HTTP status code to the response.
+    if response is not None:
+        error_message = "An error occurred"
+        if 'detail' in response.data:
+            error_message = response.data['detail']
+        elif isinstance(response.data, dict) and len(response.data) > 0:
+            # For validation errors, the first key's first message is often useful
+            first_key = next(iter(response.data))
+            if isinstance(response.data[first_key], list) and len(response.data[first_key]) > 0:
+                error_message = f"Validation error in {first_key}"
+
+        data = {
+            "error": error_message,
+            "details": response.data
+        }
+        # If 'detail' was the only thing in response.data, remove it from 'details' to avoid redundancy
+        if 'detail' in data['details'] and len(data['details']) == 1:
+            del data['details']['detail']
+
+        response.data = data
+
+    return response
+
+# Custom login to so that it get's a token but also the user's first name and the user id
+
+class CustomAuthToken(TokenObtainPairView):
+    serializer_class = CustomTokenObtainPairSerializer
+
+    @extend_schema(
+        description="Login with username and password to receive JWT access and refresh tokens. "
+                    "Supports inter-server proxying if the user's home server is elsewhere."
+    )
+    def post(self, request, *args, **kwargs):
+        username = request.data.get('username')
+        password = request.data.get('password')
+
+        # 1. Try local authentication first
+        try:
+            return super().post(request, *args, **kwargs)
+        except Exception as local_exc:
+            # 2. If local fails, check the MasterList for a remote Home Server
+            try:
+                master_entry = MasterList.objects.get(Username=username)
+                local_server = get_local_server()
+                
+                if master_entry.HomeServerID != local_server:
+                    # 3. Proxy the request to the Home Server
+                    home_server = master_entry.HomeServerID
+                    proxy_url = home_server.ServerURL.rstrip('/') + '/backend/auth/login/'
+                    
+                    try:
+                        remote_resp = requests.post(
+                            proxy_url, 
+                            json={'username': username, 'password': password},
+                            timeout=10
+                        )
+                        
+                        if remote_resp.status_code == 200:
+                            remote_data = remote_resp.json()
+                            remote_user_id = remote_data.get('user_id')
+                            
+                            # 4. Create/Update a "cached" local user record for this visitor
+                            # Use the remote user_id to ensure P2P consistency
+                            user_lookup = {'id': remote_user_id} if remote_user_id else {'username': username}
+                            
+                            user, created = User.objects.update_or_create(
+                                **user_lookup,
+                                defaults={
+                                    'username': username,
+                                    'first_name': remote_data.get('first_name', ''),
+                                    'user_type': remote_data.get('user_type', 'customer'),
+                                    'home_server': home_server,
+                                }
+                            )
+                            if created:
+                                user.set_unusable_password()
+                                user.save()
+                                
+                            # 5. Pass through the authoritative tokens from the Home Server
+                            # This ensures that the user's JWT is signed by the Home Server
+                            # and includes the correct claims for future P2P authentication and refresh calls.
+                            data = {
+                                'refresh': remote_data.get('refresh'),
+                                'access': remote_data.get('access'),
+                                'user_type': remote_data.get('user_type', user.user_type),
+                                'user_id': str(user.id),
+                                'first_name': remote_data.get('first_name', user.first_name),
+                                'is_proxy': True,
+                                'home_server_id': str(home_server.ServerID)
+                            }
+                            return Response(data, status=status.HTTP_200_OK)
+                        
+                        # If remote login failed, return its error
+                        return Response(remote_resp.json(), status=remote_resp.status_code)
+                    
+                    except requests.RequestException as e:
+                        return Response(
+                            {"error": "Home server unreachable", "details": str(e)}, 
+                            status=status.HTTP_503_SERVICE_UNAVAILABLE
+                        )
+            except MasterList.DoesNotExist:
+                pass # Proceed to raise the original local exception
+
+            raise local_exc
 
 #Code to create a user in the database
 class CreateUserAPIView(CreateAPIView):
     serializer_class = CreateUserSerializer
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        description="Register a new user and receive initial JWT access and refresh tokens."
+    )
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
         headers = self.get_success_headers(serializer.data)
-        # We create a token than will be used for future auth
-        token = Token.objects.create(user=serializer.instance)
-        token_data = {"token": token.key}
+        
+        user = serializer.instance
+        token_data = get_tokens_for_user(user)
+        
         return Response(
             {**serializer.data, **token_data},
             status=status.HTTP_201_CREATED,
@@ -73,11 +256,64 @@ class CreateUserAPIView(CreateAPIView):
 
 class LogoutUserAPIView(APIView):
     permission_classes = [IsAuthenticated]
+    serializer_class = None
 
+    @extend_schema(
+        request=OpenApiTypes.OBJECT,
+        responses={200: OpenApiTypes.OBJECT},
+        description="Logout the user by blacklisting the refresh token. "
+                    "If the token belongs to a remote Home Server, the request is proxied there."
+    )
     def post(self, request, *args, **kwargs):
-        # Delete the token to log out the user
-        request.user.auth_token.delete()
-        return Response({"detail": "Successfully logged out."}, status=status.HTTP_200_OK)
+        try:
+            refresh_token = request.data.get("refresh")
+            if not refresh_token:
+                return Response({"detail": "Successfully logged out (client-side)."}, status=status.HTTP_200_OK)
+
+            # 1. Determine the Home Server from the token
+            unverified_payload = jwt.decode(refresh_token, options={"verify_signature": False})
+            home_server_id = unverified_payload.get('home_server_id')
+            local_id = getattr(settings, 'LOCAL_SERVER_ID', None)
+
+            # 2. If Home Server is remote, proxy the logout
+            if home_server_id and str(home_server_id) != str(local_id):
+                try:
+                    home_server = ServerRegistry.objects.get(pk=home_server_id)
+                    proxy_url = home_server.ServerURL.rstrip('/') + '/backend/auth/logout/'
+                    
+                    # Forward the logout request to the authoritative Home Server
+                    headers = {}
+                    if 'Authorization' in request.headers:
+                        headers['Authorization'] = request.headers['Authorization']
+
+                    remote_resp = requests.post(
+                        proxy_url, 
+                        json={'refresh': refresh_token},
+                        headers=headers,
+                        timeout=5
+                    )
+                    
+                    # Return the authoritative response from the Home Server
+                    return Response(remote_resp.json(), status=remote_resp.status_code)
+                    
+                except ServerRegistry.DoesNotExist:
+                    # Fallback to local blacklist if registry is out of sync
+                    pass
+                except requests.RequestException:
+                    return Response(
+                        {"error": "Home server unreachable for logout."}, 
+                        status=status.HTTP_503_SERVICE_UNAVAILABLE
+                    )
+
+            # 3. Blacklist locally (Authoritative if this is the Home Server)
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+            
+            return Response({"detail": "Successfully logged out."}, status=status.HTTP_200_OK)
+        except (TokenError, jwt.InvalidTokenError):
+            return Response({"error": "Invalid or expired token"}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
     
 class PreferencesOperations(viewsets.ModelViewSet):
     queryset = Preference.objects.all()
@@ -123,11 +359,31 @@ class DrinkOperations(viewsets.ModelViewSet):
 
     def get_queryset(self):
         """
-        Modify the basic GET request behavior so it only returns drinks not user created
+        Modify the basic GET request behavior to support filtering.
         """
-        if self.action in ['update', 'retrieve', 'destroy']:
-            return Drink.objects.all()
-        return Drink.objects.filter(User_Created=False)
+        queryset = Drink.objects.all()
+        
+        # Handle type filtering
+        drink_type = self.request.query_params.get('type')
+        if drink_type == 'user_created':
+            queryset = queryset.filter(User_Created=True)
+        elif drink_type == 'house':
+            queryset = queryset.filter(User_Created=False)
+        elif self.action == 'list' and not drink_type:
+            # Default behavior for list if no type specified
+            queryset = queryset.filter(User_Created=False)
+
+        # Handle flavor filtering
+        flavor_primary = self.request.query_params.get('flavor')
+        if flavor_primary:
+            # Find flavors that match the primary flavor
+            matching_flavors = Flavor.objects.filter(PrimaryFlavor__iexact=flavor_primary)
+            matching_syrup_names = matching_flavors.values_list('Name', flat=True)
+            # Filter drinks that use any of these syrups
+            # Since SyrupsUsed is an ArrayField, we can use __overlap
+            queryset = queryset.filter(SyrupsUsed__overlap=list(matching_syrup_names))
+
+        return queryset
 
     def create(self, request, *args, **kwargs):
         # Custom logic for creating a drink (optional for customization)
@@ -144,30 +400,28 @@ class DrinkOperations(viewsets.ModelViewSet):
         serializer = self.get_serializer(drink, data=request.data)
 
         # Validate the data (including Ice and Size field checks)
-        if serializer.is_valid():
-            # If valid, update the fields
-            # Explicitly update fields from request data if they exist on the drink model
-            for field, value in request.data.items():
-                if hasattr(drink, field):
-                    setattr(drink, field, value)
+        serializer.is_valid(raise_exception=True)
 
-            # Handle adding/removing favorites
-            favorite_to_add = request.data.get("addFavorite", [])
-            favorite_to_remove = request.data.get("removeFavorite", [])
-            
-            if favorite_to_add:
-                drink.addFavorite(favorite_to_add)
-            if favorite_to_remove:
-                drink.removeFavorite(favorite_to_remove)
+        # If valid, update the fields
+        # Explicitly update fields from request data if they exist on the drink model
+        for field, value in request.data.items():
+            if hasattr(drink, field):
+                setattr(drink, field, value)
 
-            # Save the updated drink
-            drink.save()
+        # Handle adding/removing favorites
+        favorite_to_add = request.data.get("addFavorite", [])
+        favorite_to_remove = request.data.get("removeFavorite", [])
+        
+        if favorite_to_add:
+            drink.addFavorite(favorite_to_add)
+        if favorite_to_remove:
+            drink.removeFavorite(favorite_to_remove)
 
-            # Return the updated drink data using the serializer
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        else:
-            # Return a 400 Bad Request if validation fails
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        # Save the updated drink
+        drink.save()
+
+        # Return the updated drink data using the serializer
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     def destroy(self, request, *args, **kwargs):
         # Custom logic for deleting a drink (optional for customization)
@@ -193,6 +447,12 @@ class InventoryListAPIView(ListAPIView):
 
 class InventoryReportAPIView(APIView):
     """Generate an inventory report."""
+    permission_classes = [IsManager]
+
+    @extend_schema(
+        responses={200: InventoryReportResponseSerializer},
+        description="Generate a detailed report of current inventory including out-of-stock and low-stock counts."
+    )
     def get(self, request):
         inventory = Inventory.objects.all()
         report_data = {
@@ -215,6 +475,7 @@ class InventoryUpdateAPIView(RetrieveUpdateAPIView):
     """Update inventory based on what was ordered, with warnings for empty or low stock."""
     queryset = Inventory.objects.all()
     serializer_class = InventorySerializer
+    permission_classes = [IsManager]
 
     def patch(self, request, *args, **kwargs):
         item = self.get_object()  # Retrieve the specific item based on ID
@@ -234,21 +495,21 @@ class InventoryUpdateAPIView(RetrieveUpdateAPIView):
         # Handle normal used quantity update (for orders)
         if used_quantity is None or int(used_quantity) <= 0:
             return Response(
-                {"detail": "Invalid used quantity."}, 
+                {"error": "Invalid used quantity", "details": {"used_quantity": "Value must be greater than zero"}}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
 
         # Check if the item is already out of stock
         if item.Quantity == 0:
             return Response(
-                {"detail": f"'{item.ItemName}' is already out of stock."}, 
+                {"error": "Out of stock", "details": {"item": f"'{item.ItemName}' is already out of stock."}}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
 
         # Check if the order quantity exceeds available stock
         if item.Quantity < int(used_quantity):
             return Response(
-                {"detail": f"Not enough stock available for '{item.ItemName}'."}, 
+                {"error": "Insufficient stock", "details": {"item": f"Not enough stock available for '{item.ItemName}'."}}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -313,7 +574,7 @@ class NotificationOperations(viewsets.ModelViewSet):
         # Validate parameters
         if not start_time or not end_time:
             return Response(
-                {"error": "Both 'start' and 'end' parameters are required in ISO 8601 format."},
+                {"error": "Missing parameters", "details": {"params": "Both 'start' and 'end' parameters are required in ISO 8601 format."}},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -395,18 +656,15 @@ class OrderOperations(viewsets.ModelViewSet):
         }
 
         serializer = self.get_serializer(data=order_data)
-        if serializer.is_valid():
-            order = serializer.save()
+        serializer.is_valid(raise_exception=True)
+        order = serializer.save()
 
-            # Add drinks to the order if provided
-            if drinks:
-                order.add_drinks(drinks)
+        # Add drinks to the order if provided
+        if drinks:
+            order.add_drinks(drinks)
 
-            # Return the created order's data
-            return Response(self.get_serializer(order).data, status=status.HTTP_201_CREATED)
-
-        # Handle validation errors
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        # Return the created order's data
+        return Response(self.get_serializer(order).data, status=status.HTTP_201_CREATED)
 
     def update(self, request, *args, **kwargs):
         return super().update(request, *args, **kwargs)
@@ -465,7 +723,7 @@ class StripePaymentIntentView(View):
                 'publishableKey': 'TODO: get a new publishable stripe key'
             })
         except Exception as e:
-            return JsonResponse({'error': str(e)}, status=400)
+            return JsonResponse({'error': 'Payment intent creation failed', 'details': str(e)}, status=400)
 
 def refund_order(client_secret_or_id):
     try:
@@ -490,6 +748,10 @@ def refund_order(client_secret_or_id):
         return False
     
 class emailAPI(APIView):
+    @extend_schema(
+        responses={200: EmailAPIResponseSerializer},
+        description="Generate and display an email preview in the server terminal for a specific order."
+    )
     def get(self, request, orderId):
         try:
             # Fetch order details
@@ -507,9 +769,15 @@ class emailAPI(APIView):
             return Response({"message": "Email preview generated successfully."}, status=status.HTTP_200_OK)
 
         except Order.DoesNotExist:
-            return Response({"error": f"Order with ID {orderId} does not exist."}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"error": "Order not found", "details": {"orderId": orderId}}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
         except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(
+                {"error": "Internal server error", "details": {"message": str(e)}}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     def generate_email_preview(self, order, revenue):
         """Generate a styled email preview for terminal output."""
@@ -556,21 +824,9 @@ class emailAPI(APIView):
         return email_content
 
     
-class GenerateAIDrink(APIView):
+class GenerateAIDrinkBase(APIView):
     permission_classes = [AllowAny]
 
-    def get(self, request, user_id=None):
-        try:
-            if user_id:
-                # Generate drink for account user
-                response_data = self.generate_account_user(user_id)
-            else:
-                # Generate drink for general user
-                response_data = self.generate_general_user()
-            return Response(response_data)
-        except Exception as e:
-            return Response({'error': str(e)}, status=400)
-    
     def generate_account_user(self, user_id):
         """Generate AI drink for a registered user using their preferences."""
         user = get_object_or_404(User, pk=user_id)
@@ -603,6 +859,38 @@ class GenerateAIDrink(APIView):
             "UserCreated": user_created,
         }
 
+class GeneralGenerateAIDrink(GenerateAIDrinkBase):
+    @extend_schema(
+        operation_id="generate_guest_drink",
+        responses={200: OpenApiTypes.OBJECT},
+        description="Generate a beverage recommendation using AI for a guest user."
+    )
+    def get(self, request):
+        try:
+            response_data = self.generate_general_user()
+            return Response(response_data)
+        except Exception as e:
+            return Response(
+                {"error": "AI Generation failed", "details": {"message": str(e)}}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+class UserGenerateAIDrink(GenerateAIDrinkBase):
+    @extend_schema(
+        operation_id="generate_user_drink",
+        responses={200: OpenApiTypes.OBJECT},
+        description="Generate a beverage recommendation using AI for a registered user based on their preferences."
+    )
+    def get(self, request, user_id):
+        try:
+            response_data = self.generate_account_user(user_id)
+            return Response(response_data)
+        except Exception as e:
+            return Response(
+                {"error": "AI Generation failed", "details": {"message": str(e)}}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
 
 class RevenueViewSet(viewsets.ModelViewSet):
     """
@@ -626,7 +914,7 @@ class RevenueViewSet(viewsets.ModelViewSet):
         return super().update(request, *args, **kwargs)
     
 class UserOperations(viewsets.ModelViewSet):
-    permission_classes = [IsSuperUser]
+    permission_classes = [IsSuperAdmin]
     serializer_class = GetUserSerializer
 
     def get(self, request):
@@ -638,9 +926,17 @@ class UserOperations(viewsets.ModelViewSet):
         try:
             user = User.objects.get(id=user_id)
             user.delete()
-            return JsonResponse({"message":"User deleted successfully"}, status=status.HTTP_200_OK)
+            return Response({"message":"User deleted successfully"}, status=status.HTTP_200_OK)
+        except User.DoesNotExist:
+            return Response(
+                {"error": "User not found", "details": {"user_id": user_id}}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
         except Exception as e:
-            return JsonResponse({'Error': str(e)}, status=400)
+            return Response(
+                {"error": "Failed to delete user", "details": {"message": str(e)}}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
     def edit(self, request, user_id):
         try:
@@ -669,20 +965,29 @@ class UserOperations(viewsets.ModelViewSet):
                 print("Password updated")
 
             if (role != "unchanged" and role):
-                if (role == "user"):
-                    user.is_staff = False
-                    user.is_superuser = False
-                elif (role == "staff"):
+                user.user_type = role
+                if role == 'super_admin':
+                    user.is_staff = True
+                    user.is_superuser = True
+                elif role in ['admin', 'store_manager', 'logistics_manager', 'repair_staff']:
                     user.is_staff = True
                     user.is_superuser = False
-                elif (role == "admin"):
+                else: # 'customer'
                     user.is_staff = False
-                    user.is_superuser = True
+                    user.is_superuser = False
 
             user.save()
-            return JsonResponse({"message":"User edited successfully"}, status=status.HTTP_200_OK)
+            return Response({"message":"User edited successfully"}, status=status.HTTP_200_OK)
+        except User.DoesNotExist:
+            return Response(
+                {"error": "User not found", "details": {"user_id": user_id}}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
         except Exception as e:
-            return JsonResponse({'Error': str(e)}, status=400)
+            return Response(
+                {"error": "Failed to edit user", "details": {"message": str(e)}}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
 
 class MasterListSyncView(APIView):
@@ -698,11 +1003,20 @@ class MasterListSyncView(APIView):
     """
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        responses={200: MasterListSyncResponseSerializer},
+        description="Return this server's full MasterList registry."
+    )
     def get(self, request):
         records = MasterList.objects.all()
         serializer = MasterListSerializer(records, many=True)
         return Response({"items": serializer.data}, status=status.HTTP_200_OK)
 
+    @extend_schema(
+        request=MasterListSyncRequestSerializer,
+        responses={200: MasterListSyncResponseSerializer},
+        description="Receive a list of users from a peer server and update the local MasterList registry."
+    )
     def post(self, request):
         items = request.data.get("items", [])
         for item in items:
@@ -714,4 +1028,108 @@ class MasterListSyncView(APIView):
                 },
             )
         return Response({"status": "ok"}, status=status.HTTP_200_OK)
+
+class PublicDiscoveryView(APIView):
+    """
+    Public endpoint that allows other servers to 'discover' this server's 
+    Public Key and ID for P2P registration.
+    """
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        responses={200: OpenApiTypes.OBJECT},
+        description="Return this server's public identity (ID, URL, and Public Key) for P2P networking."
+    )
+    def get(self, request):
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.backends import default_backend
+        
+        try:
+            local_server = get_local_server()
+            
+            # Derive Public Key from the Private Key in settings
+            private_key = serialization.load_pem_private_key(
+                settings.PRIVATE_KEY.encode('utf-8'),
+                password=None,
+                backend=default_backend()
+            )
+            public_key = private_key.public_key()
+            public_pem = public_key.public_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo
+            ).decode('utf-8')
+
+            return Response({
+                "ServerID": local_server.ServerID,
+                "ServerURL": local_server.ServerURL,
+                "PublicKey": public_pem,
+                "Region": local_server.Region.RegionID if local_server.Region else None
+            }, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"error": "Discovery failed", "details": str(e)}, status=500)
+
+class MenuView(APIView):
+    """
+    Return categorized items: sodas, syrups, addins, featured_drinks.
+    """
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        responses={200: DrinkSerializer(many=True)}, # Simplified, it actually returns a dict but this tells Swagger there are drinks here.
+        description="Fetch all menu categories including inventory items and featured house drinks."
+    )
+    def get(self, request):
+        sodas = Inventory.objects.filter(ItemType='Soda')
+        syrups = Inventory.objects.filter(ItemType='Syrup')
+        addins = Inventory.objects.filter(ItemType='Add In')
+        featured_drinks = Drink.objects.filter(User_Created=False)[:10]
+
+        data = {
+            "sodas": InventorySerializer(sodas, many=True).data,
+            "syrups": InventorySerializer(syrups, many=True).data,
+            "addins": InventorySerializer(addins, many=True).data,
+            "featured_drinks": DrinkSerializer(featured_drinks, many=True).data,
+        }
+        return Response(data, status=status.HTTP_200_OK)
+
+class UserProfileView(RetrieveUpdateAPIView):
+    """
+    Handle fetching and updating the authenticated user's profile.
+    """
+    permission_classes = [IsAuthenticated]
+    serializer_class = UserProfileSerializer
+
+    @extend_schema(
+        description="Retrieve the profile of the currently authenticated user.",
+        responses={200: UserProfileSerializer}
+    )
+    def get(self, *args, **kwargs):
+        return super().get(*args, **kwargs)
+
+    @extend_schema(
+        description="Update the profile details (first name, last name, email) of the authenticated user.",
+        request=UserProfileSerializer,
+        responses={200: UserProfileSerializer}
+    )
+    def patch(self, *args, **kwargs):
+        return super().patch(*args, **kwargs)
+
+    @extend_schema(exclude=True) # Hide PUT if you only want to support PATCH
+    def put(self, *args, **kwargs):
+        return super().put(*args, **kwargs)
+
+    def get_object(self):
+        return self.request.user
+
+class ServerRegistryAPIView(viewsets.ReadOnlyModelViewSet):
+    """
+    List all active servers in the decentralized network.
+    """
+    queryset = ServerRegistry.objects.all()
+    serializer_class = ServerRegistrySerializer
+
+    def get_permissions(self):
+        if self.action == 'list' or self.action == 'retrieve':
+            return [AllowAny()]
+        return [IsAdminUser()]
 

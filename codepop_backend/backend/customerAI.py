@@ -1,5 +1,7 @@
 
 from rest_framework.views import APIView
+from drf_spectacular.utils import extend_schema
+from .documentation_serializers import ChatbotRequestSerializer, ChatbotResponseSerializer
 from .views import refund_order
 from .models import Order, Revenue
 from django.http import JsonResponse
@@ -13,6 +15,11 @@ model = AutoModelForCausalLM.from_pretrained("microsoft/DialoGPT-medium")
 
 class Chatbot(APIView):
 
+    @extend_schema(
+        request=ChatbotRequestSerializer,
+        responses={200: ChatbotResponseSerializer},
+        description="Interact with the AI Customer Service Chatbot. Supports refund requests and drink remakes."
+    )
     def post(self, request, *args, **kwargs):
         user_input = request.data.get("message", "")
         wrong_drink_phase = request.data.get("wrong_drink_phase")
