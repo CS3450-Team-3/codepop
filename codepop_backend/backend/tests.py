@@ -794,11 +794,13 @@ class SyncRegionTest(unittest.TestCase):
             return {"items": []}
 
         with patch("backend.sync._get_regional_peers", return_value=[self.peer]), \
-             patch("backend.sync._get_other_region_leaders", return_value=[]):
+             patch("backend.sync._get_other_region_leaders", return_value=[]), \
+             self.assertLogs("backend.sync", level="WARNING") as cm:
             sync_region(fetch, lambda s, d: push_calls.append(s.ServerID), self.leader)
 
         # Sync should complete and still write to the leader locally
         self.assertIn(self.leader.ServerID, push_calls)
+        self.assertTrue(any("could not fetch from peer" in log for log in cm.output))
 
     def test_unreachable_other_leader_is_skipped(self):
         """A failing push_fn to another leader should not abort the sync."""
@@ -809,11 +811,13 @@ class SyncRegionTest(unittest.TestCase):
             push_calls.append(server.ServerID)
 
         with patch("backend.sync._get_regional_peers", return_value=[self.peer]), \
-             patch("backend.sync._get_other_region_leaders", return_value=[self.other_leader]):
+             patch("backend.sync._get_other_region_leaders", return_value=[self.other_leader]), \
+             self.assertLogs("backend.sync", level="WARNING") as cm:
             sync_region(lambda s: {"items": []}, push, self.leader)
 
         self.assertIn(self.peer.ServerID, push_calls)
         self.assertIn(self.leader.ServerID, push_calls)
+        self.assertTrue(any("exchange with leader" in log for log in cm.output))
 
 
 class MasterListSyncEndpointTest(APITestCase):
