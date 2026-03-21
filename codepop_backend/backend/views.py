@@ -1,29 +1,32 @@
-from .models import Preference, Drink, Inventory, Notification, Order, Revenue, CustomUser, MasterList
+from .models import Preference, Drink, Inventory, Notification, Order, Revenue, CustomUser, MasterList, Flavor, ServerRegistry
 from django.shortcuts import get_object_or_404
 from django.db.models import F
 from django.db import models
 from django.utils import timezone
 User = CustomUser
 from rest_framework.generics import CreateAPIView, ListAPIView, ListCreateAPIView, RetrieveUpdateDestroyAPIView, RetrieveUpdateAPIView
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser, BasePermission
 from rest_framework.response import Response
 from rest_framework.authtoken.views import ObtainAuthToken
 from rest_framework.authtoken.models import Token
 from rest_framework import status, viewsets
-from rest_framework.views import APIView
-from .serializers import CreateUserSerializer, GetUserSerializer, PreferenceSerializer, DrinkSerializer, InventorySerializer, NotificationSerializer, OrderSerializer, RevenueSerializer, MasterListSerializer
-from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from rest_framework.views import APIView, exception_handler
+from .serializers import (
+    CreateUserSerializer, GetUserSerializer, UserProfileSerializer, 
+    PreferenceSerializer, DrinkSerializer, InventorySerializer, 
+    NotificationSerializer, OrderSerializer, RevenueSerializer, 
+    MasterListSerializer, ServerRegistrySerializer
+)
 import stripe
 from django.conf import settings
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-from django.views import View #maybe delete these three?
+from django.views import View
 from django.utils.decorators import method_decorator
 import json
 from rest_framework.decorators import action
 from django.utils.dateparse import parse_datetime
 from .drinkAI import generate_soda
-from rest_framework.permissions import BasePermission
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
@@ -36,7 +39,37 @@ class IsSuperUser(BasePermission):
         # Check if the user is authenticated and a superuser
         return request.user and request.user.is_authenticated and request.user.is_superuser
     
-#Custom login to so that it get's a token but also the user's first name and the user id
+
+def custom_exception_handler(exc, context):
+    # Call REST framework's default exception handler first,
+    # to get the standard error response.
+    response = exception_handler(exc, context)
+
+    # Now add the HTTP status code to the response.
+    if response is not None:
+        error_message = "An error occurred"
+        if 'detail' in response.data:
+            error_message = response.data['detail']
+        elif isinstance(response.data, dict) and len(response.data) > 0:
+            # For validation errors, the first key's first message is often useful
+            first_key = next(iter(response.data))
+            if isinstance(response.data[first_key], list) and len(response.data[first_key]) > 0:
+                error_message = f"Validation error in {first_key}"
+
+        data = {
+            "error": error_message,
+            "details": response.data
+        }
+        # If 'detail' was the only thing in response.data, remove it from 'details' to avoid redundancy
+        if 'detail' in data['details'] and len(data['details']) == 1:
+            del data['details']['detail']
+
+        response.data = data
+
+    return response
+
+# Custom login to so that it get's a token but also the user's first name and the user id
+
 class CustomAuthToken(ObtainAuthToken):
     def post(self, request, *args, **kwargs):
         serializer = self.serializer_class(data=request.data, context={'request': request})
@@ -123,11 +156,31 @@ class DrinkOperations(viewsets.ModelViewSet):
 
     def get_queryset(self):
         """
-        Modify the basic GET request behavior so it only returns drinks not user created
+        Modify the basic GET request behavior to support filtering.
         """
-        if self.action in ['update', 'retrieve', 'destroy']:
-            return Drink.objects.all()
-        return Drink.objects.filter(User_Created=False)
+        queryset = Drink.objects.all()
+        
+        # Handle type filtering
+        drink_type = self.request.query_params.get('type')
+        if drink_type == 'user_created':
+            queryset = queryset.filter(User_Created=True)
+        elif drink_type == 'house':
+            queryset = queryset.filter(User_Created=False)
+        elif self.action == 'list' and not drink_type:
+            # Default behavior for list if no type specified
+            queryset = queryset.filter(User_Created=False)
+
+        # Handle flavor filtering
+        flavor_primary = self.request.query_params.get('flavor')
+        if flavor_primary:
+            # Find flavors that match the primary flavor
+            matching_flavors = Flavor.objects.filter(PrimaryFlavor__iexact=flavor_primary)
+            matching_syrup_names = matching_flavors.values_list('Name', flat=True)
+            # Filter drinks that use any of these syrups
+            # Since SyrupsUsed is an ArrayField, we can use __overlap
+            queryset = queryset.filter(SyrupsUsed__overlap=list(matching_syrup_names))
+
+        return queryset
 
     def create(self, request, *args, **kwargs):
         # Custom logic for creating a drink (optional for customization)
@@ -144,30 +197,28 @@ class DrinkOperations(viewsets.ModelViewSet):
         serializer = self.get_serializer(drink, data=request.data)
 
         # Validate the data (including Ice and Size field checks)
-        if serializer.is_valid():
-            # If valid, update the fields
-            # Explicitly update fields from request data if they exist on the drink model
-            for field, value in request.data.items():
-                if hasattr(drink, field):
-                    setattr(drink, field, value)
+        serializer.is_valid(raise_exception=True)
 
-            # Handle adding/removing favorites
-            favorite_to_add = request.data.get("addFavorite", [])
-            favorite_to_remove = request.data.get("removeFavorite", [])
-            
-            if favorite_to_add:
-                drink.addFavorite(favorite_to_add)
-            if favorite_to_remove:
-                drink.removeFavorite(favorite_to_remove)
+        # If valid, update the fields
+        # Explicitly update fields from request data if they exist on the drink model
+        for field, value in request.data.items():
+            if hasattr(drink, field):
+                setattr(drink, field, value)
 
-            # Save the updated drink
-            drink.save()
+        # Handle adding/removing favorites
+        favorite_to_add = request.data.get("addFavorite", [])
+        favorite_to_remove = request.data.get("removeFavorite", [])
+        
+        if favorite_to_add:
+            drink.addFavorite(favorite_to_add)
+        if favorite_to_remove:
+            drink.removeFavorite(favorite_to_remove)
 
-            # Return the updated drink data using the serializer
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        else:
-            # Return a 400 Bad Request if validation fails
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        # Save the updated drink
+        drink.save()
+
+        # Return the updated drink data using the serializer
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     def destroy(self, request, *args, **kwargs):
         # Custom logic for deleting a drink (optional for customization)
@@ -234,21 +285,21 @@ class InventoryUpdateAPIView(RetrieveUpdateAPIView):
         # Handle normal used quantity update (for orders)
         if used_quantity is None or int(used_quantity) <= 0:
             return Response(
-                {"detail": "Invalid used quantity."}, 
+                {"error": "Invalid used quantity", "details": {"used_quantity": "Value must be greater than zero"}}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
 
         # Check if the item is already out of stock
         if item.Quantity == 0:
             return Response(
-                {"detail": f"'{item.ItemName}' is already out of stock."}, 
+                {"error": "Out of stock", "details": {"item": f"'{item.ItemName}' is already out of stock."}}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
 
         # Check if the order quantity exceeds available stock
         if item.Quantity < int(used_quantity):
             return Response(
-                {"detail": f"Not enough stock available for '{item.ItemName}'."}, 
+                {"error": "Insufficient stock", "details": {"item": f"Not enough stock available for '{item.ItemName}'."}}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -313,7 +364,7 @@ class NotificationOperations(viewsets.ModelViewSet):
         # Validate parameters
         if not start_time or not end_time:
             return Response(
-                {"error": "Both 'start' and 'end' parameters are required in ISO 8601 format."},
+                {"error": "Missing parameters", "details": {"params": "Both 'start' and 'end' parameters are required in ISO 8601 format."}},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -395,18 +446,15 @@ class OrderOperations(viewsets.ModelViewSet):
         }
 
         serializer = self.get_serializer(data=order_data)
-        if serializer.is_valid():
-            order = serializer.save()
+        serializer.is_valid(raise_exception=True)
+        order = serializer.save()
 
-            # Add drinks to the order if provided
-            if drinks:
-                order.add_drinks(drinks)
+        # Add drinks to the order if provided
+        if drinks:
+            order.add_drinks(drinks)
 
-            # Return the created order's data
-            return Response(self.get_serializer(order).data, status=status.HTTP_201_CREATED)
-
-        # Handle validation errors
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        # Return the created order's data
+        return Response(self.get_serializer(order).data, status=status.HTTP_201_CREATED)
 
     def update(self, request, *args, **kwargs):
         return super().update(request, *args, **kwargs)
@@ -465,7 +513,7 @@ class StripePaymentIntentView(View):
                 'publishableKey': 'TODO: get a new publishable stripe key'
             })
         except Exception as e:
-            return JsonResponse({'error': str(e)}, status=400)
+            return JsonResponse({'error': 'Payment intent creation failed', 'details': str(e)}, status=400)
 
 def refund_order(client_secret_or_id):
     try:
@@ -507,9 +555,15 @@ class emailAPI(APIView):
             return Response({"message": "Email preview generated successfully."}, status=status.HTTP_200_OK)
 
         except Order.DoesNotExist:
-            return Response({"error": f"Order with ID {orderId} does not exist."}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"error": "Order not found", "details": {"orderId": orderId}}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
         except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(
+                {"error": "Internal server error", "details": {"message": str(e)}}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     def generate_email_preview(self, order, revenue):
         """Generate a styled email preview for terminal output."""
@@ -569,7 +623,10 @@ class GenerateAIDrink(APIView):
                 response_data = self.generate_general_user()
             return Response(response_data)
         except Exception as e:
-            return Response({'error': str(e)}, status=400)
+            return Response(
+                {"error": "AI Generation failed", "details": {"message": str(e)}}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
     
     def generate_account_user(self, user_id):
         """Generate AI drink for a registered user using their preferences."""
@@ -638,9 +695,17 @@ class UserOperations(viewsets.ModelViewSet):
         try:
             user = User.objects.get(id=user_id)
             user.delete()
-            return JsonResponse({"message":"User deleted successfully"}, status=status.HTTP_200_OK)
+            return Response({"message":"User deleted successfully"}, status=status.HTTP_200_OK)
+        except User.DoesNotExist:
+            return Response(
+                {"error": "User not found", "details": {"user_id": user_id}}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
         except Exception as e:
-            return JsonResponse({'Error': str(e)}, status=400)
+            return Response(
+                {"error": "Failed to delete user", "details": {"message": str(e)}}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
     def edit(self, request, user_id):
         try:
@@ -680,9 +745,17 @@ class UserOperations(viewsets.ModelViewSet):
                     user.is_superuser = True
 
             user.save()
-            return JsonResponse({"message":"User edited successfully"}, status=status.HTTP_200_OK)
+            return Response({"message":"User edited successfully"}, status=status.HTTP_200_OK)
+        except User.DoesNotExist:
+            return Response(
+                {"error": "User not found", "details": {"user_id": user_id}}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
         except Exception as e:
-            return JsonResponse({'Error': str(e)}, status=400)
+            return Response(
+                {"error": "Failed to edit user", "details": {"message": str(e)}}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
 
 class MasterListSyncView(APIView):
@@ -714,4 +787,46 @@ class MasterListSyncView(APIView):
                 },
             )
         return Response({"status": "ok"}, status=status.HTTP_200_OK)
+
+class MenuView(APIView):
+    """
+    Return categorized items: sodas, syrups, addins, featured_drinks.
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        sodas = Inventory.objects.filter(ItemType='Soda')
+        syrups = Inventory.objects.filter(ItemType='Syrup')
+        addins = Inventory.objects.filter(ItemType='Add In')
+        featured_drinks = Drink.objects.filter(User_Created=False)[:10]
+
+        data = {
+            "sodas": InventorySerializer(sodas, many=True).data,
+            "syrups": InventorySerializer(syrups, many=True).data,
+            "addins": InventorySerializer(addins, many=True).data,
+            "featured_drinks": DrinkSerializer(featured_drinks, many=True).data,
+        }
+        return Response(data, status=status.HTTP_200_OK)
+
+class UserProfileView(RetrieveUpdateAPIView):
+    """
+    Handle fetching and updating the authenticated user's profile.
+    """
+    permission_classes = [IsAuthenticated]
+    serializer_class = UserProfileSerializer
+
+    def get_object(self):
+        return self.request.user
+
+class ServerRegistryAPIView(viewsets.ReadOnlyModelViewSet):
+    """
+    List all active servers in the decentralized network.
+    """
+    queryset = ServerRegistry.objects.all()
+    serializer_class = ServerRegistrySerializer
+
+    def get_permissions(self):
+        if self.action == 'list' or self.action == 'retrieve':
+            return [AllowAny()]
+        return [IsAdminUser()]
 
