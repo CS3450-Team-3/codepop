@@ -1,6 +1,6 @@
 from rest_framework.test import APITestCase
 from rest_framework import status
-from rest_framework.authtoken.models import Token
+from rest_framework_simplejwt.tokens import RefreshToken
 from unittest.mock import patch
 from .models import Preference, Drink, Inventory, Notification, Order, Revenue, CustomUser
 from django.utils import timezone
@@ -19,21 +19,20 @@ class PreferenceTests(APITestCase):
         self.user1 = User.objects.create_user(username='pref_user1', password='password123')
         self.user2 = User.objects.create_user(username='pref_user2', password='password123')
 
-        # Create tokens for both users
-        self.token1 = Token.objects.create(user=self.user1)
-        self.token2 = Token.objects.create(user=self.user2)
+        self.token1 = str(RefreshToken.for_user(self.user1).access_token)
+        self.token2 = str(RefreshToken.for_user(self.user2).access_token)
 
         # Create preferences for both users
         Preference.objects.create(UserID=self.user1, Preference="mango")
         Preference.objects.create(UserID=self.user2, Preference="peach")
 
     def authenticate(self, token):
-        """Helper method to set up token authentication"""
-        self.client.credentials(HTTP_AUTHORIZATION='Token ' + token)  # type: ignore
+        """Helper method to set up JWT authentication"""
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + token)  # type: ignore
 
     def test_get_preferences_for_user1(self):
         # Use token authentication for user1
-        self.authenticate(self.token1.key)
+        self.authenticate(self.token1)
 
         # Make a request to retrieve preferences for user1
         response = self.client.get(f'/backend/users/{self.user1.id}/preferences/')
@@ -50,7 +49,7 @@ class PreferenceTests(APITestCase):
 
     def test_get_preferences_for_user2(self):
         # Use token authentication for user2
-        self.authenticate(self.token2.key)
+        self.authenticate(self.token2)
 
         # Make a request to retrieve preferences for user2
         response = self.client.get(f'/backend/users/{self.user2.id}/preferences/')
@@ -67,7 +66,7 @@ class PreferenceTests(APITestCase):
 
     def test_get_preferences_for_non_existent_user(self):
         # Use token authentication for user1
-        self.authenticate(self.token1.key)
+        self.authenticate(self.token1)
 
         # Attempt to retrieve preferences for a non-existent user (using a valid UUID format)
         random_uuid = uuid7.create()
@@ -78,7 +77,7 @@ class PreferenceTests(APITestCase):
 
     def test_create_preference(self):
         # Use token authentication for user1
-        self.authenticate(self.token1.key)
+        self.authenticate(self.token1)
 
         # Send a POST request to create a new preference for user1
         data = {'UserID': self.user1.id, 'Preference': "Strawberry"}
@@ -97,7 +96,7 @@ class PreferenceTests(APITestCase):
 
     def test_delete_preference(self):
         # Authenticate the user (user1 in this case)
-        self.authenticate(self.token1.key)
+        self.authenticate(self.token1)
 
         # Send a POST request to create a new preference for user1
         data = {'UserID': self.user1.id, 'Preference': "Strawberry"}
@@ -125,7 +124,7 @@ class PreferenceTests(APITestCase):
 
     def test_create_preference_with_invalid_value(self):
         # Authenticate the user (user1 in this case)
-        self.authenticate(self.token1.key)
+        self.authenticate(self.token1)
 
         # Send a POST request with an invalid preference value
         data = {'UserID': self.user1.id, 'Preference': "Mountain Dew"}
@@ -144,9 +143,8 @@ class DrinkTests(APITestCase):
         self.user1 = User.objects.create_user(username='drink_user1', password='password123')
         self.user2 = User.objects.create_user(username='drink_user2', password='password123')
 
-        # Create tokens for both users
-        self.token1 = Token.objects.create(user=self.user1)
-        self.token2 = Token.objects.create(user=self.user2)
+        self.token1 = str(RefreshToken.for_user(self.user1).access_token)
+        self.token2 = str(RefreshToken.for_user(self.user2).access_token)
 
         # Create sample drinks
         drink1 = Drink.objects.create(Name="Cola Vanilla", SodaUsed=["Cola"], SyrupsUsed=["Vanilla"], Ice="Regular", Size="24oz", User_Created=False, Price=1.99)
@@ -160,12 +158,12 @@ class DrinkTests(APITestCase):
 
 
     def authenticate(self, token):
-        """Helper method to set up token authentication"""
-        self.client.credentials(HTTP_AUTHORIZATION='Token ' + token)  # type: ignore
+        """Helper method to set up JWT authentication"""
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + token)  # type: ignore
 
     def test_get_drinks_for_user_created_false(self):
         """Test that only drinks where User_Created=False are listed"""
-        self.authenticate(self.token1.key)
+        self.authenticate(self.token1)
         response = self.client.get('/backend/drinks/')
         
         # Check that the response status code is 200 OK
@@ -178,7 +176,7 @@ class DrinkTests(APITestCase):
 
     def test_create_new_drink(self):
         """Test creating a new drink for the logged-in user with Ice and Size"""
-        self.authenticate(self.token1.key)
+        self.authenticate(self.token1)
 
         # Data for the new dirty soda (drink)
         data = {
@@ -212,7 +210,7 @@ class DrinkTests(APITestCase):
 
     def test_update_existing_drink(self):
         """Test updating the price of an existing drink, and set Ice and Size"""
-        self.authenticate(self.token1.key)
+        self.authenticate(self.token1)
 
         # Retrieve a drink to update
         drink = Drink.objects.filter(User_Created=False).first()
@@ -248,7 +246,7 @@ class DrinkTests(APITestCase):
 
     def test_delete_drink(self):
         """Test deleting a drink"""
-        self.authenticate(self.token1.key)
+        self.authenticate(self.token1)
 
         # Get a drink to delete
         drink = Drink.objects.filter(Favorite=self.user1).first()
@@ -277,7 +275,7 @@ class DrinkTests(APITestCase):
 
     def test_get_drinks_for_specific_user(self):
         """Test retrieving drinks based on a specific user's favorites"""
-        self.authenticate(self.token2.key)
+        self.authenticate(self.token2)
         response = self.client.get(f'/backend/users/{self.user2.id}/drinks/')
         
         # Check response
@@ -289,7 +287,7 @@ class DrinkTests(APITestCase):
 
     def test_create_drink_with_invalid_ice_size(self):
         """Test creating a drink with invalid Ice and Size fields."""
-        self.authenticate(self.token1.key)
+        self.authenticate(self.token1)
         data = {
             "Name": "Invalid Drink",
             "SodaUsed": ["Cola"],
@@ -307,29 +305,29 @@ class InventoryTests(APITestCase):
 
     def setUp(self):
         self.user1 = User.objects.create_user(username='inv_user1', password='password123')
-        self.token1 = Token.objects.create(user=self.user1)
+        self.token1 = str(RefreshToken.for_user(self.user1).access_token)
         Inventory.objects.create(ItemName="Coke", ItemType="Soda", Quantity=10, ThresholdLevel=2)
         Inventory.objects.create(ItemName="Syrup A", ItemType="Syrup", Quantity=0, ThresholdLevel=5)
         Inventory.objects.create(ItemName="Cup", ItemType="Physical", Quantity=50, ThresholdLevel=10)
 
     def authenticate(self, token):
-        self.client.credentials(HTTP_AUTHORIZATION='Token ' + token)  # type: ignore
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + token)  # type: ignore
 
     def test_get_inventory_list(self):
-        self.authenticate(self.token1.key)
+        self.authenticate(self.token1)
         response = self.client.get('/backend/inventory/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 2)
 
     def test_get_inventory_report(self):
-        self.authenticate(self.token1.key)
+        self.authenticate(self.token1)
         response = self.client.get('/backend/inventory/report/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         item_names = [item['ItemName'] for item in response.data['inventory_items']]
         self.assertIn("Coke", item_names)
 
     def test_update_inventory_success(self):
-        self.authenticate(self.token1.key)
+        self.authenticate(self.token1)
         coke = Inventory.objects.get(ItemName="Coke")
         data = {'used_quantity': 5}
         response = self.client.patch(f'/backend/inventory/{coke.pk}/', data, format='json')
@@ -339,7 +337,7 @@ class InventoryTests(APITestCase):
 
     def test_reset_inventory_success(self):
         """Test resetting inventory quantity to threshold level."""
-        self.authenticate(self.token1.key)
+        self.authenticate(self.token1)
         coke = Inventory.objects.get(ItemName="Coke")
         data = {'reset': True}
         response = self.client.patch(f'/backend/inventory/{coke.pk}/', data, format='json')
@@ -349,7 +347,7 @@ class InventoryTests(APITestCase):
 
     def test_reset_inventory_no_threshold(self):
         """Test resetting inventory with no threshold set (should still reset to threshold level)."""
-        self.authenticate(self.token1.key)
+        self.authenticate(self.token1)
         cup = Inventory.objects.get(ItemName="Cup")
         data = {'reset': True}
         response = self.client.patch(f'/backend/inventory/{cup.pk}/', data, format='json')
@@ -359,7 +357,7 @@ class InventoryTests(APITestCase):
 
     def test_reset_inventory_invalid_data(self):
         """Test invalid reset request without 'reset' flag or wrong data."""
-        self.authenticate(self.token1.key)
+        self.authenticate(self.token1)
         coke = Inventory.objects.get(ItemName="Coke")
         data = {'used_quantity': 5}
         response = self.client.patch(f'/backend/inventory/{coke.pk}/', data, format='json')
@@ -369,7 +367,7 @@ class InventoryTests(APITestCase):
 
     def test_reset_inventory_non_existent_item(self):
         """Test resetting a non-existent inventory item."""
-        self.authenticate(self.token1.key)
+        self.authenticate(self.token1)
         data = {'reset': True}
         response = self.client.patch('/backend/inventory/999/', data, format='json')
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
@@ -379,8 +377,8 @@ class NotificationTests(APITestCase):
     def setUp(self):
         self.user1 = User.objects.create_user(username='notify_user1', password='password123')
         self.user2 = User.objects.create_user(username='notify_user2', password='password123')
-        self.token1 = Token.objects.create(user=self.user1)
-        self.token2 = Token.objects.create(user=self.user2)
+        self.token1 = str(RefreshToken.for_user(self.user1).access_token)
+        self.token2 = str(RefreshToken.for_user(self.user2).access_token)
 
         self.notification1 = Notification.objects.create(
             UserID=self.user1,
@@ -391,10 +389,10 @@ class NotificationTests(APITestCase):
         )
 
     def authenticate(self, token):
-        self.client.credentials(HTTP_AUTHORIZATION='Token ' + token)  # type: ignore
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + token)  # type: ignore
 
     def test_list_notifications(self):
-        self.authenticate(self.token1.key)
+        self.authenticate(self.token1)
         response = self.client.get('/backend/notifications/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
@@ -403,15 +401,15 @@ class OrderTests(APITestCase):
 
     def setUp(self):
         self.user1 = User.objects.create_user(username='order_user1', password='password123')
-        self.token1 = Token.objects.create(user=self.user1)
+        self.token1 = str(RefreshToken.for_user(self.user1).access_token)
         self.drink1 = Drink.objects.create(Name="Cola Vanilla", SodaUsed=["Cola"], SyrupsUsed=["Vanilla"], User_Created=False, Price=1.99)
         self.drink2 = Drink.objects.create(Name="Lemonade Mint", SodaUsed=["Lemonade"], AddIns=["Mint"], User_Created=False, Price=2.50)
 
     def authenticate(self, token):
-        self.client.credentials(HTTP_AUTHORIZATION='Token ' + token)  # type: ignore
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + token)  # type: ignore
 
     def test_create_order(self):
-        self.authenticate(self.token1.key)
+        self.authenticate(self.token1)
         data = {
             "UserID": self.user1.id,
             "Drinks": [self.drink1.DrinkID],
@@ -424,7 +422,7 @@ class OrderTests(APITestCase):
         self.assertEqual(Order.objects.count(), 1)
 
     def test_get_order(self):
-        self.authenticate(self.token1.key)
+        self.authenticate(self.token1)
         order = Order.objects.create(UserID=self.user1, OrderStatus="Pending", PaymentStatus="Pending")
         order.Drinks.add(self.drink1)
         response = self.client.get(f'/backend/orders/{order.OrderID}/')
@@ -433,7 +431,7 @@ class OrderTests(APITestCase):
 
     def test_create_order_with_invalid_drink(self):
         """Test creating an order with a non-existent drink ID."""
-        self.authenticate(self.token1.key)
+        self.authenticate(self.token1)
         random_uuid = uuid7.create()
         data = {
             "UserID": self.user1.id,
@@ -447,7 +445,7 @@ class OrderTests(APITestCase):
 
     def test_create_order_and_add_drink(self):
         """Test creating an order with one drink, then adding another drink."""
-        self.authenticate(self.token1.key)
+        self.authenticate(self.token1)
         initial_data = {
             "UserID": self.user1.id,
             "Drinks": [self.drink1.DrinkID],
@@ -465,7 +463,7 @@ class OrderTests(APITestCase):
 
     def test_add_two_drinks_and_delete_one(self):
         """Test adding two drinks to an order, then deleting one of the drinks."""
-        self.authenticate(self.token1.key)
+        self.authenticate(self.token1)
         initial_data = {
             "UserID": self.user1.id,
             "Drinks": [self.drink1.DrinkID, self.drink2.DrinkID],
@@ -486,7 +484,7 @@ class RevenueTests(APITestCase):
 
     def setUp(self):
         self.user1 = User.objects.create_user(username='rev_user1', password='password123')
-        self.token1 = Token.objects.create(user=self.user1)
+        self.token1 = str(RefreshToken.for_user(self.user1).access_token)
         self.drink1 = Drink.objects.create(Name="Cola Vanilla", SodaUsed=["Cola"], SyrupsUsed=["Vanilla"], User_Created=False, Price=1.99)
         self.drink2 = Drink.objects.create(Name="Lemonade Mint", SodaUsed=["Lemonade"], AddIns=["Mint"], User_Created=False, Price=2.50)
         self.order = Order.objects.create(UserID=self.user1, OrderStatus="Pending", PaymentStatus="Pending")
@@ -494,10 +492,10 @@ class RevenueTests(APITestCase):
         self.order.Drinks.add(self.drink2)
 
     def authenticate(self, token):
-        self.client.credentials(HTTP_AUTHORIZATION='Token ' + token)  # type: ignore
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + token)  # type: ignore
 
     def test_create_revenue(self):
-        self.authenticate(self.token1.key)
+        self.authenticate(self.token1)
         data = {
             "OrderID": self.order.OrderID,
         }
@@ -516,7 +514,7 @@ class RevenueTests(APITestCase):
 
     def test_update_revenue_to_zero(self):
         """Test updating the revenue total amount to 0."""
-        self.authenticate(self.token1.key)
+        self.authenticate(self.token1)
         revenue = Revenue.objects.create(OrderID=self.order, TotalAmount=5.0)
         update_data = {"OrderID": self.order.OrderID, "TotalAmount": 0.0}
         response = self.client.put(f'/backend/revenues/{revenue.RevenueID}/', update_data, format='json')
@@ -538,14 +536,14 @@ class AITests(APITestCase):
         self.user6 = User.objects.create_user(username='ai_user6', password='password123')
 
         # Create tokens for users
-        self.token1 = Token.objects.create(user=self.user1)
-        self.token2 = Token.objects.create(user=self.user2)
-        self.token3 = Token.objects.create(user=self.user3)
+        self.token1 = str(RefreshToken.for_user(self.user1).access_token)
+        self.token2 = str(RefreshToken.for_user(self.user2).access_token)
+        self.token3 = str(RefreshToken.for_user(self.user3).access_token)
 
-        self.token4 = Token.objects.create(user=self.user4)
-        self.token5 = Token.objects.create(user=self.user5)
+        self.token4 = str(RefreshToken.for_user(self.user4).access_token)
+        self.token5 = str(RefreshToken.for_user(self.user5).access_token)
 
-        self.token6 = Token.objects.create(user=self.user6)
+        self.token6 = str(RefreshToken.for_user(self.user6).access_token)
 
         # Create preference list for every user (pref# corresponds to user#)
         # Syrup test users
@@ -589,8 +587,8 @@ class AITests(APITestCase):
             Preference.objects.create(UserID=self.user6, Preference=pref)
 
     def authenticate(self, token):
-        """Helper method to set up token authentication"""
-        self.client.credentials(HTTP_AUTHORIZATION='Token ' + token)  # type: ignore
+        """Helper method to set up JWT authentication"""
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + token)  # type: ignore
 
     # Used for checkOutput method
     def getCSVLength(self, file_path):
@@ -603,7 +601,7 @@ class AITests(APITestCase):
     # Authenticates user, gets preferences, and sends to AI (returns result)
     def authGetPrefAndSendToAI(self, token, user):
         from .drinkAI import generate_soda
-        self.authenticate(token.key)
+        self.authenticate(token)
         response = self.client.get(f'/backend/users/{user.id}/preferences/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         preferences = list(Preference.objects.filter(UserID=user).values_list('Preference', flat=True))
@@ -850,8 +848,8 @@ class MasterListSyncEndpointTest(APITestCase):
 class NewFeaturesTests(APITestCase):
     def setUp(self):
         self.user = User.objects.create_user(username='test_user', password='password123', first_name='Test', last_name='User', email='test@example.com')
-        self.token = Token.objects.create(user=self.user)
-        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.token.key) # type: ignore
+        self.token = str(RefreshToken.for_user(self.user).access_token)
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + self.token) # type: ignore
 
         # Inventory items
         Inventory.objects.create(ItemName="Coke", ItemType="Soda", Quantity=10, ThresholdLevel=2)
