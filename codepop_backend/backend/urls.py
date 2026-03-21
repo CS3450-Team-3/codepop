@@ -1,6 +1,6 @@
 from django.urls import path
 from rest_framework.authtoken.views import obtain_auth_token
-from .views import CreateUserAPIView, LogoutUserAPIView, CustomAuthToken
+from .views import CreateUserAPIView, LogoutUserAPIView, CustomAuthToken, CustomTokenRefreshView
 from .views import StripePaymentIntentView
 from .views import UserPreferenceLookup, PreferencesOperations
 from .views import DrinkOperations, UserDrinksLookup
@@ -10,7 +10,6 @@ from .views import OrderOperations, UserOrdersLookup
 from .views import RevenueViewSet
 from .views import UserOperations
 from .views import MasterListSyncView, PublicDiscoveryView, MenuView, UserProfileView, ServerRegistryAPIView, GeneralGenerateAIDrink, UserGenerateAIDrink, emailAPI
-from rest_framework_simplejwt.views import TokenRefreshView
 from .customerAI import Chatbot
 
 #this ensures that the url calls the right function from the views for each type of request
@@ -91,7 +90,7 @@ urlpatterns = [
 
     # Endpoint for token refresh
     # - POST: Accepts a refresh token and returns a new access token.
-    path('auth/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('auth/refresh/', CustomTokenRefreshView.as_view(), name='token_refresh'),
 
     # Endpoint for user logout
     # - POST: Logs out the user by invalidating the auth token.
