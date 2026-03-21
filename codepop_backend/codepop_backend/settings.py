@@ -100,6 +100,7 @@ DATABASES = {
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
+        'backend.authentication.P2PJWTAuthentication',
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': (
@@ -108,6 +109,10 @@ REST_FRAMEWORK = {
     'EXCEPTION_HANDLER': 'backend.views.custom_exception_handler',
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
+
+# Asymmetric Key Setup for P2P Authentication
+# For production, load these from secure environment variables or a volume mount
+PRIVATE_KEY = os.environ.get('SERVER_PRIVATE_KEY', 'TODO: Generate and load a real RSA Private Key')
 
 SPECTACULAR_SETTINGS = {
     'TITLE': 'CodePop API',
@@ -118,8 +123,8 @@ SPECTACULAR_SETTINGS = {
 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
-    'ROTATE_REFRESH_TOKENS': False,
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=30),
+    'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': False,
     'ALGORITHM': 'HS256',
     'SIGNING_KEY': SECRET_KEY,

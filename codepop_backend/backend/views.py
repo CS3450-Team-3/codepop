@@ -15,7 +15,7 @@ from .serializers import (
     CreateUserSerializer, GetUserSerializer, UserProfileSerializer, 
     PreferenceSerializer, DrinkSerializer, InventorySerializer, 
     NotificationSerializer, OrderSerializer, RevenueSerializer, 
-    MasterListSerializer, ServerRegistrySerializer
+    MasterListSerializer, ServerRegistrySerializer, CustomTokenObtainPairSerializer
 )
 from .documentation_serializers import (
     EmailAPIResponseSerializer, InventoryReportResponseSerializer, 
@@ -29,21 +29,39 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views import View
 from django.utils.decorators import method_decorator
 import json
+import requests
 from rest_framework.decorators import action
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
 from django.utils.dateparse import parse_datetime
 from .drinkAI import generate_soda
+from .sync import get_local_server
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
-class IsSuperUser(BasePermission):
+class IsSuperAdmin(BasePermission):
     """
-    Custom permission to allow access only to superusers.
+    Allows access only to super_admin users.
     """
-
     def has_permission(self, request, view):
-        # Check if the user is authenticated and a superuser
-        return request.user and request.user.is_authenticated and request.user.is_superuser
+        return (request.user and request.user.is_authenticated and 
+                request.user.user_type == 'super_admin')
+
+class IsAdmin(BasePermission):
+    """
+    Allows access to admin and super_admin users.
+    """
+    def has_permission(self, request, view):
+        return (request.user and request.user.is_authenticated and 
+                request.user.user_type in ['admin', 'super_admin'])
+
+class IsManager(BasePermission):
+    """
+    Allows access to store_manager, logistics_manager, repair_staff, admin, and super_admin.
+    """
+    def has_permission(self, request, view):
+        allowed = ['store_manager', 'logistics_manager', 'repair_staff', 'admin', 'super_admin']
+        return (request.user and request.user.is_authenticated and 
+                request.user.user_type in allowed)
     
 
 def custom_exception_handler(exc, context):
@@ -77,20 +95,79 @@ def custom_exception_handler(exc, context):
 # Custom login to so that it get's a token but also the user's first name and the user id
 
 class CustomAuthToken(TokenObtainPairView):
+    serializer_class = CustomTokenObtainPairSerializer
+
     @extend_schema(
-        description="Login with username and password to receive JWT access and refresh tokens."
+        description="Login with username and password to receive JWT access and refresh tokens. "
+                    "Supports inter-server proxying if the user's home server is elsewhere."
     )
     def post(self, request, *args, **kwargs):
-        response = super().post(request, *args, **kwargs)
-        if response.status_code == 200:
-            user = User.objects.get(username=request.data['username'])
-            response.data.update({
-                'user_id': user.pk,
-                'first_name': user.first_name,
-                'is_admin': user.is_superuser,
-                'is_manager': user.is_staff,
-            })
-        return response
+        username = request.data.get('username')
+        password = request.data.get('password')
+
+        # 1. Try local authentication first
+        try:
+            return super().post(request, *args, **kwargs)
+        except Exception as local_exc:
+            # 2. If local fails, check the MasterList for a remote Home Server
+            try:
+                master_entry = MasterList.objects.get(Username=username)
+                local_server = get_local_server()
+                
+                if master_entry.HomeServerID != local_server:
+                    # 3. Proxy the request to the Home Server
+                    home_server = master_entry.HomeServerID
+                    proxy_url = home_server.ServerURL.rstrip('/') + '/backend/auth/login/'
+                    
+                    try:
+                        remote_resp = requests.post(
+                            proxy_url, 
+                            json={'username': username, 'password': password},
+                            timeout=10
+                        )
+                        
+                        if remote_resp.status_code == 200:
+                            remote_data = remote_resp.json()
+                            
+                            # 4. Create/Update a "cached" local user record for this visitor
+                            # Note: We do NOT store the password hash locally.
+                            user, created = User.objects.update_or_create(
+                                username=username,
+                                defaults={
+                                    'first_name': remote_data.get('first_name', ''),
+                                    'user_type': remote_data.get('user_type', 'customer'),
+                                }
+                            )
+                            if created:
+                                user.set_unusable_password()
+                                user.save()
+                                
+                            # 5. Issue local tokens for the visiting user
+                            refresh = RefreshToken.for_user(user)
+                            # Inject the same extra data as CustomTokenObtainPairSerializer
+                            data = {
+                                'refresh': str(refresh),
+                                'access': str(refresh.access_token),
+                                'user_type': user.user_type,
+                                'user_id': str(user.id),
+                                'first_name': user.first_name,
+                                'is_proxy': True,
+                                'home_server_id': home_server.ServerID
+                            }
+                            return Response(data, status=status.HTTP_200_OK)
+                        
+                        # If remote login failed, return its error
+                        return Response(remote_resp.json(), status=remote_resp.status_code)
+                    
+                    except requests.RequestException as e:
+                        return Response(
+                            {"error": "Home server unreachable", "details": str(e)}, 
+                            status=status.HTTP_503_SERVICE_UNAVAILABLE
+                        )
+            except MasterList.DoesNotExist:
+                pass # Proceed to raise the original local exception
+
+            raise local_exc
 
 #Code to create a user in the database
 class CreateUserAPIView(CreateAPIView):
@@ -727,7 +804,7 @@ class RevenueViewSet(viewsets.ModelViewSet):
         return super().update(request, *args, **kwargs)
     
 class UserOperations(viewsets.ModelViewSet):
-    permission_classes = [IsSuperUser]
+    permission_classes = [IsSuperAdmin]
     serializer_class = GetUserSerializer
 
     def get(self, request):
@@ -778,15 +855,16 @@ class UserOperations(viewsets.ModelViewSet):
                 print("Password updated")
 
             if (role != "unchanged" and role):
-                if (role == "user"):
-                    user.is_staff = False
-                    user.is_superuser = False
-                elif (role == "staff"):
+                user.user_type = role
+                if role == 'super_admin':
+                    user.is_staff = True
+                    user.is_superuser = True
+                elif role in ['admin', 'store_manager', 'logistics_manager', 'repair_staff']:
                     user.is_staff = True
                     user.is_superuser = False
-                elif (role == "admin"):
+                else: # 'customer'
                     user.is_staff = False
-                    user.is_superuser = True
+                    user.is_superuser = False
 
             user.save()
             return Response({"message":"User edited successfully"}, status=status.HTTP_200_OK)

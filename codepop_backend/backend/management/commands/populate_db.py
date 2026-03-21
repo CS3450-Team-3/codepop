@@ -8,6 +8,13 @@ class Command(BaseCommand):
     help = 'Populates the database with initial data'
 
     def handle(self, *args, **kwargs):
+        # Clear existing data
+        self.stdout.write('Clearing existing data...')
+        Preference.objects.all().delete()
+        Inventory.objects.all().delete()
+        Drink.objects.all().delete()
+        CustomUser.objects.all().delete()
+
         # Creating some users
         super_user = User.objects.create_superuser(
             username='super',

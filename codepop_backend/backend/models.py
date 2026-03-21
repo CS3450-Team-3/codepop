@@ -4,10 +4,34 @@ from django.contrib.auth.models import AbstractUser, UserManager
 from django.contrib.postgres.fields import ArrayField
 from django.utils import timezone
 
+class CustomUserManager(UserManager):
+    def _create_user(self, username, email, password, **extra_fields):
+        user_type = extra_fields.get('user_type', 'customer')
+        if extra_fields.get('is_superuser'):
+            user_type = extra_fields.get('user_type', 'super_admin')
+        elif extra_fields.get('is_staff'):
+            user_type = extra_fields.get('user_type', 'store_manager')
+        extra_fields.setdefault('user_type', user_type)
+        return super()._create_user(username, email, password, **extra_fields)
+
 class CustomUser(AbstractUser):
+    USER_TYPE_CHOICES = [
+        ('customer', 'Customer'),
+        ('store_manager', 'Store Manager'),
+        ('logistics_manager', 'Logistics Manager'),
+        ('repair_staff', 'Repair Staff'),
+        ('admin', 'Admin'),
+        ('super_admin', 'Super Admin'),
+    ]
+
     id = models.UUIDField(primary_key=True, default=uuid7.create, editable=False)
+    user_type = models.CharField(
+        max_length=20,
+        choices=USER_TYPE_CHOICES,
+        default='customer'
+    )
     
-    objects = UserManager()
+    objects = CustomUserManager()
 
     def __str__(self):
         return self.username
