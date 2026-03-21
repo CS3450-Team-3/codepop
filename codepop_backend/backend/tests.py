@@ -686,3 +686,163 @@ class AITests(APITestCase):
     def testPrefListSize(self):
         result6 = self.authGetPrefAndSendToAI(self.token6, self.user6)
         self.checkOutput(result6)
+
+
+# ── Sync tests ────────────────────────────────────────────────────────────────
+
+from unittest.mock import MagicMock, patch
+from backend.sync import sync_region, _merge_data_chunks
+from backend.models import ServerRegistry, Region
+
+
+def _make_server(server_id, is_leader=False):
+    s = MagicMock(spec=ServerRegistry)
+    s.ServerID = server_id
+    s.IsRegionLeader = is_leader
+    return s
+
+
+import unittest
+
+class MergeDataChunksTest(unittest.TestCase):
+    def test_combines_items(self):
+        result = _merge_data_chunks([{"items": [1, 2]}, {"items": [3]}])
+        self.assertEqual(result, {"items": [1, 2, 3]})
+
+    def test_tolerates_missing_items_key(self):
+        result = _merge_data_chunks([{}, {"items": [1]}])
+        self.assertEqual(result, {"items": [1]})
+
+    def test_empty_chunks(self):
+        self.assertEqual(_merge_data_chunks([]), {"items": []})
+
+
+class SyncRegionTest(unittest.TestCase):
+    def setUp(self):
+        self.leader = _make_server(1, is_leader=True)
+        self.peer = _make_server(2)
+        self.other_leader = _make_server(3, is_leader=True)
+
+    def test_raises_if_not_leader(self):
+        non_leader = _make_server(99, is_leader=False)
+        with self.assertRaises(ValueError):
+            sync_region(lambda s: {}, lambda s, d: None, non_leader)
+
+    def test_phase1_fetches_from_peer_and_leader(self):
+        fetched = []
+        def fetch(server):
+            fetched.append(server.ServerID)
+            return {"items": []}
+
+        with patch("backend.sync._get_regional_peers", return_value=[self.peer]), \
+             patch("backend.sync._get_other_region_leaders", return_value=[]):
+            sync_region(fetch, lambda s, d: None, self.leader)
+
+        self.assertIn(self.peer.ServerID, fetched)
+        self.assertIn(self.leader.ServerID, fetched)
+
+    def test_phase2_exchanges_with_other_leaders(self):
+        pushed_to, fetched_from = [], []
+        def fetch(server):
+            fetched_from.append(server.ServerID)
+            return {"items": [{"id": server.ServerID}]}
+        def push(server, data):
+            pushed_to.append(server.ServerID)
+
+        with patch("backend.sync._get_regional_peers", return_value=[]), \
+             patch("backend.sync._get_other_region_leaders", return_value=[self.other_leader]):
+            sync_region(fetch, push, self.leader)
+
+        self.assertIn(self.other_leader.ServerID, pushed_to)
+        self.assertIn(self.other_leader.ServerID, fetched_from)
+
+    def test_phase3_broadcasts_to_peers_and_leader(self):
+        pushed_to = []
+        def push(server, data):
+            pushed_to.append(server.ServerID)
+
+        with patch("backend.sync._get_regional_peers", return_value=[self.peer]), \
+             patch("backend.sync._get_other_region_leaders", return_value=[]):
+            sync_region(lambda s: {"items": []}, push, self.leader)
+
+        self.assertIn(self.peer.ServerID, pushed_to)
+        self.assertIn(self.leader.ServerID, pushed_to)
+
+    def test_merged_data_grows_across_phases(self):
+        """Verify that data from peers, leader, and other leaders all end up in the final broadcast."""
+        received = {}
+        def fetch(server):
+            return {"items": [{"source": server.ServerID}]}
+        def push(server, data):
+            received[server.ServerID] = data["items"]
+
+        with patch("backend.sync._get_regional_peers", return_value=[self.peer]), \
+             patch("backend.sync._get_other_region_leaders", return_value=[self.other_leader]):
+            sync_region(fetch, push, self.leader)
+
+        # The leader's final local write should contain items from peer, leader, and other_leader
+        final = received[self.leader.ServerID]
+        sources = {item["source"] for item in final}
+        self.assertIn(self.peer.ServerID, sources)
+        self.assertIn(self.leader.ServerID, sources)
+        self.assertIn(self.other_leader.ServerID, sources)
+
+    def test_unreachable_peer_is_skipped(self):
+        """A failing fetch_fn on a peer should not abort the sync."""
+        push_calls = []
+        def fetch(server):
+            if server.ServerID == self.peer.ServerID:
+                raise ConnectionError("refused")
+            return {"items": []}
+
+        with patch("backend.sync._get_regional_peers", return_value=[self.peer]), \
+             patch("backend.sync._get_other_region_leaders", return_value=[]):
+            sync_region(fetch, lambda s, d: push_calls.append(s.ServerID), self.leader)
+
+        # Sync should complete and still write to the leader locally
+        self.assertIn(self.leader.ServerID, push_calls)
+
+    def test_unreachable_other_leader_is_skipped(self):
+        """A failing push_fn to another leader should not abort the sync."""
+        push_calls = []
+        def push(server, data):
+            if server.ServerID == self.other_leader.ServerID:
+                raise ConnectionError("refused")
+            push_calls.append(server.ServerID)
+
+        with patch("backend.sync._get_regional_peers", return_value=[self.peer]), \
+             patch("backend.sync._get_other_region_leaders", return_value=[self.other_leader]):
+            sync_region(lambda s: {"items": []}, push, self.leader)
+
+        self.assertIn(self.peer.ServerID, push_calls)
+        self.assertIn(self.leader.ServerID, push_calls)
+
+
+class MasterListSyncEndpointTest(APITestCase):
+    def setUp(self):
+        from backend.models import Region, ServerRegistry
+        self.region = Region.objects.create(RegionName="TestRegion")
+        self.server = ServerRegistry.objects.create(
+            ServerURL="http://localhost:8000",
+            PublicKey="testkey",
+            Region=self.region,
+            IsRegionLeader=True,
+        )
+        self.user = User.objects.create_user(username="synctest", password="pw")
+        from backend.models import MasterList
+        MasterList.objects.create(Username="alice", HomeServerID=self.server)
+
+    def test_get_returns_items(self):
+        response = self.client.get("/backend/sync/masterlist/")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("items", response.data)
+        usernames = [i["Username"] for i in response.data["items"]]
+        self.assertIn("alice", usernames)
+
+    def test_post_upserts_record(self):
+        from backend.models import MasterList
+        payload = {"items": [{"UserID": str(self.user.id), "Username": "bob", "HomeServerID": self.server.ServerID}]}
+        response = self.client.post("/backend/sync/masterlist/", payload, format="json")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["status"], "ok")
+        self.assertTrue(MasterList.objects.filter(Username="bob").exists())

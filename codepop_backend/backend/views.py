@@ -1,4 +1,4 @@
-from .models import Preference, Drink, Inventory, Notification, Order, Revenue, CustomUser
+from .models import Preference, Drink, Inventory, Notification, Order, Revenue, CustomUser, MasterList
 from django.shortcuts import get_object_or_404
 from django.db.models import F
 from django.db import models
@@ -11,7 +11,7 @@ from rest_framework.authtoken.views import ObtainAuthToken
 from rest_framework.authtoken.models import Token
 from rest_framework import status, viewsets
 from rest_framework.views import APIView
-from .serializers import CreateUserSerializer, GetUserSerializer, PreferenceSerializer, DrinkSerializer, InventorySerializer, NotificationSerializer, OrderSerializer, RevenueSerializer
+from .serializers import CreateUserSerializer, GetUserSerializer, PreferenceSerializer, DrinkSerializer, InventorySerializer, NotificationSerializer, OrderSerializer, RevenueSerializer, MasterListSerializer
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 import stripe
 from django.conf import settings
@@ -683,4 +683,35 @@ class UserOperations(viewsets.ModelViewSet):
             return JsonResponse({"message":"User edited successfully"}, status=status.HTTP_200_OK)
         except Exception as e:
             return JsonResponse({'Error': str(e)}, status=400)
-        
+
+
+class MasterListSyncView(APIView):
+    """
+    Inter-server sync endpoint for MasterList data.
+
+    Consumed only by other servers, not end-user clients.
+    Authentication is carried via the X-Source-Server-ID / Authorization
+    headers set by sync.http_get / sync.http_post.
+
+    GET  → return this server's full MasterList as {"items": [...]}
+    POST → accept {"items": [...]} and upsert each record by UserID
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        records = MasterList.objects.all()
+        serializer = MasterListSerializer(records, many=True)
+        return Response({"items": serializer.data}, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        items = request.data.get("items", [])
+        for item in items:
+            MasterList.objects.update_or_create(
+                UserID=item["UserID"],
+                defaults={
+                    "Username": item["Username"],
+                    "HomeServerID_id": item["HomeServerID"],
+                },
+            )
+        return Response({"status": "ok"}, status=status.HTTP_200_OK)
+
