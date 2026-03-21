@@ -300,8 +300,8 @@ class DrinkTests(APITestCase):
         }
         response = self.client.post('/backend/drinks/', data, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("Ice", response.data)
-        self.assertIn("Size", response.data)
+        self.assertIn("Ice", response.data['details'])
+        self.assertIn("Size", response.data['details'])
 
 class InventoryTests(APITestCase):
 
@@ -846,3 +846,78 @@ class MasterListSyncEndpointTest(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["status"], "ok")
         self.assertTrue(MasterList.objects.filter(Username="bob").exists())
+
+class NewFeaturesTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username='test_user', password='password123', first_name='Test', last_name='User', email='test@example.com')
+        self.token = Token.objects.create(user=self.user)
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.token.key) # type: ignore
+
+        # Inventory items
+        Inventory.objects.create(ItemName="Coke", ItemType="Soda", Quantity=10, ThresholdLevel=2)
+        Inventory.objects.create(ItemName="Vanilla", ItemType="Syrup", Quantity=5, ThresholdLevel=1)
+        Inventory.objects.create(ItemName="Cream", ItemType="Add In", Quantity=10, ThresholdLevel=2)
+
+        # Flavors
+        from .models import Flavor
+        Flavor.objects.create(Name="Vanilla", PrimaryFlavor="Sweet", SecondaryFlavor="Rich", TertiaryFlavor="Creamy")
+
+        # Drinks
+        Drink.objects.create(Name="House Soda", SodaUsed=["Coke"], SyrupsUsed=["Vanilla"], User_Created=False, Price=2.0)
+        Drink.objects.create(Name="User Soda", SodaUsed=["Pepsi"], User_Created=True, Price=2.5)
+
+    def test_menu_api(self):
+        response = self.client.get('/backend/menu/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('sodas', response.data)
+        self.assertIn('syrups', response.data)
+        self.assertIn('addins', response.data)
+        self.assertIn('featured_drinks', response.data)
+        self.assertEqual(len(response.data['featured_drinks']), 1)
+        self.assertEqual(response.data['featured_drinks'][0]['Name'], "House Soda")
+
+    def test_user_profile_get(self):
+        response = self.client.get('/backend/users/me/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['username'], 'test_user')
+        self.assertEqual(response.data['first_name'], 'Test')
+        self.assertEqual(response.data['email'], 'test@example.com')
+
+    def test_user_profile_update(self):
+        data = {'first_name': 'Updated', 'last_name': 'Name', 'email': 'updated@example.com'}
+        response = self.client.patch('/backend/users/me/', data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.first_name, 'Updated')
+        self.assertEqual(self.user.email, 'updated@example.com')
+
+    def test_drink_filtering_type(self):
+        response = self.client.get('/backend/drinks/?type=user_created')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['Name'], "User Soda")
+
+        response = self.client.get('/backend/drinks/?type=house')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['Name'], "House Soda")
+
+    def test_drink_filtering_flavor(self):
+        response = self.client.get('/backend/drinks/?flavor=sweet')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['Name'], "House Soda")
+
+    def test_server_registry_api(self):
+        from .models import ServerRegistry
+        ServerRegistry.objects.create(ServerURL="http://server1.com", PublicKey="key1")
+        response = self.client.get('/backend/servers/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+
+    def test_error_response_format(self):
+        # Trigger a DRF-handled error (e.g., Method Not Allowed on a valid endpoint)
+        response = self.client.post('/backend/menu/')
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+        self.assertIn('error', response.data)
+        self.assertIn('details', response.data)

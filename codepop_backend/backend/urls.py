@@ -10,7 +10,7 @@ from .views import OrderOperations, UserOrdersLookup
 from .views import GenerateAIDrink
 from .views import RevenueViewSet
 from .views import UserOperations
-from .views import emailAPI, MasterListSyncView
+from .views import MasterListSyncView, MenuView, UserProfileView, ServerRegistryAPIView, emailAPI
 from .customerAI import Chatbot
 
 #this ensures that the url calls the right function from the views for each type of request
@@ -68,6 +68,14 @@ user_operations = UserOperations.as_view({
     'get': 'get',
     'post': 'edit',
     'delete': 'delete',
+})
+
+server_registry_list = ServerRegistryAPIView.as_view({
+    'get': 'list',
+})
+
+server_registry_detail = ServerRegistryAPIView.as_view({
+    'get': 'retrieve',
 })
 
 
@@ -215,4 +223,14 @@ urlpatterns = [
 
     # Inter-server sync endpoints (consumed by peer servers, not end-user clients)
     path('sync/masterlist/', MasterListSyncView.as_view(), name='sync_masterlist'),
+
+    # Menu API
+    path('menu/', MenuView.as_view(), name='menu_list'),
+
+    # User Profile API
+    path('users/me/', UserProfileView.as_view(), name='user_profile'),
+
+    # Server Registry API
+    path('servers/', server_registry_list, name='server_registry_list'),
+    path('servers/<int:pk>/', server_registry_detail, name='server_registry_detail'),
 ]

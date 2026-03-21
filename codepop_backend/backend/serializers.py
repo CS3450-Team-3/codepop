@@ -32,6 +32,13 @@ class GetUserSerializer(serializers.ModelSerializer):
         read_only_fields = ('is_staff', 'is_superuser', 'is_active',)
 
 
+class UserProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = get_user_model()
+        fields = ('id', 'username', 'first_name', 'last_name', 'email')
+        read_only_fields = ('id', 'username') # Username usually shouldn't be changeable easily if it's used as unique identifier, but the requirement says "Fetch their full profile (Username, First Name, Last Name, Email)". Let's allow updating first_name, last_name, email.
+
+
 class PreferenceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Preference
