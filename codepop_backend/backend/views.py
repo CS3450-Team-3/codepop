@@ -688,15 +688,59 @@ class UserOrdersLookup(ListCreateAPIView):
         user = get_object_or_404(User, pk=user_id)
         serializer.save(UserID=user)
 
+# Constants for pricing. Easily customizable from this point.
+PRICING = {
+    'sizes': {
+        '16oz': 2.00,
+        '24oz': 2.50,
+        '32oz': 3.00,
+        '44oz': 3.50,
+        'default': 2.00
+    },
+    'syrup_price_per_pump': 0.50,
+    'addin_price_per_item': 0.75
+}
+
+def calculate_order_total(order):
+    total = 0.0
+    for drink in order.Drinks.all():
+        size_str = str(drink.Size).lower().strip()
+        base_price = PRICING['sizes'].get(size_str, PRICING['sizes']['default'])
+        
+        syrups_cost = len(drink.SyrupsUsed) * PRICING['syrup_price_per_pump'] if drink.SyrupsUsed else 0.0
+        addins_cost = len(drink.AddIns) * PRICING['addin_price_per_item'] if drink.AddIns else 0.0
+        
+        drink_total = base_price + syrups_cost + addins_cost
+        
+        # Update the drink's saved price so it reflects the real calculation
+        if drink.Price != drink_total:
+            drink.Price = drink_total
+            drink.save(update_fields=['Price'])
+            
+        total += drink_total
+    return total
+
 @method_decorator(csrf_exempt, name='dispatch')
 class StripePaymentIntentView(View):
     
     def post(self, request, *args, **kwargs):
         try:
             data = json.loads(request.body)
+            order_id = data.get("order_id")
             amount_val = data.get("amount")
-            if amount_val is None:
-                return JsonResponse({'error': 'Amount is required.'}, status=400)
+
+            # 1. Verification: Calculate from database if order is provided
+            order = None
+            if order_id:
+                try:
+                    order = Order.objects.get(pk=order_id)
+                    # Override the frontend's amount to ensure correctness
+                    amount_val = calculate_order_total(order)
+                except Order.DoesNotExist:
+                    print(f"Order {order_id} not found during PaymentIntent creation.")
+
+            if amount_val is None or amount_val <= 0:
+                return JsonResponse({'error': 'A valid amount or valid order_id is required.'}, status=400)
             
             amount = int(amount_val * 100)  # Stripe uses cents, so multiply dollars by 100
 
@@ -717,15 +761,10 @@ class StripePaymentIntentView(View):
                 payment_method_types=['card'],  # Accept only card payments
             )
 
-            # Update order with StripeID if order_id is provided
-            order_id = data.get("order_id")
-            if order_id:
-                try:
-                    order = Order.objects.get(pk=order_id)
-                    order.StripeID = payment_intent.id
-                    order.save()
-                except Order.DoesNotExist:
-                    print(f"Order {order_id} not found during PaymentIntent creation.")
+            # Update order with StripeID if order is found
+            if order:
+                order.StripeID = payment_intent.id
+                order.save(update_fields=['StripeID'])
 
             # Respond with the required information
             return JsonResponse({
