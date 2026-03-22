@@ -694,9 +694,11 @@ class StripePaymentIntentView(View):
     def post(self, request, *args, **kwargs):
         try:
             data = json.loads(request.body)
-            amount = int(data.get("amount") * 100)  # Stripe uses cents, so multiply dollars by 100
-            if amount is None:
+            amount_val = data.get("amount")
+            if amount_val is None:
                 return JsonResponse({'error': 'Amount is required.'}, status=400)
+            
+            amount = int(amount_val * 100)  # Stripe uses cents, so multiply dollars by 100
 
             # Create a new customer
             customer = stripe.Customer.create()
@@ -715,12 +717,22 @@ class StripePaymentIntentView(View):
                 payment_method_types=['card'],  # Accept only card payments
             )
 
+            # Update order with StripeID if order_id is provided
+            order_id = data.get("order_id")
+            if order_id:
+                try:
+                    order = Order.objects.get(pk=order_id)
+                    order.StripeID = payment_intent.id
+                    order.save()
+                except Order.DoesNotExist:
+                    print(f"Order {order_id} not found during PaymentIntent creation.")
+
             # Respond with the required information
             return JsonResponse({
                 'paymentIntent': payment_intent.client_secret,
                 'ephemeralKey': ephemeral_key.secret,
-                'customer': customer.id,
-                'publishableKey': 'TODO: get a new publishable stripe key'
+                'customer': customer['id'],
+                'publishableKey': getattr(settings, 'STRIPE_PUBLISHABLE_KEY', '')
             })
         except Exception as e:
             return JsonResponse({'error': 'Payment intent creation failed', 'details': str(e)}, status=400)
@@ -1132,4 +1144,51 @@ class ServerRegistryAPIView(viewsets.ReadOnlyModelViewSet):
         if self.action == 'list' or self.action == 'retrieve':
             return [AllowAny()]
         return [IsAdminUser()]
+
+@method_decorator(csrf_exempt, name='dispatch')
+class StripeWebhookView(View):
+    def post(self, request, *args, **kwargs):
+        payload = request.body
+        sig_header = request.META.get('HTTP_STRIPE_SIGNATURE')
+        webhook_secret = getattr(settings, 'STRIPE_WEBHOOK_SECRET', '')
+
+        event = None
+
+        try:
+            event = stripe.Webhook.construct_event(
+                payload, sig_header, webhook_secret
+            )
+        except ValueError as e:
+            return JsonResponse({'error': 'Invalid payload'}, status=400)
+        except stripe.error.SignatureVerificationError as e:
+            return JsonResponse({'error': 'Invalid signature'}, status=400)
+
+        if event['type'] == 'payment_intent.succeeded':
+            payment_intent = event['data']['object']
+            try:
+                order = Order.objects.get(StripeID=payment_intent['id'])
+                order.PaymentStatus = 'Paid'
+                order.save()
+                
+                Revenue.objects.create(OrderID=order)
+            except Order.DoesNotExist:
+                print(f"Order with StripeID {payment_intent['id']} not found.")
+                
+        elif event['type'] == 'payment_intent.payment_failed':
+            payment_intent = event['data']['object']
+            try:
+                order = Order.objects.get(StripeID=payment_intent['id'])
+                order.PaymentStatus = 'Failed'
+                order.save()
+                
+                if order.UserID:
+                    Notification.objects.create(
+                        UserID=order.UserID,
+                        Message=f"Payment failed for Order {order.OrderID}.",
+                        Type="PaymentError"
+                    )
+            except Order.DoesNotExist:
+                print(f"Order with StripeID {payment_intent['id']} not found.")
+        
+        return JsonResponse({'status': 'success'}, status=200)
 
