@@ -10,7 +10,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.backends import default_backend
 
 # CONFIGURATION
-SECTION_TOTAL = 8
+SECTION_TOTAL = 9
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 BACKEND_DIR = os.path.abspath(os.path.join(SCRIPT_DIR, ".."))
 
@@ -504,6 +504,112 @@ def main():
                 failure_count += 1
         else:
             print(f"  FAILURE: Server B failed to register new user ({resp.status_code}: {resp.text})")
+            failure_count += 1
+
+        # 9. TEST: ORDER CREATION AND STRIPE WEBHOOKS
+        print(f"\n[{SECTION_TOTAL}/{SECTION_TOTAL}] TESTING ORDER CREATION AND STRIPE WEBHOOKS...")
+        
+        test_count += 1
+        print("Test I: End-to-End Order Creation and Payment Webhook...")
+        try:
+            # Step 0: Get a token for traveler_bob on Server A
+            resp = requests.post(f"http://localhost:{PORT_A}/backend/auth/login/", json={"username": "traveler_bob", "password": "password123"})
+            if resp.status_code != 200:
+                raise Exception("Failed to login as traveler_bob on Server A")
+            customer_a_token = resp.json().get('access')
+
+            # Step 1: Use customer_a_token to create a drink and an order
+            drink_payload = {
+                "Name": "Customer A Test Drink",
+                "SodaUsed": ["Cola"],
+                "SyrupsUsed": ["Vanilla"],
+                "Ice": "Regular",
+                "Size": "24oz",
+                "User_Created": True,
+                "Price": 2.50
+            }
+            
+            resp = requests.post(
+                f"http://localhost:{PORT_A}/backend/drinks/",
+                headers={"Authorization": f"Bearer {customer_a_token}"},
+                json=drink_payload
+            )
+            if resp.status_code != 201:
+                raise Exception(f"Failed to create drink: {resp.text}")
+            
+            drink_id = resp.json().get('DrinkID')
+            
+            order_payload = {
+                "Drinks": [drink_id],
+                "OrderStatus": "Pending",
+                "PaymentStatus": "Pending"
+            }
+            
+            resp = requests.post(
+                f"http://localhost:{PORT_A}/backend/orders/",
+                headers={"Authorization": f"Bearer {customer_a_token}"},
+                json=order_payload
+            )
+            if resp.status_code != 201:
+                raise Exception(f"Failed to create order: {resp.text}")
+            
+            order_id = resp.json().get('OrderID')
+            
+            # Step 2: Create Payment Intent
+            pi_payload = {
+                "amount": 2.50, # Optional now, but required by API contract
+                "order_id": order_id
+            }
+            resp = requests.post(
+                f"http://localhost:{PORT_A}/backend/create-payment-intent/",
+                headers={"Authorization": f"Bearer {customer_a_token}"},
+                json=pi_payload
+            )
+            if resp.status_code != 200:
+                raise Exception(f"Failed to create payment intent: {resp.text}")
+            
+            # Verify StripeID was set
+            resp = requests.get(
+                f"http://localhost:{PORT_A}/backend/orders/{order_id}/",
+                headers={"Authorization": f"Bearer {customer_a_token}"}
+            )
+            order_data = resp.json()
+            stripe_id = order_data.get('StripeID')
+            if stripe_id != 'pi_mock_123':
+                raise Exception(f"Order did not get mock StripeID. Got: {stripe_id}")
+            
+            # Step 3: Simulate Stripe Webhook
+            webhook_payload = {
+                "type": "payment_intent.succeeded",
+                "data": {
+                    "object": {
+                        "id": stripe_id
+                    }
+                }
+            }
+            
+            resp = requests.post(
+                f"http://localhost:{PORT_A}/backend/stripe/webhook/",
+                headers={"Stripe-Signature": "mock_signature_for_testing"},
+                json=webhook_payload
+            )
+            
+            if resp.status_code != 200:
+                raise Exception(f"Webhook rejected: {resp.text}")
+            
+            # Step 4: Verify Order Fulfillment
+            resp = requests.get(
+                f"http://localhost:{PORT_A}/backend/orders/{order_id}/",
+                headers={"Authorization": f"Bearer {customer_a_token}"}
+            )
+            
+            if resp.json().get('PaymentStatus') != 'Paid':
+                raise Exception(f"Order PaymentStatus was not updated to Paid! Got: {resp.json().get('PaymentStatus')}")
+            
+            print("  SUCCESS: Full order creation, payment intent, and webhook flow passed.")
+            
+        except Exception as e:
+            print(f"  FAILURE: {str(e)}")
             failure_count += 1
 
     except TestFailure:
