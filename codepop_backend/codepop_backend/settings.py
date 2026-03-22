@@ -91,11 +91,11 @@ WSGI_APPLICATION = 'codepop_backend.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'codepop_database',
-        'USER': 'postgres',  # Replace with your PostgreSQL username
-        'PASSWORD': 'password',  # Replace with your PostgreSQL password
-        'HOST': '127.0.0.1',  # Set to 'localhost' or the IP of your database server
-        'PORT': '5432', 
+        'NAME': os.environ.get('DB_NAME', 'codepop_database'),
+        'USER': os.environ.get('DB_USER', 'postgres'),
+        'PASSWORD': os.environ.get('DB_PASSWORD', 'password'),
+        'HOST': os.environ.get('DB_HOST', '127.0.0.1'),
+        'PORT': os.environ.get('DB_PORT', '5432'),
     }
 }
 
@@ -220,5 +220,9 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Each server must set the LOCAL_SERVER_ID environment variable so the sync
 # framework can identify itself when making or receiving inter-server calls.
 LOCAL_SERVER_ID = int(os.environ.get('LOCAL_SERVER_ID', 0)) or None
+
+# Sync scheduler interval in seconds. Set via SYNC_INTERVAL_SECONDS env var.
+# Default: 3600 (1 hour). For testing, set to 120 (2 minutes).
+SYNC_INTERVAL_SECONDS = int(os.environ.get('SYNC_INTERVAL_SECONDS', 3600))
 
 AUTH_USER_MODEL = 'backend.CustomUser'

@@ -998,6 +998,7 @@ class MasterListSyncView(APIView):
     GET  → return this server's full MasterList as {"items": [...]}
     POST → accept {"items": [...]} and upsert each record by UserID
     """
+    authentication_classes = []
     permission_classes = [AllowAny]
 
     @extend_schema(

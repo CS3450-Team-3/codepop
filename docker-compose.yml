@@ -1,0 +1,78 @@
+services:
+  db1:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: codepop_db1
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    volumes:
+      - postgres_data1:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  db2:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: codepop_db2
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    volumes:
+      - postgres_data2:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend1:
+    build:
+      context: .
+      dockerfile: codepop_backend/Dockerfile
+    ports:
+      - "9001:9000"
+    environment:
+      DB_HOST: db1
+      DB_NAME: codepop_db1
+      DB_USER: postgres
+      DB_PASSWORD: password
+      LOCAL_SERVER_ID: "1"
+      SERVER_URL: "http://backend1:9000"
+      PEER_SERVER_URL: "http://backend2:9000"
+      SYNC_INTERVAL_SECONDS: "120"
+    depends_on:
+      db1:
+        condition: service_healthy
+
+  backend2:
+    build:
+      context: .
+      dockerfile: codepop_backend/Dockerfile
+    ports:
+      - "9002:9000"
+    environment:
+      DB_HOST: db2
+      DB_NAME: codepop_db2
+      DB_USER: postgres
+      DB_PASSWORD: password
+      LOCAL_SERVER_ID: "2"
+      SERVER_URL: "http://backend2:9000"
+      PEER_SERVER_URL: "http://backend1:9000"
+      SYNC_INTERVAL_SECONDS: "120"
+    depends_on:
+      db2:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./codepop_frontend
+    ports:
+      - "4000:4000"
+    depends_on:
+      - backend1
+
+volumes:
+  postgres_data1:
+  postgres_data2:

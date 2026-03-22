@@ -47,3 +47,4 @@ PyJWT==2.12.1
 inflection==0.5.1
 uritemplate==4.2.0
 jsonschema==4.26.0
+apscheduler==3.10.4

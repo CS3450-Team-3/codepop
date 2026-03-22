@@ -37,7 +37,8 @@ SYNC_TIMEOUT = 10  # seconds before an inter-server request is abandoned
 
 def _build_auth_headers(local_server: ServerRegistry) -> dict:
     """Return HTTP headers that identify this server to a remote peer."""
-    token = f"{local_server.ServerID}:{local_server.PublicKey[:64]}"
+    key_fingerprint = local_server.PublicKey.replace('\n', '').replace('\r', '')[:64]
+    token = f"{local_server.ServerID}:{key_fingerprint}"
     return {
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
