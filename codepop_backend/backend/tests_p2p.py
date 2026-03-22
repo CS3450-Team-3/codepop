@@ -9,9 +9,9 @@ from .serializers import get_tokens_for_user
 
 class P2PAuthTests(APITestCase):
     def setUp(self):
-        # 1. Setup a "Remote" server in our registry (ServerID=100)
+        # 1. Setup a "Remote" server in our registry (ServerID='remote-store')
         self.remote_server = ServerRegistry.objects.create(
-            ServerID=100,
+            ServerID="remote-store",
             ServerURL="https://remote-store.com",
             PublicKey="dummy-public-key",
             Status="Active"
@@ -33,15 +33,15 @@ class P2PAuthTests(APITestCase):
         user.save()
 
         # Test with local server ID set
-        with self.settings(LOCAL_SERVER_ID=5):
+        with self.settings(LOCAL_SERVER_ID="local-store"):
             tokens = get_tokens_for_user(user)
             payload = jwt.decode(tokens['access'], options={"verify_signature": False})
             
-            self.assertEqual(payload['iss'], '5')
+            self.assertEqual(payload['iss'], 'local-store')
             self.assertEqual(payload['user_id'], str(user.id))
             self.assertEqual(payload['username'], user.username)
             self.assertEqual(payload['user_type'], 'admin')
-            self.assertEqual(payload['home_server_id'], '5')
+            self.assertEqual(payload['home_server_id'], 'local-store')
 
     @patch('requests.post')
     def test_proxy_refresh_token(self, mock_post):
@@ -66,7 +66,7 @@ class P2PAuthTests(APITestCase):
         }
 
         # Request refresh from local server
-        with self.settings(LOCAL_SERVER_ID=1):
+        with self.settings(LOCAL_SERVER_ID="local-store"):
             response = self.client.post('/backend/auth/refresh/', {'refresh': str(refresh)})
 
         # Assertions
@@ -96,7 +96,7 @@ class P2PAuthTests(APITestCase):
         mock_post.return_value.status_code = 200
         mock_post.return_value.json.return_value = {"detail": "Successfully logged out."}
 
-        with self.settings(LOCAL_SERVER_ID=1):
+        with self.settings(LOCAL_SERVER_ID="local-store"):
             response = self.client.post('/backend/auth/logout/', {'refresh': str(refresh)})
 
         # Assertions
@@ -147,6 +147,64 @@ class P2PAuthTests(APITestCase):
         shadow = CustomUser.objects.get(username='remote_shadow')
         self.assertEqual(str(shadow.id), remote_user_id)
 
+    @patch('jwt.decode')
+    def test_p2p_authentication_missing_user_type(self, mock_jwt_decode):
+        """
+        Verify that if user_type is missing from the token payload,
+        P2PJWTAuthentication defaults to 'customer'.
+        """
+        remote_user_id = "00000000-0000-0000-0000-000000000002"
+        payload = {
+            'user_id': remote_user_id,
+            'username': 'shadow_no_type',
+            'iss': str(self.remote_server.ServerID),
+            'home_server_id': str(self.remote_server.ServerID)
+        }
+
+        mock_jwt_decode.side_effect = [payload, payload]
+
+        from rest_framework.test import APIRequestFactory
+        from .authentication import P2PJWTAuthentication
+        
+        factory = APIRequestFactory()
+        request = factory.get('/backend/drinks/', HTTP_AUTHORIZATION='Bearer dummy-token')
+        
+        auth = P2PJWTAuthentication()
+        user, _ = auth.authenticate(request)
+
+        self.assertIsNotNone(user)
+        self.assertEqual(user.user_type, 'customer')
+
+    @patch('backend.authentication.logger')
+    @patch('jwt.decode')
+    def test_p2p_authentication_missing_identity(self, mock_jwt_decode, mock_logger):
+        """
+        Verify that P2PJWTAuthentication raises an exception if essential
+        identity claims (user_id or username) are missing.
+        """
+        payload_no_id = {
+            'username': 'ghost',
+            'iss': str(self.remote_server.ServerID)
+        }
+
+        mock_jwt_decode.side_effect = [payload_no_id, payload_no_id]
+
+        from rest_framework.test import APIRequestFactory
+        from .authentication import P2PJWTAuthentication
+        from rest_framework.exceptions import AuthenticationFailed
+        
+        factory = APIRequestFactory()
+        request = factory.get('/backend/drinks/', HTTP_AUTHORIZATION='Bearer dummy-token')
+        
+        auth = P2PJWTAuthentication()
+        
+        with self.assertRaises(AuthenticationFailed) as context:
+            auth.authenticate(request)
+        self.assertIn("Token missing user identity claims", str(context.exception))
+        
+        # Verify that the error was indeed logged (but now it's silenced by the mock)
+        mock_logger.error.assert_called()
+
     @patch('requests.post')
     def test_proxy_login_flow(self, mock_post):
         """
@@ -166,7 +224,7 @@ class P2PAuthTests(APITestCase):
         
         # We need to mock get_local_server to return something different than remote_server
         with patch('backend.views.get_local_server') as mock_local:
-            mock_local.return_value.ServerID = 999
+            mock_local.return_value.ServerID = "local-store"
             response = self.client.post('/backend/auth/login/', login_data)
 
         # ASSERTIONS
@@ -187,13 +245,13 @@ class P2PAuthTests(APITestCase):
         local_user = CustomUser.objects.create_user(username="local_girl", password="password123")
         
         # Ensure LOCAL_SERVER_ID is set for the test
-        with self.settings(LOCAL_SERVER_ID=1):
+        with self.settings(LOCAL_SERVER_ID="local-store"):
             login_data = {'username': "local_girl", 'password': "password123"}
             response = self.client.post('/backend/auth/login/', login_data)
             
             # Decode token without verification to check claims
             payload = jwt.decode(response.data['access'], options={"verify_signature": False})
-            self.assertEqual(payload['iss'], '1')
+            self.assertEqual(payload['iss'], 'local-store')
             self.assertEqual(payload['user_type'], 'customer')
 
     def test_unregistered_user_fails(self):

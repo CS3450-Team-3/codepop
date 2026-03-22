@@ -40,7 +40,7 @@ def _build_auth_headers(local_server: ServerRegistry) -> dict:
     key_fingerprint = local_server.PublicKey.replace('\n', '').replace('\r', '')[:64]
     token = f"{local_server.ServerID}:{key_fingerprint}"
     return {
-        "Authorization": f"Bearer {token}",
+        "Authorization": f"Server-Token {token}",
         "Content-Type": "application/json",
         "X-Source-Server-ID": str(local_server.ServerID),
     }

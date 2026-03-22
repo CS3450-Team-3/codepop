@@ -447,6 +447,8 @@ class InventoryListAPIView(ListAPIView):
 
 class InventoryReportAPIView(APIView):
     """Generate an inventory report."""
+    permission_classes = [IsManager]
+
     @extend_schema(
         responses={200: InventoryReportResponseSerializer},
         description="Generate a detailed report of current inventory including out-of-stock and low-stock counts."
@@ -473,6 +475,7 @@ class InventoryUpdateAPIView(RetrieveUpdateAPIView):
     """Update inventory based on what was ordered, with warnings for empty or low stock."""
     queryset = Inventory.objects.all()
     serializer_class = InventorySerializer
+    permission_classes = [IsManager]
 
     def patch(self, request, *args, **kwargs):
         item = self.get_object()  # Retrieve the specific item based on ID
