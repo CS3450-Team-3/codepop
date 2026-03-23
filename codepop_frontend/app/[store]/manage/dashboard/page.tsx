@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, type FormEvent } from 'react';
+import { useParams } from 'next/navigation';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000'; // Backend URL
 
@@ -37,17 +38,31 @@ interface RevenueRecord {
   Refunded: boolean;
 }
 
+interface ManagerProfile {
+  id: string;
+  username: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+}
+
 export default function StoreManagerDashboard() {
+  const params = useParams<{ store: string | string[] }>();
+  const storeParam = params?.store;
+  const storeId = Array.isArray(storeParam) ? storeParam[0] : storeParam;
+
   const [inventoryReport, setInventoryReport] = useState<InventoryReport | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [revenues, setRevenues] = useState<RevenueRecord[]>([]);
+  const [managerProfile, setManagerProfile] = useState<ManagerProfile | null>(null);
   const [inventoryError, setInventoryError] = useState<string | null>(null);
   const [ordersError, setOrdersError] = useState<string | null>(null);
   const [revenueError, setRevenueError] = useState<string | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('active');
-  const [dashboardView, setDashboardView] = useState<'report' | 'revenue'>('report');
+  const [dashboardView, setDashboardView] = useState<'report' | 'revenue' | 'profile'>('report');
   const [showUsageModal, setShowUsageModal] = useState(false);
   const [selectedInventoryId, setSelectedInventoryId] = useState<number | ''>('');
   const [usedQuantity, setUsedQuantity] = useState('1');
@@ -67,6 +82,7 @@ export default function StoreManagerDashboard() {
     setInventoryError(null);
     setOrdersError(null);
     setRevenueError(null);
+    setProfileError(null);
 
     try {
       const token = localStorage.getItem('access_token');
@@ -114,6 +130,20 @@ export default function StoreManagerDashboard() {
       } catch {
         setRevenues([]);
         setRevenueError("Couldn't get revenue. Error code: network_error");
+      }
+
+      // Profile data for manager profile tab.
+      try {
+        const profileRes = await fetch(`${BASE_URL}/backend/users/me/`, { headers });
+        if (!profileRes.ok) {
+          setManagerProfile(null);
+          setProfileError(`Couldn't get manager profile. Error code: ${profileRes.status}`);
+        } else {
+          setManagerProfile(await profileRes.json());
+        }
+      } catch {
+        setManagerProfile(null);
+        setProfileError("Couldn't get manager profile. Error code: network_error");
       }
 
       try {
@@ -253,6 +283,10 @@ export default function StoreManagerDashboard() {
     .filter((revenue) => revenue.Refunded)
     .reduce((sum, revenue) => sum + Number(revenue.TotalAmount || 0), 0);
   const refundedCount = revenues.filter((revenue) => revenue.Refunded).length;
+  const displayName =
+    managerProfile && (managerProfile.first_name || managerProfile.last_name)
+      ? `${managerProfile.first_name} ${managerProfile.last_name}`.trim()
+      : managerProfile?.username || 'Store Manager';
 
   // Filter orders for active/completed tabs
   const activeOrders = orders.filter(o => o.OrderStatus !== 'Completed');
@@ -431,7 +465,7 @@ export default function StoreManagerDashboard() {
               </div>
             </div>
           </>
-        ) : (
+        ) : dashboardView === 'revenue' ? (
           <>
             {revenueError && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
@@ -476,6 +510,37 @@ export default function StoreManagerDashboard() {
                 )}
               </div>
             </div>
+          </>
+        ) : (
+          <>
+            <div className="bg-white border border-gray-200 rounded-2xl p-5">
+              <h2 className="text-xl font-medium text-gray-900">Store Manager Profile</h2>
+              <p className="mt-6 text-gray-900 font-medium">{displayName}</p>
+              <p className="mt-1 text-sm text-gray-600">Role: Store Manager</p>
+              <p className="mt-1 text-sm text-gray-600">Store ID: {storeId || 'N/A'}</p>
+
+              {managerProfile?.email && (
+                <p className="mt-4 text-gray-700">Email: {managerProfile.email}</p>
+              )}
+
+              {profileError && (
+                <p className="mt-4 text-sm text-red-600">{profileError}</p>
+              )}
+            </div>
+
+            <div className="bg-white border border-gray-200 rounded-2xl p-5">
+              <h2 className="text-xl font-medium text-gray-900">About Codepop</h2>
+              <p className="mt-7 text-gray-600">Version 1.0.0</p>
+              <p className="mt-2 text-gray-700">Your favorite soda shop, now in your pocket!</p>
+            </div>
+
+            <button
+              className="w-full bg-white border border-gray-300 rounded-xl py-3 font-medium flex items-center justify-center gap-2 hover:bg-gray-50"
+              type="button"
+            >
+              <span className="material-icons text-base">logout</span>
+              <span>Sign Out</span>
+            </button>
           </>
         )}
       </div>
@@ -578,7 +643,12 @@ export default function StoreManagerDashboard() {
           <span className="material-icons">inventory</span>
           <span className="text-xs">Report</span>
         </button>
-        <button className="flex flex-col items-center gap-1 text-gray-600 hover:text-blue-500">
+        <button
+          onClick={() => setDashboardView('profile')}
+          className={`flex flex-col items-center gap-1 ${
+            dashboardView === 'profile' ? 'text-fuchsia-600' : 'text-gray-600 hover:text-blue-500'
+          }`}
+        >
           <span className="material-icons">person</span>
           <span className="text-xs">Profile</span>
         </button>
