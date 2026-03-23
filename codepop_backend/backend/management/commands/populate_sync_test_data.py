@@ -33,10 +33,7 @@ class Command(BaseCommand):
         public_key = settings.PUBLIC_KEY
 
         # Create shared region — backend1 is the initial region leader
-        region, _ = Region.objects.get_or_create(
-            RegionID=1,
-            defaults={'RegionName': 'Region-Alpha'},
-        )
+        region, _ = Region.objects.get_or_create(RegionName='Region-Alpha')
 
         # Register only this server — peer servers self-register via /backend/p2p/join/
         local_server, _ = ServerRegistry.objects.update_or_create(

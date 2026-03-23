@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
+import hashlib
 import os
 from pathlib import Path
 from datetime import timedelta
@@ -118,16 +119,33 @@ REST_FRAMEWORK = {
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
 
-# Asymmetric Key Setup for P2P Authentication
-# For production, load these from secure environment variables or a secrets manager.
-# THE PRIVATE KEY IS NEVER STORED IN SOURCE CONTROL.
+# ── Asymmetric Key Setup for P2P Authentication ───────────────────────────────
+# Priority: environment variable → /data/node_key.pem (generated on first startup).
+# Falling back to the key file lets management commands run via `docker compose exec`
+# without needing the variables that entrypoint.sh exports to its own process tree.
+
+def _read_key_file(path: str) -> str:
+    """Read a PEM file, stripping trailing whitespace (matches bash $(cat ...) behaviour)."""
+    with open(path) as _f:
+        return _f.read().rstrip()
+
+
 PRIVATE_KEY = os.environ.get('SERVER_PRIVATE_KEY')
 if not PRIVATE_KEY:
-    raise ValueError("SERVER_PRIVATE_KEY environment variable is required. See README.md for setup instructions.")
+    _priv_file = '/data/node_key.pem'
+    if os.path.exists(_priv_file):
+        PRIVATE_KEY = _read_key_file(_priv_file)
+if not PRIVATE_KEY:
+    raise ValueError(
+        "SERVER_PRIVATE_KEY is not set and /data/node_key.pem does not exist. "
+        "The key is generated automatically on first startup via entrypoint.sh."
+    )
 
 PUBLIC_KEY = os.environ.get('SERVER_PUBLIC_KEY')
 if not PUBLIC_KEY:
-    raise ValueError("SERVER_PUBLIC_KEY environment variable is required. See README.md for setup instructions.")
+    _pub_file = '/data/node_key_pub.pem'
+    if os.path.exists(_pub_file):
+        PUBLIC_KEY = _read_key_file(_pub_file)
 
 SPECTACULAR_SETTINGS = {
     'TITLE': 'CodePop API',
@@ -195,7 +213,9 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # The ServerRegistry primary key for this deployed instance.
 # Each server must set the LOCAL_SERVER_ID environment variable so the sync
 # framework can identify itself when making or receiving inter-server calls.
-LOCAL_SERVER_ID = os.environ.get('LOCAL_SERVER_ID', None)
+LOCAL_SERVER_ID = os.environ.get('LOCAL_SERVER_ID') or (
+    hashlib.sha256(PUBLIC_KEY.encode()).hexdigest()[:32] if PUBLIC_KEY else None
+)
 
 # Sync scheduler interval in seconds. Set via SYNC_INTERVAL_SECONDS env var.
 # Default: 3600 (1 hour). For testing, set to 120 (2 minutes).

@@ -51,9 +51,7 @@ class Command(BaseCommand):
             ))
             return
 
-        self.stdout.write(self.style.SUCCESS(
-            '\n=== CodePop Server First-Run Setup ===\n'
-        ))
+        self.stdout.write('Running first-run setup...')
 
         interactive = _is_interactive()
 
@@ -194,9 +192,7 @@ class Command(BaseCommand):
         os.environ['LOCAL_SERVER_ID'] = server_id
         os.environ['SERVER_URL']      = server_url
 
-        self.stdout.write(self.style.SUCCESS(
-            '\n=== Setup complete! Starting server... ===\n'
-        ))
+        self.stdout.write(self.style.SUCCESS(f'Setup complete. Node: {server_id[:16]}..., Region: {region_name}'))
 
     def _abort_non_interactive(self):
         self.stderr.write(self.style.ERROR(

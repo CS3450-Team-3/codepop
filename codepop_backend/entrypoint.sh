@@ -33,11 +33,10 @@ priv = key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat
 pub  = key.public_key().public_bytes(serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo).decode()
 open('/data/node_key.pem','w').write(priv)
 open('/data/node_key_pub.pem','w').write(pub)
-print('Keys written to /data/')
 "
     export SERVER_PRIVATE_KEY=$(cat /data/node_key.pem)
     export SERVER_PUBLIC_KEY=$(cat /data/node_key_pub.pem)
-    echo "New key pair generated and saved to /data/"
+    echo "New key pair saved to /data/"
 fi
 
 # Derive LOCAL_SERVER_ID from the public key fingerprint if not explicitly set.
@@ -47,13 +46,13 @@ if [ -z "${LOCAL_SERVER_ID}" ]; then
 import hashlib, os
 print(hashlib.sha256(os.environ['SERVER_PUBLIC_KEY'].encode()).hexdigest()[:32])
 ")
-    echo "Derived LOCAL_SERVER_ID: ${LOCAL_SERVER_ID}"
 fi
+echo "Node ID: ${LOCAL_SERVER_ID}"
 
 # ── Migrations ────────────────────────────────────────────────────────────────
-echo "Running migrations..."
-python manage.py makemigrations
-python manage.py migrate
+python manage.py makemigrations --verbosity 0
+python manage.py migrate --verbosity 0
+echo "Migrations up to date."
 
 # ── Seeding / Setup ───────────────────────────────────────────────────────────
 if [ "${RUN_DEV_SEED:-false}" = "true" ]; then
@@ -101,15 +100,15 @@ except Exception:
         echo "Peer server is ready."
     fi
 
-    echo "Running first-run setup wizard..."
     python manage.py setup_server
 
     # JOIN only runs once here at startup — never again while the server is running.
     if [ -n "${BOOTSTRAP_NODES}" ] && [ "${BOOTSTRAP_READY:-false}" = "true" ]; then
-        echo "Joining network via bootstrap nodes (startup only)..."
+        echo "── Bootstrap join ───────────────────────────────────────────────────────────"
         python manage.py bootstrap_join
+        echo "─────────────────────────────────────────────────────────────────────────────"
     elif [ -n "${BOOTSTRAP_NODES}" ]; then
-        echo "Skipping bootstrap join — no bootstrap nodes were reachable at startup."
+        echo "Bootstrap join skipped — no bootstrap nodes were reachable at startup."
     fi
 fi
 

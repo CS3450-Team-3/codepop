@@ -31,7 +31,7 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING('BOOTSTRAP_NODES not set — skipping bootstrap_join.'))
             return
 
-        node_id = os.environ.get('LOCAL_SERVER_ID', '').strip()
+        node_id = (os.environ.get('LOCAL_SERVER_ID') or str(settings.LOCAL_SERVER_ID or '')).strip()
         server_url = os.environ.get('SERVER_URL', '').strip()
         region = (os.environ.get('REGION') or os.environ.get('SETUP_REGION_NAME', 'default')).strip()
 
@@ -65,31 +65,42 @@ class Command(BaseCommand):
             'signature': sig_b64,
         }
 
+        self.stdout.write(f'Joining as node {node_id[:16]}... ({server_url})')
+
         for raw_url in bootstrap_raw.split(','):
             bootstrap_url = f"http://{raw_url.strip()}"
             join_url = bootstrap_url.rstrip('/') + '/backend/p2p/join/'
-            self.stdout.write(f'Sending JOIN to {join_url}...')
+            self.stdout.write(f'  → {join_url}')
             try:
                 resp = requests.post(join_url, json=payload, timeout=15)
                 resp.raise_for_status()
                 peers = resp.json().get('peers', [])
                 self.stdout.write(self.style.SUCCESS(
-                    f'  Joined via {bootstrap_url}. Received {len(peers)} peers.'
+                    f'  ✓ Joined. Received {len(peers)} peer(s).'
                 ))
                 self._register_peers(peers)
                 return  # One successful join is enough
             except requests.HTTPError as e:
+                try:
+                    reason = e.response.json().get('error', e.response.text)
+                except Exception:
+                    reason = e.response.text
                 self.stderr.write(self.style.ERROR(
-                    f'  JOIN rejected by {bootstrap_url}: {e.response.status_code} — {e.response.text}'
+                    f'  ✗ Rejected ({e.response.status_code}): {reason}'
                 ))
             except requests.RequestException as e:
-                self.stderr.write(self.style.WARNING(f'  Could not reach {bootstrap_url}: {e}'))
+                self.stderr.write(self.style.WARNING(f'  ✗ Unreachable: {e}'))
 
-        self.stderr.write(self.style.ERROR('All bootstrap nodes failed — could not join network.'))
+        self.stderr.write(self.style.ERROR(
+            'Bootstrap join failed. Check the rejection reason above.\n'
+            f'  node_id  : {node_id}\n'
+            f'  address  : {server_url}\n'
+            f'  region   : {region}'
+        ))
 
     def _register_peers(self, peer_list: list) -> None:
         """Upsert each peer from the returned peer list into ServerRegistry."""
-        local_id = os.environ.get('LOCAL_SERVER_ID', '')
+        local_id = (os.environ.get('LOCAL_SERVER_ID') or str(settings.LOCAL_SERVER_ID or '')).strip()
         for peer in peer_list:
             pid = peer.get('node_id')
             purl = peer.get('address')
