@@ -30,6 +30,7 @@ from django.utils.decorators import method_decorator
 import json
 import requests
 import jwt
+import uuid7
 from drf_spectacular.utils import extend_schema, OpenApiTypes
 from django.utils.dateparse import parse_datetime
 from .drinkAI import generate_soda
@@ -383,6 +384,7 @@ from .models import Drink
 from .serializers import DrinkSerializer
 from rest_framework.views import APIView
 
+@method_decorator(csrf_exempt, name='dispatch')
 class DrinkOperations(viewsets.ModelViewSet):
     queryset = Drink.objects.all()
     serializer_class = DrinkSerializer
@@ -638,6 +640,7 @@ class UserNotificationLookup(ListAPIView):
         user = get_object_or_404(User, pk=user_id)
         return Notification.objects.filter(UserID=user_id)
 
+@method_decorator(csrf_exempt, name='dispatch')
 class OrderOperations(viewsets.ModelViewSet):
     queryset = Order.objects.all()
     serializer_class = OrderSerializer
@@ -775,6 +778,25 @@ class StripePaymentIntentView(View):
             
             amount = int(amount_val * 100)  # Stripe uses cents, so multiply dollars by 100
 
+            # Mock check: if STRIPE_SECRET_KEY is the default "TODO", use dummy data
+            if settings.STRIPE_SECRET_KEY == 'TODO: get a new secret stripe key' or settings.STRIPE_SECRET_KEY == 'TODO':
+                print("Using MOCK Stripe for PaymentIntent creation.")
+                # Ensure format is pi_<id>_secret_<secret> to pass frontend regex validation
+                mock_id = str(uuid7.create())
+                mock_secret = str(uuid7.create())
+                mock_pi_id = f"pi_{mock_id}"
+                
+                if order:
+                    order.StripeID = mock_pi_id
+                    order.save(update_fields=['StripeID'])
+                
+                return JsonResponse({
+                    'paymentIntent': f"{mock_pi_id}_secret_{mock_secret}",
+                    'ephemeralKey': f"ek_test_{mock_id}",
+                    'customer': f"cus_{mock_id}",
+                    'publishableKey': 'pk_test_51... (use a real pk_test key if possible)'
+                })
+
             # Create a new customer
             customer = stripe.Customer.create()
 
@@ -805,6 +827,7 @@ class StripePaymentIntentView(View):
                 'publishableKey': getattr(settings, 'STRIPE_PUBLISHABLE_KEY', '')
             })
         except Exception as e:
+            print(f"Payment intent creation failed: {e}")
             return JsonResponse({'error': 'Payment intent creation failed', 'details': str(e)}, status=400)
 
 def refund_order(client_secret_or_id):

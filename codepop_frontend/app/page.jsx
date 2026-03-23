@@ -6,6 +6,8 @@ import CustomDrink from '../components/customdrink';
 import Sidebar from '../components/sidebar';
 import AIDrink from '../components/aidrink';
 import BottomNav from '../components/bottomNav';
+import Checkout from '../components/checkout';
+import Success from '../components/success';
 import CreateProfile from '../components/side_nav/createprofile';
 import MyOrders from '../components/side_nav/myorders';
 import Locations from '../components/side_nav/locations';
@@ -19,6 +21,7 @@ const App = () => {
   const [open, setOpen] = useState(false);
   const [cart, setCart] = useState([]);
   const [selectedDrink, setSelectedDrink] = useState(null);
+  const [selectedOrder, setSelectedOrder] = useState(null);
   const sidebarRef = useRef();
 
   const addToCart = (item) => {
@@ -90,8 +93,16 @@ const App = () => {
           removeFromCart={removeFromCart} 
           updateQuantity={updateQuantity} 
           setCurrentScreen={setCurrentScreen} 
+          setSelectedOrder={setSelectedOrder}
+        />
+      ) : currentScreen === 'checkout' ? (
+        <Checkout 
+          selectedOrder={selectedOrder} 
+          setCurrentScreen={setCurrentScreen} 
           setCart={setCart}
         />
+      ) : currentScreen === 'success' ? (
+        <Success setCurrentScreen={setCurrentScreen} />
       ) : currentScreen === 'Customize' ? (
         <CustomDrink 
           addToCart={addToCart} 

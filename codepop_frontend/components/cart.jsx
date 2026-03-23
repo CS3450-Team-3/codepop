@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Trash2, Plus, Minus, ShoppingBag } from 'lucide-react';
 
-export default function Cart({ cart, removeFromCart, updateQuantity, setCurrentScreen, setCart }) {
+export default function Cart({ cart, removeFromCart, updateQuantity, setCurrentScreen, setSelectedOrder }) {
   const [isCheckingOut, setIsCheckingOut] = useState(false);
 
   const subtotal = cart.reduce((acc, item) => acc + parseFloat(item.total), 0);
@@ -25,23 +25,36 @@ export default function Cart({ cart, removeFromCart, updateQuantity, setCurrentS
             SodaUsed: item.sodaUsed,
             SyrupsUsed: item.syrupsUsed,
             AddIns: item.addIns,
-            // Rating can be null
+            Price: parseFloat(item.pricePerUnit),
+            User_Created: true,
+            Size: item.size.includes("16") ? "16oz" : item.size.includes("24") ? "24oz" : "32oz",
+            Ice: "regular",
           };
 
           const response = await fetch('/backend/drinks/', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              // Add Auth headers if needed once auth is fully integrated
             },
             body: JSON.stringify(drinkData),
           });
 
-          if (!response.ok) {
-            throw new Error(`Failed to create drink: ${item.name}`);
+          let responseData;
+          const contentType = response.headers.get("content-type");
+          if (contentType && contentType.indexOf("application/json") !== -1) {
+            responseData = await response.json();
+          } else {
+            const text = await response.text();
+            console.error('Non-JSON response received:', text);
+            throw new Error(`Server returned non-JSON response: ${response.status} ${response.statusText}`);
           }
 
-          const createdDrink = await response.json();
+          if (!response.ok) {
+            console.error('Drink creation failed:', responseData);
+            throw new Error(`Failed to create drink: ${item.name}. ${responseData.error || responseData.details || ''}`);
+          }
+
+          const createdDrink = responseData;
           drinkIds.push(createdDrink.DrinkID);
         }
       }
@@ -62,16 +75,52 @@ export default function Cart({ cart, removeFromCart, updateQuantity, setCurrentS
         body: JSON.stringify(orderData),
       });
 
-      if (!orderResponse.ok) {
-        throw new Error('Failed to create order');
+      let createdOrder;
+      const orderContentType = orderResponse.headers.get("content-type");
+      if (orderContentType && orderContentType.indexOf("application/json") !== -1) {
+        createdOrder = await orderResponse.json();
+      } else {
+        const text = await orderResponse.text();
+        console.error('Non-JSON response for order:', text);
+        throw new Error('Server returned non-JSON response for order');
       }
 
-      const createdOrder = await orderResponse.json();
-      alert(`Order created successfully! Order ID: ${createdOrder.OrderID}`);
+      if (!orderResponse.ok) {
+        throw new Error(`Failed to create order: ${createdOrder.error || ''}`);
+      }
       
-      // Phase 3: Success! Clear cart and go home
-      setCart([]);
-      setCurrentScreen('home');
+      // Phase 3: Create Payment Intent
+      const piResponse = await fetch('/backend/create-payment-intent/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ order_id: createdOrder.OrderID }),
+      });
+
+      let piData;
+      const piContentType = piResponse.headers.get("content-type");
+      if (piContentType && piContentType.indexOf("application/json") !== -1) {
+        piData = await piResponse.json();
+      } else {
+        const text = await piResponse.text();
+        console.error('Non-JSON response for payment intent:', text);
+        throw new Error('Server returned non-JSON response for payment intent');
+      }
+
+      if (!piResponse.ok) {
+        throw new Error(`Failed to create payment intent: ${piData.error || ''}`);
+      }
+      
+      if (setSelectedOrder) {
+        setSelectedOrder({
+          orderId: createdOrder.OrderID,
+          clientSecret: piData.paymentIntent,
+          publishableKey: piData.publishableKey,
+        });
+      }
+
+      setCurrentScreen('checkout');
 
     } catch (error) {
       console.error('Checkout error:', error);
