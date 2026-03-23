@@ -9,7 +9,7 @@ from .views import NotificationOperations, UserNotificationLookup
 from .views import OrderOperations, UserOrdersLookup
 from .views import RevenueViewSet
 from .views import UserOperations
-from .views import MasterListSyncView, PublicDiscoveryView, MenuView, UserProfileView, ServerRegistryAPIView, GeneralGenerateAIDrink, UserGenerateAIDrink, emailAPI
+from .views import MasterListSyncView, PublicDiscoveryView, P2PJoinView, MenuView, UserProfileView, ServerRegistryAPIView, GeneralGenerateAIDrink, UserGenerateAIDrink, emailAPI
 from .customerAI import Chatbot
 
 #this ensures that the url calls the right function from the views for each type of request
@@ -228,6 +228,7 @@ urlpatterns = [
     # Inter-server sync endpoints (consumed by peer servers, not end-user clients)
     path('sync/masterlist/', MasterListSyncView.as_view(), name='sync_masterlist'),
     path('p2p/discover/', PublicDiscoveryView.as_view(), name='p2p_discovery'),
+    path('p2p/join/', P2PJoinView.as_view(), name='p2p_join'),
 
     # Menu API
     path('menu/', MenuView.as_view(), name='menu_list'),
@@ -237,5 +238,5 @@ urlpatterns = [
 
     # Server Registry API
     path('servers/', server_registry_list, name='server_registry_list'),
-    path('servers/<int:pk>/', server_registry_detail, name='server_registry_detail'),
+    path('servers/<str:pk>/', server_registry_detail, name='server_registry_detail'),
 ]

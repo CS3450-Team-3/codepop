@@ -1,5 +1,7 @@
 FROM python:3.12-slim
 
+ENV PYTHONUNBUFFERED=1
+
 WORKDIR /app
 
 # System deps for psycopg2
@@ -15,6 +17,8 @@ COPY codepop_backend/ .
 
 COPY codepop_backend/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
+
+RUN mkdir -p /data
 
 EXPOSE 9000
 

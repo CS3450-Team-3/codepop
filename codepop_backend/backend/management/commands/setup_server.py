@@ -86,7 +86,7 @@ class Command(BaseCommand):
 
         # ── Gather region info ─────────────────────────────────────────────
         peer_url    = os.environ.get(_ENV_PEER_URL, '').strip()
-        region_name = os.environ.get(_ENV_REGION, '').strip()
+        region_name = (os.environ.get(_ENV_REGION) or os.environ.get('REGION', '')).strip()
         peer_data   = None
 
         if peer_url:
