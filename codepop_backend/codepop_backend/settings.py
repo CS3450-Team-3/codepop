@@ -26,12 +26,14 @@ SECRET_KEY = 'django-insecure-20c3kbxd-=q$-6^1^i@6u)jklu(js%g87$9sko85kirto!8afv
 
 # Stripe Configuration
 STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY', 'TODO: get a new secret stripe key')
-STRIPE_PUBLISHABLE_KEY = os.environ.get('STRIPE_PUBLISHABLE_KEY', 'TODO: get a new publishable stripe key')
+STRIPE_PUBLISHABLE_KEY = os.environ.get('STRIPE_PUBLISHABLE_KEY', 'pk_test_51T5DqLPnaMtT5PTkugtHqM5ew5RSzkCJ0jklGkdSRXw8VnaiIN3AEW5NAYJzmdrYz2cUjQ7i9uvr9N2hpQnj01gE00jCYApVMN')
 STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET', 'TODO: get a webhook secret')
 
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
+
+APPEND_SLASH = False
 
 ALLOWED_HOSTS = ['*']
 

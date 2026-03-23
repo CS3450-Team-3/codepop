@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, type FormEvent } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000'; // Backend URL
 
@@ -48,9 +48,7 @@ interface ManagerProfile {
 
 export default function StoreManagerDashboard() {
   const router = useRouter();
-  const params = useParams<{ store: string | string[] }>();
-  const storeParam = params?.store;
-  const storeId = Array.isArray(storeParam) ? storeParam[0] : storeParam;
+  const storeId = 'Downtown Plaza';
 
   const [inventoryReport, setInventoryReport] = useState<InventoryReport | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);

@@ -1,10 +1,9 @@
 from .models import Preference, Drink, Inventory, Notification, Order, Revenue, CustomUser, MasterList, Flavor, ServerRegistry
 from django.shortcuts import get_object_or_404
-from django.db.models import F
 from django.db import models
 from django.utils import timezone
 User = CustomUser
-from rest_framework.generics import CreateAPIView, ListAPIView, ListCreateAPIView, RetrieveUpdateDestroyAPIView, RetrieveUpdateAPIView
+from rest_framework.generics import CreateAPIView, ListAPIView, ListCreateAPIView, RetrieveUpdateAPIView
 from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser, BasePermission
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken, TokenError
@@ -20,8 +19,7 @@ from .serializers import (
 )
 from .documentation_serializers import (
     EmailAPIResponseSerializer, InventoryReportResponseSerializer, 
-    MasterListSyncRequestSerializer, MasterListSyncResponseSerializer,
-    SimpleStatusSerializer
+    MasterListSyncRequestSerializer, MasterListSyncResponseSerializer
 )
 import stripe
 from django.conf import settings
@@ -32,8 +30,8 @@ from django.utils.decorators import method_decorator
 import json
 import requests
 import jwt
-from rest_framework.decorators import action
-from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
+import uuid7
+from drf_spectacular.utils import extend_schema, OpenApiTypes
 from django.utils.dateparse import parse_datetime
 from .drinkAI import generate_soda
 from .sync import get_local_server
@@ -41,19 +39,42 @@ from .sync import get_local_server
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
 
+def set_refresh_cookie(response, refresh_token):
+    """
+    Helper to set the refresh token as an HttpOnly cookie.
+    """
+    cookie_max_age = 30 * 24 * 60 * 60  # 30 days
+    response.set_cookie(
+        key='refresh_token',
+        value=refresh_token,
+        max_age=cookie_max_age,
+        httponly=True,
+        secure=not settings.DEBUG,
+        samesite='Lax',
+        path='/backend/auth/'  # Scope to auth endpoints for security
+    )
+
 class CustomTokenRefreshView(TokenRefreshView):
     """
     Overridden Refresh view that proxies the refresh request to the user's
     Home Server if the local server is just a visiting server.
+    Supports reading the refresh token from an HttpOnly cookie.
     """
     @extend_schema(
         description="Refresh an access token. If the refresh token was issued by a remote Home Server, "
-                    "the request is proxied to that server for authoritative validation."
+                    "the request is proxied to that server for authoritative validation. "
+                    "Supports reading from the 'refresh_token' HttpOnly cookie."
     )
     def post(self, request, *args, **kwargs):
-        refresh_token = request.data.get('refresh')
+        # 0. Try to get refresh token from body, then from cookie
+        refresh_token = request.data.get('refresh') or request.COOKIES.get('refresh_token')
+        
         if not refresh_token:
             return Response({"error": "Refresh token required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Inject token into data for the parent class if it came from the cookie
+        if not request.data.get('refresh'):
+            request.data['refresh'] = refresh_token
 
         try:
             # 1. Unverified decode to find the Home Server
@@ -73,12 +94,17 @@ class CustomTokenRefreshView(TokenRefreshView):
                         timeout=10
                     )
                     
-                    # Return the authoritative response from the Home Server
+                    if remote_resp.status_code == 200:
+                        data = remote_resp.json()
+                        response = Response(data, status=status.HTTP_200_OK)
+                        # If the remote server rotated the refresh token, set the new cookie locally
+                        if 'refresh' in data:
+                            set_refresh_cookie(response, data['refresh'])
+                        return response
+                    
                     return Response(remote_resp.json(), status=remote_resp.status_code)
                     
                 except ServerRegistry.DoesNotExist:
-                    # Fallback to local refresh if registry is out of sync, 
-                    # but log it as it might indicate a security issue.
                     pass
                 except requests.RequestException:
                     return Response(
@@ -87,13 +113,15 @@ class CustomTokenRefreshView(TokenRefreshView):
                     )
 
             # 3. Local refresh (Home Server logic)
-            return super().post(request, *args, **kwargs)
+            response = super().post(request, *args, **kwargs)
+            if response.status_code == 200 and 'refresh' in response.data:
+                set_refresh_cookie(response, response.data['refresh'])
+            return response
 
         except jwt.InvalidTokenError:
             return Response({"error": "Invalid token"}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
 
 class IsSuperAdmin(BasePermission):
     """
@@ -149,14 +177,13 @@ def custom_exception_handler(exc, context):
 
     return response
 
-# Custom login to so that it get's a token but also the user's first name and the user id
-
 class CustomAuthToken(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
 
     @extend_schema(
         description="Login with username and password to receive JWT access and refresh tokens. "
-                    "Supports inter-server proxying if the user's home server is elsewhere."
+                    "Supports inter-server proxying if the user's home server is elsewhere. "
+                    "The refresh token is also set as an HttpOnly cookie."
     )
     def post(self, request, *args, **kwargs):
         username = request.data.get('username')
@@ -164,7 +191,10 @@ class CustomAuthToken(TokenObtainPairView):
 
         # 1. Try local authentication first
         try:
-            return super().post(request, *args, **kwargs)
+            response = super().post(request, *args, **kwargs)
+            if response.status_code == 200:
+                set_refresh_cookie(response, response.data.get('refresh'))
+            return response
         except Exception as local_exc:
             # 2. If local fails, check the MasterList for a remote Home Server
             try:
@@ -187,8 +217,6 @@ class CustomAuthToken(TokenObtainPairView):
                             remote_data = remote_resp.json()
                             remote_user_id = remote_data.get('user_id')
                             
-                            # 4. Create/Update a "cached" local user record for this visitor
-                            # Use the remote user_id to ensure P2P consistency
                             user_lookup = {'id': remote_user_id} if remote_user_id else {'username': username}
                             
                             user, created = User.objects.update_or_create(
@@ -204,9 +232,6 @@ class CustomAuthToken(TokenObtainPairView):
                                 user.set_unusable_password()
                                 user.save()
                                 
-                            # 5. Pass through the authoritative tokens from the Home Server
-                            # This ensures that the user's JWT is signed by the Home Server
-                            # and includes the correct claims for future P2P authentication and refresh calls.
                             data = {
                                 'refresh': remote_data.get('refresh'),
                                 'access': remote_data.get('access'),
@@ -216,9 +241,10 @@ class CustomAuthToken(TokenObtainPairView):
                                 'is_proxy': True,
                                 'home_server_id': str(home_server.ServerID)
                             }
-                            return Response(data, status=status.HTTP_200_OK)
+                            response = Response(data, status=status.HTTP_200_OK)
+                            set_refresh_cookie(response, remote_data.get('refresh'))
+                            return response
                         
-                        # If remote login failed, return its error
                         return Response(remote_resp.json(), status=remote_resp.status_code)
                     
                     except requests.RequestException as e:
@@ -227,17 +253,17 @@ class CustomAuthToken(TokenObtainPairView):
                             status=status.HTTP_503_SERVICE_UNAVAILABLE
                         )
             except MasterList.DoesNotExist:
-                pass # Proceed to raise the original local exception
+                pass 
 
             raise local_exc
 
-#Code to create a user in the database
 class CreateUserAPIView(CreateAPIView):
     serializer_class = CreateUserSerializer
     permission_classes = [AllowAny]
 
     @extend_schema(
-        description="Register a new user and receive initial JWT access and refresh tokens."
+        description="Register a new user and receive initial JWT access and refresh tokens. "
+                    "The refresh token is also set as an HttpOnly cookie."
     )
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -248,11 +274,13 @@ class CreateUserAPIView(CreateAPIView):
         user = serializer.instance
         token_data = get_tokens_for_user(user)
         
-        return Response(
+        response = Response(
             {**serializer.data, **token_data},
             status=status.HTTP_201_CREATED,
             headers=headers
         )
+        set_refresh_cookie(response, token_data.get('refresh'))
+        return response
 
 class LogoutUserAPIView(APIView):
     permission_classes = [IsAuthenticated]
@@ -262,13 +290,19 @@ class LogoutUserAPIView(APIView):
         request=OpenApiTypes.OBJECT,
         responses={200: OpenApiTypes.OBJECT},
         description="Logout the user by blacklisting the refresh token. "
-                    "If the token belongs to a remote Home Server, the request is proxied there."
+                    "If the token belongs to a remote Home Server, the request is proxied there. "
+                    "Also clears the 'refresh_token' HttpOnly cookie."
     )
     def post(self, request, *args, **kwargs):
         try:
-            refresh_token = request.data.get("refresh")
+            refresh_token = request.data.get("refresh") or request.COOKIES.get('refresh_token')
+            
+            response = Response({"detail": "Successfully logged out."}, status=status.HTTP_200_OK)
+            # Always clear the cookie regardless of P2P or local
+            response.delete_cookie('refresh_token', path='/backend/auth/')
+
             if not refresh_token:
-                return Response({"detail": "Successfully logged out (client-side)."}, status=status.HTTP_200_OK)
+                return response
 
             # 1. Determine the Home Server from the token
             unverified_payload = jwt.decode(refresh_token, options={"verify_signature": False})
@@ -281,37 +315,35 @@ class LogoutUserAPIView(APIView):
                     home_server = ServerRegistry.objects.get(pk=home_server_id)
                     proxy_url = home_server.ServerURL.rstrip('/') + '/backend/auth/logout/'
                     
-                    # Forward the logout request to the authoritative Home Server
                     headers = {}
                     if 'Authorization' in request.headers:
                         headers['Authorization'] = request.headers['Authorization']
 
-                    remote_resp = requests.post(
+                    requests.post(
                         proxy_url, 
                         json={'refresh': refresh_token},
                         headers=headers,
                         timeout=5
                     )
-                    
-                    # Return the authoritative response from the Home Server
-                    return Response(remote_resp.json(), status=remote_resp.status_code)
+                    # We already have our response ready with delete_cookie
+                    return response
                     
                 except ServerRegistry.DoesNotExist:
-                    # Fallback to local blacklist if registry is out of sync
                     pass
                 except requests.RequestException:
-                    return Response(
-                        {"error": "Home server unreachable for logout."}, 
-                        status=status.HTTP_503_SERVICE_UNAVAILABLE
-                    )
+                    # Even if home server is down, we want to return the response that cleared the local cookie
+                    return response
 
-            # 3. Blacklist locally (Authoritative if this is the Home Server)
+            # 3. Blacklist locally 
             token = RefreshToken(refresh_token)
             token.blacklist()
             
-            return Response({"detail": "Successfully logged out."}, status=status.HTTP_200_OK)
+            return response
         except (TokenError, jwt.InvalidTokenError):
-            return Response({"error": "Invalid or expired token"}, status=status.HTTP_400_BAD_REQUEST)
+            # If token is invalid, we still want to clear the cookie
+            response = Response({"error": "Invalid or expired token"}, status=status.HTTP_400_BAD_REQUEST)
+            response.delete_cookie('refresh_token', path='/backend/auth/')
+            return response
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
     
@@ -352,6 +384,7 @@ from .models import Drink
 from .serializers import DrinkSerializer
 from rest_framework.views import APIView
 
+@method_decorator(csrf_exempt, name='dispatch')
 class DrinkOperations(viewsets.ModelViewSet):
     queryset = Drink.objects.all()
     serializer_class = DrinkSerializer
@@ -607,6 +640,7 @@ class UserNotificationLookup(ListAPIView):
         user = get_object_or_404(User, pk=user_id)
         return Notification.objects.filter(UserID=user_id)
 
+@method_decorator(csrf_exempt, name='dispatch')
 class OrderOperations(viewsets.ModelViewSet):
     queryset = Order.objects.all()
     serializer_class = OrderSerializer
@@ -744,6 +778,25 @@ class StripePaymentIntentView(View):
             
             amount = int(amount_val * 100)  # Stripe uses cents, so multiply dollars by 100
 
+            # Mock check: if STRIPE_SECRET_KEY is the default "TODO", use dummy data
+            if settings.STRIPE_SECRET_KEY == 'TODO: get a new secret stripe key' or settings.STRIPE_SECRET_KEY == 'TODO':
+                print("Using MOCK Stripe for PaymentIntent creation.")
+                # Ensure format is pi_<id>_secret_<secret> to pass frontend regex validation
+                mock_id = str(uuid7.create())
+                mock_secret = str(uuid7.create())
+                mock_pi_id = f"pi_{mock_id}"
+                
+                if order:
+                    order.StripeID = mock_pi_id
+                    order.save(update_fields=['StripeID'])
+                
+                return JsonResponse({
+                    'paymentIntent': f"{mock_pi_id}_secret_{mock_secret}",
+                    'ephemeralKey': f"ek_test_{mock_id}",
+                    'customer': f"cus_{mock_id}",
+                    'publishableKey': 'pk_test_51... (use a real pk_test key if possible)'
+                })
+
             # Create a new customer
             customer = stripe.Customer.create()
 
@@ -774,6 +827,7 @@ class StripePaymentIntentView(View):
                 'publishableKey': getattr(settings, 'STRIPE_PUBLISHABLE_KEY', '')
             })
         except Exception as e:
+            print(f"Payment intent creation failed: {e}")
             return JsonResponse({'error': 'Payment intent creation failed', 'details': str(e)}, status=400)
 
 def refund_order(client_secret_or_id):

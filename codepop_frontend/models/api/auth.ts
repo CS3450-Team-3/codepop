@@ -1,7 +1,7 @@
 // this is where we create functions to interface with the backend for authentication.
 
 export async function signIn(email: string, password: string) {
-    const response = await fetch("/api/auth/sign_in", {
+    const response = await fetch("/backend/auth/login/", {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
@@ -18,7 +18,7 @@ export async function signIn(email: string, password: string) {
 }
 
 export async function signUp(email: string, password: string, firstName: string, lastName: string) {
-    const response = await fetch("/api/auth/sign_up", {
+    const response = await fetch("/backend/auth/register/", {
         method: "POST",
         headers: {
             "Content-Type": "application/json",

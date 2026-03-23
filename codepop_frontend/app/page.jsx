@@ -6,6 +6,8 @@ import CustomDrink from '../components/customdrink';
 import Sidebar from '../components/sidebar';
 import AIDrink from '../components/aidrink';
 import BottomNav from '../components/bottomNav';
+import Checkout from '../components/checkout';
+import Success from '../components/success';
 import CreateProfile from '../components/side_nav/createprofile';
 import MyOrders from '../components/side_nav/myorders';
 import Locations from '../components/side_nav/locations';
@@ -17,8 +19,29 @@ import { Menu } from "lucide-react";
 const App = () => {
   const [currentScreen, setCurrentScreen] = useState('home');
   const [open, setOpen] = useState(false);
+  const [cart, setCart] = useState([]);
+  const [selectedDrink, setSelectedDrink] = useState(null);
+  const [selectedOrder, setSelectedOrder] = useState(null);
   const sidebarRef = useRef();
 
+  const addToCart = (item) => {
+    setCart((prevCart) => [...prevCart, { ...item, id: Date.now() }]);
+    setCurrentScreen('cart');
+  };
+
+  const removeFromCart = (id) => {
+    setCart((prevCart) => prevCart.filter((item) => item.id !== id));
+  };
+
+  const updateQuantity = (id, delta) => {
+    setCart((prevCart) =>
+      prevCart.map((item) =>
+        item.id === id
+          ? { ...item, quantity: Math.max(1, item.quantity + delta) }
+          : item
+      )
+    );
+  };
     useEffect(() => {
     function handleClickOutside(e) {
       if (sidebarRef.current && !sidebarRef.current.contains(e.target)) {
@@ -60,14 +83,32 @@ const App = () => {
         <Sidebar current={currentScreen} setCurrent={setCurrentScreen} />
       </div>
       <div>
-        <BottomNav current={currentScreen} setCurrent={setCurrentScreen} />
+        <BottomNav current={currentScreen} setCurrent={setCurrentScreen} cartCount={cart.length} />
       </div>
       {currentScreen === 'home' ? (
-        <Home />
+        <Home setCurrentScreen={setCurrentScreen} setSelectedDrink={setSelectedDrink} />
       ) : currentScreen === 'cart' ? (
-        <Cart />
+        <Cart 
+          cart={cart} 
+          removeFromCart={removeFromCart} 
+          updateQuantity={updateQuantity} 
+          setCurrentScreen={setCurrentScreen} 
+          setSelectedOrder={setSelectedOrder}
+        />
+      ) : currentScreen === 'checkout' ? (
+        <Checkout 
+          selectedOrder={selectedOrder} 
+          setCurrentScreen={setCurrentScreen} 
+          setCart={setCart}
+        />
+      ) : currentScreen === 'success' ? (
+        <Success setCurrentScreen={setCurrentScreen} />
       ) : currentScreen === 'Customize' ? (
-        <CustomDrink />
+        <CustomDrink 
+          addToCart={addToCart} 
+          selectedDrink={selectedDrink} 
+          setSelectedDrink={setSelectedDrink} 
+        />
       ) : currentScreen === 'AIPicks' ? (
         <AIDrink />
       ) : currentScreen === 'Create Profile' ? (
