@@ -42,9 +42,16 @@ services:
       SERVER_URL: "http://backend1:9000"
       PEER_SERVER_URL: "http://backend2:9000"
       SYNC_INTERVAL_SECONDS: "120"
+      RUN_DEV_SEED: "true"
     depends_on:
       db1:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9000/backend/p2p/discover/')"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
 
   backend2:
     build:
@@ -61,8 +68,14 @@ services:
       SERVER_URL: "http://backend2:9000"
       PEER_SERVER_URL: "http://backend1:9000"
       SYNC_INTERVAL_SECONDS: "120"
+      # Join backend1's region instead of creating a new one
+      SETUP_PEER_URL: "http://backend1:9000"
+      SETUP_ADMIN_USERNAME: "admin2"
+      SETUP_ADMIN_PASSWORD: "changeme123"
     depends_on:
       db2:
+        condition: service_healthy
+      backend1:
         condition: service_healthy
 
   frontend:
@@ -70,8 +83,21 @@ services:
       context: ./codepop_frontend
     ports:
       - "4000:4000"
+    environment:
+      BACKEND1_URL: "http://backend1:9000"
+      BACKEND2_URL: "http://backend2:9000"
     depends_on:
       - backend1
+      - backend2
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "100:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - frontend
 
 volumes:
   postgres_data1:
