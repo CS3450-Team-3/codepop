@@ -25,8 +25,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-20c3kbxd-=q$-6^1^i@6u)jklu(js%g87$9sko85kirto!8afv'
 
 # Stripe Configuration
-STRIPE_SECRET_KEY = 'TODO: get a new secret stripe key'
-STRIPE_PUBLISHABLE_KEY = 'TODO: get a new publishable stripe key'
+STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY', 'TODO: get a new secret stripe key')
+STRIPE_PUBLISHABLE_KEY = os.environ.get('STRIPE_PUBLISHABLE_KEY', 'TODO: get a new publishable stripe key')
+STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET', 'TODO: get a webhook secret')
 
 
 # SECURITY WARNING: don't run with debug turned on in production!

@@ -943,3 +943,81 @@ class NewFeaturesTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
         self.assertIn('error', response.data)
         self.assertIn('details', response.data)
+
+class StripeIntegrationTests(APITestCase):
+
+    def setUp(self):
+        self.user = User.objects.create_user(username='stripe_user', password='password123')
+        self.drink = Drink.objects.create(Name='Test Drink', SodaUsed=['Cola'], Price=5.00, User_Created=False)
+        self.order = Order.objects.create(UserID=self.user)
+        self.order.add_drinks([self.drink.DrinkID])
+
+    @patch('stripe.PaymentIntent.create')
+    @patch('stripe.EphemeralKey.create')
+    @patch('stripe.Customer.create')
+    def test_create_payment_intent(self, mock_customer_create, mock_ephemeral_key_create, mock_payment_intent_create):
+        mock_customer_create.return_value = {'id': 'cus_123'}
+        mock_ephemeral_key_create.return_value = type('obj', (object,), {'secret': 'ek_test_123'})
+        mock_payment_intent_create.return_value = type('obj', (object,), {'client_secret': 'pi_test_123_secret', 'id': 'pi_test_123'})
+        
+        data = {
+            'amount': 5.00,
+            'order_id': str(self.order.OrderID)
+        }
+        
+        response = self.client.post('/backend/create-payment-intent/', data, format='json')
+        
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json()['paymentIntent'], 'pi_test_123_secret')
+        
+        # Verify the order was updated with the StripeID
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.StripeID, 'pi_test_123')
+
+    @patch('stripe.Webhook.construct_event')
+    def test_stripe_webhook_succeeded(self, mock_construct_event):
+        self.order.StripeID = 'pi_test_webhook_123'
+        self.order.save()
+        
+        mock_event = {
+            'type': 'payment_intent.succeeded',
+            'data': {
+                'object': {
+                    'id': 'pi_test_webhook_123',
+                    'amount': 200
+                }
+            }
+        }
+        mock_construct_event.return_value = mock_event
+        
+        response = self.client.post('/backend/stripe/webhook/', data={}, HTTP_STRIPE_SIGNATURE='test_sig')
+        
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.PaymentStatus, 'Paid')
+        self.assertTrue(Revenue.objects.filter(OrderID=self.order).exists())
+
+    @patch('stripe.Webhook.construct_event')
+    def test_stripe_webhook_failed(self, mock_construct_event):
+        self.order.StripeID = 'pi_test_webhook_456'
+        self.order.save()
+        
+        mock_event = {
+            'type': 'payment_intent.payment_failed',
+            'data': {
+                'object': {
+                    'id': 'pi_test_webhook_456'
+                }
+            }
+        }
+        mock_construct_event.return_value = mock_event
+        
+        response = self.client.post('/backend/stripe/webhook/', data={}, HTTP_STRIPE_SIGNATURE='test_sig')
+        
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.PaymentStatus, 'Failed')
+        self.assertTrue(Notification.objects.filter(UserID=self.user, Type="PaymentError").exists())
+
