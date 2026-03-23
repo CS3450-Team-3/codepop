@@ -21,10 +21,21 @@ const toppingsList = [
   { name: "Lime Slice", price: 0.3 },
 ];
 
-export default function CustomDrink({ addToCart }) {
+const sodasList = ["Coke", "Mtn. Dew", "Dr. Pepper", "Sprite", "Root Beer", "Fanta"];
+
+export default function CustomDrink({ addToCart, selectedDrink, setSelectedDrink }) {
   const [selectedSize, setSelectedSize] = useState(sizes[0]);
-  const [flavors, setFlavors] = useState({});
-  const [toppings, setToppings] = useState([]);
+  const [selectedSoda, setSelectedSoda] = useState(selectedDrink ? (selectedDrink.baseSoda || "Coke") : "Coke");
+  
+  // Initialize flavors from selectedDrink or empty
+  const [flavors, setFlavors] = useState(selectedDrink ? (selectedDrink.syrups || {}) : {});
+  
+  // Initialize toppings by matching strings from selectedDrink.addIns to the objects in toppingsList
+  const [toppings, setToppings] = useState(() => {
+    if (!selectedDrink || !selectedDrink.addIns) return [];
+    return toppingsList.filter(t => selectedDrink.addIns.includes(t.name));
+  });
+  
   const [quantity, setQuantity] = useState(1);
 
   // Handle flavor shots
@@ -62,21 +73,49 @@ export default function CustomDrink({ addToCart }) {
   };
 
   const handleAddToCart = () => {
+    // Structure item to match backend schema for Drink: Name, SyrupsUsed, SodaUsed, AddIns
     const item = {
+      name: selectedDrink ? selectedDrink.name : `Custom ${selectedSoda}`,
+      sodaUsed: [selectedSoda],
+      syrupsUsed: Object.entries(flavors)
+        .filter(([, count]) => count > 0)
+        .flatMap(([flavor, count]) => Array(count).fill(flavor)),
+      addIns: toppings.map(t => t.name),
       size: selectedSize.label,
-      flavors,
-      toppings,
       quantity,
+      pricePerUnit: (calculatePrice() / quantity).toFixed(2),
       total: calculatePrice(),
     };
 
     if (addToCart) addToCart(item);
-    console.log("Added to cart:", item);
+    if (setSelectedDrink) setSelectedDrink(null); // Clear selection after adding
   };
 
   return (
-    <div className="p-4 max-w-xl mx-auto pb-24">
-      <h1 className="text-xl font-semibold mb-4">Build Your Drink</h1>
+    <div className="p-4 max-w-xl mx-auto pb-32">
+      <h1 className="text-xl font-semibold mb-4">
+        {selectedDrink ? `Customize: ${selectedDrink.name}` : "Build Your Drink"}
+      </h1>
+
+      {/* Base Soda */}
+      <div className="mb-6">
+        <h2 className="font-medium mb-2">Base Soda</h2>
+        <div className="flex gap-2 flex-wrap">
+          {sodasList.map((soda) => (
+            <button
+              key={soda}
+              onClick={() => setSelectedSoda(soda)}
+              className={`px-3 py-2 rounded-lg border ${
+                selectedSoda === soda
+                  ? "bg-purple-600 text-white"
+                  : "bg-white"
+              }`}
+            >
+              {soda}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {/* Size */}
       <div className="mb-6">
