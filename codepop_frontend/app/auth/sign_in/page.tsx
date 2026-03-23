@@ -1,18 +1,21 @@
 'use client';
 
-import { signIn } from '@/models/api/auth';
+import { useAuth } from '@/app/contextProviders/AuthContext';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 interface SignInFormState {
-    email: string;
+    username: string;
     password: string;
     error: string | null;
     loading: boolean;
 }
 
 export default function SignInPage() {
+    const { login } = useAuth();
+    
     const [form, setForm] = useState<SignInFormState>({
-        email: '',
+        username: '',
         password: '',
         error: null,
         loading: false,
@@ -30,8 +33,15 @@ export default function SignInPage() {
         e.preventDefault();
         setForm(f => ({ ...f, loading: true, error: null }));
         try {
-            await signIn(form.email, form.password);
-            // Redirect or show success as needed
+            const user = await login(form.username, form.password);
+            console.log("Logged in user:", user);
+            if (user.user_type === 'customer') {
+            window.location.href = `/store/customer`;
+            } else if (user.user_type === 'manager') {
+            window.location.href = `/store/manager`;
+            } else if (user.user_type === 'admin') {
+            window.location.href = '/admin';
+            }
         } catch (err: any) {
             setForm(f => ({
                 ...f,
@@ -46,12 +56,12 @@ export default function SignInPage() {
             <h1 className="text-2xl font-bold mb-6 text-center">Sign In to CodePop</h1>
             <form onSubmit={handleSubmit}>
                 <div className="mb-4">
-                    <label htmlFor="email" className="block mb-1 font-medium">Email</label>
+                    <label htmlFor="userName" className="block mb-1 font-medium">Username</label>
                     <input
-                        id="email"
-                        name="email"
-                        type="email"
-                        value={form.email}
+                        id="userName"
+                        name="username"
+                        type="text"
+                        value={form.username}
                         onChange={handleChange}
                         required
                         className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"

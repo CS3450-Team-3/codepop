@@ -1,35 +1,41 @@
-// this is where we create functions to interface with the backend for authentication.
+import api, { setAccessToken } from "./api";
+import { User } from "@/models/types/user";
 
-export async function signIn(email: string, password: string) {
-    const response = await fetch("/api/auth/sign_in", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email, password }),
-    });
+export async function login(username: string, password: string): Promise<User> {
+  const { data } = await api.post("auth/login/", {
+    username,
+    password,
+  });
 
-    if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Failed to sign in");
-    }
+  setAccessToken(data.access);
 
-    return response.json();
+  const user = await api.get("users/me");
+
+  return user.data;
 }
 
-export async function signUp(email: string, password: string, firstName: string, lastName: string) {
-    const response = await fetch("/api/auth/sign_up", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email, password }),
-    });
+export async function logout() {
+  try {
+    await api.post("auth/logout/");
+  } finally {
+    setAccessToken(null);
+    window.location.href = "/auth/sign_in";
+  }
+}
 
-    if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Failed to sign up");
-    }
+export async function register(payload: {
+  username: string;
+  password: string;
+  first_name?: string;
+  email?: string;
+}): Promise<User> {
+  const { data } = await api.post("auth/register/", payload);
 
-    return response.json();
+  if (data && data.access) {
+    setAccessToken(data.access);
+    const user = await api.get("users/me");
+    return user.data;
+  } else {
+    return Promise.reject(new Error("Registration failed or access token missing"));
+  }
 }

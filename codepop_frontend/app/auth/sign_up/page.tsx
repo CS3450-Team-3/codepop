@@ -1,138 +1,63 @@
-'use client';
+"use client";
 
-import { signUp } from '@/models/api/auth';
-import { useState } from 'react';
+import { useState } from "react";
+import { useAuth } from "@/app/contextProviders/AuthContext";
+import { useRouter } from "next/navigation";
 
-export default function SignUpPage() {
-    const [form, setForm] = useState({
-        email: '',
-        firstName: '',
-        lastName: '',
-        password: '',
-        confirmPassword: '',
-    });
-    const [error, setError] = useState('');
-    const [success, setSuccess] = useState('');
+export default function RegisterPage() {
+  const { register } = useAuth();
+  const router = useRouter();
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setForm({ ...form, [e.target.name]: e.target.value });
-    };
+  const [form, setForm] = useState({
+    username: "",
+    password: "",
+    first_name: "",
+    last_name: "",
+    user_type: "",
+  });
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setError('');
-        setSuccess('');
-        if (form.password !== form.confirmPassword) {
-            setError('Passwords do not match');
-            return;
-        }
-        try {
-            await signUp(form.email, form.password, form.firstName, form.lastName);
-            setSuccess('Sign up successful!');
-            setForm({
-                email: '',
-                firstName: '',
-                lastName: '',
-                password: '',
-                confirmPassword: '',
-            });
-        } catch (err: any) {
-            setError(err.message || 'Sign up failed');
-        }
-    };
+  const handleSubmit = async (e: { preventDefault: () => void; }) => {
+    e.preventDefault();
 
-    return (
-        <div className="max-w-md mx-auto mt-8 p-8 bg-white rounded-lg shadow">
-            <h2 className="text-2xl font-bold mb-6 text-center">Sign Up</h2>
-            <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                    <label className="block text-sm font-medium mb-1" htmlFor="email">
-                        Email
-                    </label>
-                    <input
-                        id="email"
-                        type="email"
-                        name="email"
-                        value={form.email}
-                        onChange={handleChange}
-                        required
-                        autoComplete="email"
-                        className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                </div>
-                <div>
-                    <label className="block text-sm font-medium mb-1" htmlFor="firstName">
-                        First Name
-                    </label>
-                    <input
-                        id="firstName"
-                        type="text"
-                        name="firstName"
-                        value={form.firstName}
-                        onChange={handleChange}
-                        required
-                        autoComplete="given-name"
-                        className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                </div>
-                <div>
-                    <label className="block text-sm font-medium mb-1" htmlFor="lastName">
-                        Last Name
-                    </label>
-                    <input
-                        id="lastName"
-                        type="text"
-                        name="lastName"
-                        value={form.lastName}
-                        onChange={handleChange}
-                        required
-                        autoComplete="family-name"
-                        className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                </div>
-                <div>
-                    <label className="block text-sm font-medium mb-1" htmlFor="password">
-                        Password
-                    </label>
-                    <input
-                        id="password"
-                        type="password"
-                        name="password"
-                        value={form.password}
-                        onChange={handleChange}
-                        required
-                        autoComplete="new-password"
-                        className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                </div>
-                <div>
-                    <label className="block text-sm font-medium mb-1" htmlFor="confirmPassword">
-                        Confirm Password
-                    </label>
-                    <input
-                        id="confirmPassword"
-                        type="password"
-                        name="confirmPassword"
-                        value={form.confirmPassword}
-                        onChange={handleChange}
-                        required
-                        autoComplete="new-password"
-                        className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                </div>
-                <button
-                    type="submit"
-                    className="w-full py-2 px-4 bg-blue-600 text-white font-semibold rounded hover:bg-blue-700 transition"
-                >
-                    Sign Up
-                </button>
-                {error && (
-                    <div className="text-red-600 mt-2 text-center">{error}</div>
-                )}
-                {success && (
-                    <div className="text-green-600 mt-2 text-center">{success}</div>
-                )}
-            </form>
-        </div>
-    );
+    try {
+      const data = await register(form);
+      if (data.user_type === "customer") {
+        router.push(`/store/customer`);
+      } else if (data.user_type === "manager") {
+        router.push(`/store/manager`);
+      } else if (data.user_type === "admin") {
+        router.push("/admin");
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <input
+        placeholder="Username"
+        onChange={(e) => setForm({ ...form, username: e.target.value })}
+      />
+      <input
+        type="password"
+        placeholder="Password"
+        onChange={(e) => setForm({ ...form, password: e.target.value })}
+      />
+      <input
+        placeholder="First Name"
+        onChange={(e) => setForm({ ...form, first_name: e.target.value })}
+      />
+      <input
+        placeholder="Last Name"
+        onChange={(e) => setForm({ ...form, last_name: e.target.value })}
+      />
+      <input
+        placeholder="User Type"
+        onChange={(e) => setForm({ ...form, user_type: e.target.value })}
+      />
+
+      <button type="submit">Register</button>
+    </form>
+  );
 }
