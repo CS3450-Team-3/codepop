@@ -40,3 +40,7 @@ conductor/
 # Ignore next
 .next/
 out/
+
+# Ignore local secrets / key files
+jwt_keys.txt
+*.pem
