@@ -234,9 +234,10 @@ class Revenue(models.Model):
 
     def save(self, *args, **kwargs):
         """Override the save method to automatically calculate the total amount if not set."""
-        # Note: self.OrderID.Drinks might not be accessible before the order is saved if we're creating them both.
-        # But we'll try to calculate if it's 0.
-        if self.TotalAmount is None and self.pk:
+        if self.TotalAmount is None:
+            # We need to save first if we haven't yet, so that the M2M relationship in calculate_total_amount works
+            if not self.pk:
+                super(Revenue, self).save(*args, **kwargs)
             self.calculate_total_amount()
         super(Revenue, self).save(*args, **kwargs)
 
