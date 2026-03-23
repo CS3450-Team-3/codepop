@@ -1206,10 +1206,26 @@ class StripeWebhookView(View):
             payment_intent = event['data']['object']
             try:
                 order = Order.objects.get(StripeID=payment_intent['id'])
-                order.PaymentStatus = 'Paid'
-                order.save()
                 
-                Revenue.objects.create(OrderID=order)
+                # Validation: Recalculate the order total and compare it with the Stripe amount (in cents)
+                backend_total = calculate_order_total(order)
+                stripe_amount = payment_intent.get('amount')
+                
+                if int(backend_total * 100) == stripe_amount:
+                    order.PaymentStatus = 'Paid'
+                    order.save()
+                    # Explicitly set the TotalAmount during revenue creation to ensure accuracy
+                    Revenue.objects.create(OrderID=order, TotalAmount=backend_total)
+                else:
+                    # Log the discrepancy and flag the order as failed
+                    order.PaymentStatus = 'Failed'
+                    order.save()
+                    if order.UserID:
+                        Notification.objects.create(
+                            UserID=order.UserID,
+                            Message=f"Payment discrepancy detected for Order {order.OrderID}. Please contact support.",
+                            Type="PaymentError"
+                        )
             except Order.DoesNotExist:
                 print(f"Order with StripeID {payment_intent['id']} not found.")
                 
@@ -1228,6 +1244,19 @@ class StripeWebhookView(View):
                     )
             except Order.DoesNotExist:
                 print(f"Order with StripeID {payment_intent['id']} not found.")
+
+        elif event['type'] == 'charge.refunded':
+            charge = event['data']['object']
+            payment_intent_id = charge.get('payment_intent')
+            try:
+                order = Order.objects.get(StripeID=payment_intent_id)
+                order.PaymentStatus = 'Cancelled'
+                order.save()
+                
+                # Mark associated revenue records as refunded
+                Revenue.objects.filter(OrderID=order).update(Refunded=True)
+            except Order.DoesNotExist:
+                print(f"Order with PaymentIntent ID {payment_intent_id} not found for refund.")
         
         return JsonResponse({'status': 'success'}, status=200)
 

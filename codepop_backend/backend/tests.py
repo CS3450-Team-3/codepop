@@ -983,7 +983,8 @@ class StripeIntegrationTests(APITestCase):
             'type': 'payment_intent.succeeded',
             'data': {
                 'object': {
-                    'id': 'pi_test_webhook_123'
+                    'id': 'pi_test_webhook_123',
+                    'amount': 200
                 }
             }
         }

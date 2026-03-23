@@ -556,7 +556,7 @@ def main():
             drink_payload = {
                 "Name": "Customer A Test Drink",
                 "SodaUsed": ["Cola"],
-                "SyrupsUsed": ["Vanilla"],
+                "SyrupsUsed": [],
                 "Ice": "Regular",
                 "Size": "24oz",
                 "User_Created": True,
@@ -617,7 +617,8 @@ def main():
                 "type": "payment_intent.succeeded",
                 "data": {
                     "object": {
-                        "id": stripe_id
+                        "id": stripe_id,
+                        "amount": 250 # 2.50 in cents
                     }
                 }
             }
@@ -640,6 +641,57 @@ def main():
             if resp.json().get('PaymentStatus') != 'Paid':
                 raise Exception(f"Order PaymentStatus was not updated to Paid! Got: {resp.json().get('PaymentStatus')}")
             
+            # Step 5: Verify Revenue record was created
+            resp = requests.get(
+                f"http://localhost:{PORT_A}/backend/revenues/",
+                headers={"Authorization": f"Bearer {customer_a_token}"}
+            )
+            revenue_data = resp.json()
+            # Find the revenue record for our order
+            order_revenue = next((r for r in revenue_data if r['OrderID'] == order_id), None)
+            if not order_revenue:
+                raise Exception(f"No Revenue record found for Order {order_id}")
+            if order_revenue['TotalAmount'] != 2.50:
+                 raise Exception(f"Revenue TotalAmount is incorrect. Expected 2.50, got {order_revenue['TotalAmount']}")
+            
+            print_success("Payment success and Revenue creation verified.")
+
+            # Step 6: Simulate Refund Webhook
+            print_substep("Simulating Refund Webhook...")
+            refund_payload = {
+                "type": "charge.refunded",
+                "data": {
+                    "object": {
+                        "payment_intent": stripe_id
+                    }
+                }
+            }
+            resp = requests.post(
+                f"http://localhost:{PORT_A}/backend/stripe/webhook/",
+                headers={"Stripe-Signature": "mock_signature_for_testing"},
+                json=refund_payload
+            )
+            if resp.status_code != 200:
+                raise Exception(f"Refund webhook rejected: {resp.text}")
+
+            # Step 7: Verify Order and Revenue after refund
+            resp = requests.get(
+                f"http://localhost:{PORT_A}/backend/orders/{order_id}/",
+                headers={"Authorization": f"Bearer {customer_a_token}"}
+            )
+            if resp.json().get('PaymentStatus') != 'Cancelled':
+                raise Exception(f"Order status not changed to Cancelled after refund. Got: {resp.json().get('PaymentStatus')}")
+
+            resp = requests.get(
+                f"http://localhost:{PORT_A}/backend/revenues/",
+                headers={"Authorization": f"Bearer {customer_a_token}"}
+            )
+            revenue_data = resp.json()
+            order_revenue = next((r for r in revenue_data if r['OrderID'] == order_id), None)
+            if not order_revenue or not order_revenue['Refunded']:
+                raise Exception(f"Revenue record not marked as Refunded after refund event. Data: {order_revenue}")
+
+            print_success("Refund webhook and state transition verified.")
             print_success("Full order creation, payment intent, and webhook flow passed.")
             
         except Exception as e:
