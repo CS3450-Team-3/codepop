@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, type FormEvent } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000'; // Backend URL
 
@@ -47,6 +47,7 @@ interface ManagerProfile {
 }
 
 export default function StoreManagerDashboard() {
+  const router = useRouter();
   const params = useParams<{ store: string | string[] }>();
   const storeParam = params?.store;
   const storeId = Array.isArray(storeParam) ? storeParam[0] : storeParam;
@@ -69,6 +70,7 @@ export default function StoreManagerDashboard() {
   const [usageError, setUsageError] = useState<string | null>(null);
   const [usageMessage, setUsageMessage] = useState<string | null>(null);
   const [isSubmittingUsage, setIsSubmittingUsage] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const storeName = 'Downtown Plaza';
 
   useEffect(() => {
@@ -249,6 +251,44 @@ export default function StoreManagerDashboard() {
       setUsageError(err instanceof Error ? err.message : 'Failed to update inventory.');
     } finally {
       setIsSubmittingUsage(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    if (isSigningOut) {
+      return;
+    }
+
+    try {
+      setIsSigningOut(true);
+
+      const accessToken = localStorage.getItem('access_token');
+      const refreshToken =
+        localStorage.getItem('refresh_token') ||
+        localStorage.getItem('refresh');
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (accessToken) {
+        headers['Authorization'] = `Bearer ${accessToken}`;
+      }
+
+      // Best-effort server logout to blacklist refresh token; always clear local auth.
+      await fetch(`${BASE_URL}/backend/auth/logout/`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ refresh: refreshToken }),
+      }).catch(() => null);
+    } finally {
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      localStorage.removeItem('refresh');
+      localStorage.removeItem('user');
+      localStorage.removeItem('userRole');
+      localStorage.removeItem('user_id');
+      setIsSigningOut(false);
+      router.push('/auth/sign_in');
     }
   };
 
@@ -535,11 +575,13 @@ export default function StoreManagerDashboard() {
             </div>
 
             <button
+              onClick={handleSignOut}
+              disabled={isSigningOut}
               className="w-full bg-white border border-gray-300 rounded-xl py-3 font-medium flex items-center justify-center gap-2 hover:bg-gray-50"
               type="button"
             >
               <span className="material-icons text-base">logout</span>
-              <span>Sign Out</span>
+              <span>{isSigningOut ? 'Signing Out...' : 'Sign Out'}</span>
             </button>
           </>
         )}
