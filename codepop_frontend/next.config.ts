@@ -20,6 +20,10 @@ const nextConfig: NextConfig = {
         destination: 'http://127.0.0.1:8000/backend/:path*',
       },
       {
+        source: '/api/servers',
+        destination: `${backend1}/backend/servers/`,
+      },
+      {
         source: '/api/:path*',
         destination: 'http://127.0.0.1:8000/api/:path*',
       },
