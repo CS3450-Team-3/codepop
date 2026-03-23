@@ -19,7 +19,7 @@ export async function logout() {
     await api.post("auth/logout/");
   } finally {
     setAccessToken(null);
-    window.location.href = "/auth/sign_in";
+    window.location.href = "/auth/login";
   }
 }
 

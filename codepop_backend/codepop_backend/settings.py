@@ -35,7 +35,6 @@ DEBUG = True
 
 ALLOWED_HOSTS = ['*']
 
-
 # Application definition
 
 INSTALLED_APPS = [
@@ -50,15 +49,11 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt.token_blacklist',
     'drf_spectacular',
     'backend',
-    'corsheaders'
 ]
-
-
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -237,5 +232,3 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Each server must set the LOCAL_SERVER_ID environment variable so the sync
 # framework can identify itself when making or receiving inter-server calls.
 LOCAL_SERVER_ID = os.environ.get('LOCAL_SERVER_ID', None)
-
-AUTH_USER_MODEL = 'backend.CustomUser'

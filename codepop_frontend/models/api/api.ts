@@ -4,7 +4,7 @@ const API_BASE_URL = "http://127.0.0.1:8000/backend/";
 
 let accessToken: string | null = null;
 
-// Setter so other modules can update token cleanly
+// Helper to set token in memory and localStorage
 export const setAccessToken = (token: string | null) => {
   accessToken = token;
   if (typeof window !== "undefined") {
@@ -13,17 +13,17 @@ export const setAccessToken = (token: string | null) => {
   }
 };
 
-// Initialize from localStorage (client-side only)
+// Initialize accessToken from localStorage on app start
 if (typeof window !== "undefined") {
   accessToken = localStorage.getItem("access_token");
 }
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  withCredentials: true, // REQUIRED for refresh cookie
+  withCredentials: true,
 });
 
-// ---- REQUEST INTERCEPTOR ----
+// Request interceptor to add token to headers
 api.interceptors.request.use((config) => {
   if (accessToken) {
     config.headers.Authorization = `Bearer ${accessToken}`;
@@ -31,7 +31,7 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// ---- RESPONSE INTERCEPTOR ----
+// Response interceptor to handle token refresh
 let isRefreshing = false;
 let refreshQueue: any[] = [];
 
@@ -47,7 +47,6 @@ api.interceptors.response.use(
       originalRequest._retry = true;
 
       if (isRefreshing) {
-        // Queue requests while refresh is happening
         return new Promise((resolve, reject) => {
           refreshQueue.push({ resolve, reject });
         })
@@ -69,20 +68,19 @@ api.interceptors.response.use(
 
         setAccessToken(data.access);
 
-        // Resolve queued requests
         refreshQueue.forEach((p) => p.resolve(data.access));
         refreshQueue = [];
 
         originalRequest.headers.Authorization = `Bearer ${data.access}`;
         return api(originalRequest);
       } catch (err) {
-        // Kill session
+        // If refresh fails, clear token and redirect to login
         setAccessToken(null);
         refreshQueue.forEach((p) => p.reject(err));
         refreshQueue = [];
 
-        if (typeof window !== "undefined") {
-          window.location.href = "/login";
+        if (typeof window !== "undefined" && window.location.pathname !== "/auth/login") {
+          window.location.href = "/auth/login";
         }
 
         return Promise.reject(err);
