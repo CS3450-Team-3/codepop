@@ -1,7 +1,7 @@
 from django.urls import path
 from rest_framework.authtoken.views import obtain_auth_token
 from .views import CreateUserAPIView, LogoutUserAPIView, CustomAuthToken, CustomTokenRefreshView
-from .views import StripePaymentIntentView
+from .views import StripePaymentIntentView, StripeWebhookView
 from .views import UserPreferenceLookup, PreferencesOperations
 from .views import DrinkOperations, UserDrinksLookup
 from .views import InventoryListAPIView, InventoryReportAPIView, InventoryUpdateAPIView
@@ -135,6 +135,7 @@ urlpatterns = [
 
     # Stripe payment
     path('create-payment-intent/', StripePaymentIntentView.as_view(), name='create-payment-intent'),
+    path('stripe/webhook/', StripeWebhookView.as_view(), name='stripe-webhook'),
 
     # Inventory URLs
     # Endpoint to list all inventory items

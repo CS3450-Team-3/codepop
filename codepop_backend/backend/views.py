@@ -688,15 +688,61 @@ class UserOrdersLookup(ListCreateAPIView):
         user = get_object_or_404(User, pk=user_id)
         serializer.save(UserID=user)
 
+# Constants for pricing. Easily customizable from this point.
+PRICING = {
+    'sizes': {
+        '16oz': 2.00,
+        '24oz': 2.50,
+        '32oz': 3.00,
+        '44oz': 3.50,
+        'default': 2.00
+    },
+    'syrup_price_per_pump': 0.50,
+    'addin_price_per_item': 0.75
+}
+
+def calculate_order_total(order):
+    total = 0.0
+    for drink in order.Drinks.all():
+        size_str = str(drink.Size).lower().strip()
+        base_price = PRICING['sizes'].get(size_str, PRICING['sizes']['default'])
+        
+        syrups_cost = len(drink.SyrupsUsed) * PRICING['syrup_price_per_pump'] if drink.SyrupsUsed else 0.0
+        addins_cost = len(drink.AddIns) * PRICING['addin_price_per_item'] if drink.AddIns else 0.0
+        
+        drink_total = base_price + syrups_cost + addins_cost
+        
+        # Update the drink's saved price so it reflects the real calculation
+        if drink.Price != drink_total:
+            drink.Price = drink_total
+            drink.save(update_fields=['Price'])
+            
+        total += drink_total
+    return total
+
 @method_decorator(csrf_exempt, name='dispatch')
 class StripePaymentIntentView(View):
     
     def post(self, request, *args, **kwargs):
         try:
             data = json.loads(request.body)
-            amount = int(data.get("amount") * 100)  # Stripe uses cents, so multiply dollars by 100
-            if amount is None:
-                return JsonResponse({'error': 'Amount is required.'}, status=400)
+            order_id = data.get("order_id")
+            amount_val = data.get("amount")
+
+            # 1. Verification: Calculate from database if order is provided
+            order = None
+            if order_id:
+                try:
+                    order = Order.objects.get(pk=order_id)
+                    # Override the frontend's amount to ensure correctness
+                    amount_val = calculate_order_total(order)
+                except Order.DoesNotExist:
+                    print(f"Order {order_id} not found during PaymentIntent creation.")
+
+            if amount_val is None or amount_val <= 0:
+                return JsonResponse({'error': 'A valid amount or valid order_id is required.'}, status=400)
+            
+            amount = int(amount_val * 100)  # Stripe uses cents, so multiply dollars by 100
 
             # Create a new customer
             customer = stripe.Customer.create()
@@ -715,12 +761,17 @@ class StripePaymentIntentView(View):
                 payment_method_types=['card'],  # Accept only card payments
             )
 
+            # Update order with StripeID if order is found
+            if order:
+                order.StripeID = payment_intent.id
+                order.save(update_fields=['StripeID'])
+
             # Respond with the required information
             return JsonResponse({
                 'paymentIntent': payment_intent.client_secret,
                 'ephemeralKey': ephemeral_key.secret,
-                'customer': customer.id,
-                'publishableKey': 'TODO: get a new publishable stripe key'
+                'customer': customer['id'],
+                'publishableKey': getattr(settings, 'STRIPE_PUBLISHABLE_KEY', '')
             })
         except Exception as e:
             return JsonResponse({'error': 'Payment intent creation failed', 'details': str(e)}, status=400)
@@ -1133,4 +1184,80 @@ class ServerRegistryAPIView(viewsets.ReadOnlyModelViewSet):
         if self.action == 'list' or self.action == 'retrieve':
             return [AllowAny()]
         return [IsAdminUser()]
+
+@method_decorator(csrf_exempt, name='dispatch')
+class StripeWebhookView(View):
+    def post(self, request, *args, **kwargs):
+        payload = request.body
+        sig_header = request.META.get('HTTP_STRIPE_SIGNATURE')
+        webhook_secret = getattr(settings, 'STRIPE_WEBHOOK_SECRET', '')
+
+        event = None
+
+        try:
+            event = stripe.Webhook.construct_event(
+                payload, sig_header, webhook_secret
+            )
+        except ValueError as e:
+            return JsonResponse({'error': 'Invalid payload'}, status=400)
+        except stripe.error.SignatureVerificationError as e:
+            return JsonResponse({'error': 'Invalid signature'}, status=400)
+
+        if event['type'] == 'payment_intent.succeeded':
+            payment_intent = event['data']['object']
+            try:
+                order = Order.objects.get(StripeID=payment_intent['id'])
+                
+                # Validation: Recalculate the order total and compare it with the Stripe amount (in cents)
+                backend_total = calculate_order_total(order)
+                stripe_amount = payment_intent.get('amount')
+                
+                if int(backend_total * 100) == stripe_amount:
+                    order.PaymentStatus = 'Paid'
+                    order.save()
+                    # Explicitly set the TotalAmount during revenue creation to ensure accuracy
+                    Revenue.objects.create(OrderID=order, TotalAmount=backend_total)
+                else:
+                    # Log the discrepancy and flag the order as failed
+                    order.PaymentStatus = 'Failed'
+                    order.save()
+                    if order.UserID:
+                        Notification.objects.create(
+                            UserID=order.UserID,
+                            Message=f"Payment discrepancy detected for Order {order.OrderID}. Please contact support.",
+                            Type="PaymentError"
+                        )
+            except Order.DoesNotExist:
+                print(f"Order with StripeID {payment_intent['id']} not found.")
+                
+        elif event['type'] == 'payment_intent.payment_failed':
+            payment_intent = event['data']['object']
+            try:
+                order = Order.objects.get(StripeID=payment_intent['id'])
+                order.PaymentStatus = 'Failed'
+                order.save()
+                
+                if order.UserID:
+                    Notification.objects.create(
+                        UserID=order.UserID,
+                        Message=f"Payment failed for Order {order.OrderID}.",
+                        Type="PaymentError"
+                    )
+            except Order.DoesNotExist:
+                print(f"Order with StripeID {payment_intent['id']} not found.")
+
+        elif event['type'] == 'charge.refunded':
+            charge = event['data']['object']
+            payment_intent_id = charge.get('payment_intent')
+            try:
+                order = Order.objects.get(StripeID=payment_intent_id)
+                order.PaymentStatus = 'Cancelled'
+                order.save()
+                
+                # Mark associated revenue records as refunded
+                Revenue.objects.filter(OrderID=order).update(Refunded=True)
+            except Order.DoesNotExist:
+                print(f"Order with PaymentIntent ID {payment_intent_id} not found for refund.")
+        
+        return JsonResponse({'status': 'success'}, status=200)
 

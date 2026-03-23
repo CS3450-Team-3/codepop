@@ -25,8 +25,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-20c3kbxd-=q$-6^1^i@6u)jklu(js%g87$9sko85kirto!8afv'
 
 # Stripe Configuration
-STRIPE_SECRET_KEY = 'TODO: get a new secret stripe key'
-STRIPE_PUBLISHABLE_KEY = 'TODO: get a new publishable stripe key'
+STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY', 'TODO: get a new secret stripe key')
+STRIPE_PUBLISHABLE_KEY = os.environ.get('STRIPE_PUBLISHABLE_KEY', 'TODO: get a new publishable stripe key')
+STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET', 'TODO: get a webhook secret')
 
 
 # SECURITY WARNING: don't run with debug turned on in production!
@@ -44,6 +45,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'corsheaders',
     'rest_framework',
     'rest_framework_simplejwt.token_blacklist',
     'drf_spectacular',
@@ -54,6 +56,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -84,6 +87,8 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'codepop_backend.wsgi.application'
 
+# Custom User Model
+AUTH_USER_MODEL = 'backend.CustomUser'
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
