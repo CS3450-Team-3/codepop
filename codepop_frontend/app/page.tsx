@@ -44,7 +44,7 @@ export default async function Home() {
           {servers.map((server) => (
             <Link
               key={server.ServerID}
-              href={`/${server.ServerID}/customer/`}
+              href={`/${server.ServerID}/`}
               className="block border rounded-lg px-6 py-4 hover:bg-gray-50 transition-colors"
             >
               <div className="font-semibold">Store {server.ServerID}</div>
