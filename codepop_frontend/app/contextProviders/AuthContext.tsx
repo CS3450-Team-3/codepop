@@ -18,7 +18,8 @@ type AuthContextType = {
     password: string;
     first_name: string;
     last_name: string;
-    user_type: string;
+    email?: string;
+    user_type?: string | "customer";
   }) => Promise<User>;
   loading: boolean;
 };
@@ -44,10 +45,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const { data } = await api.get("users/me");
 
         setUser({
+          id: data.id,
           username: data.username,
+          home_server: data.home_server,
           user_type: data.user_type,
+          email: data.email,
           first_name: data.first_name,
-          user_id: data.user_id,
+          last_name: data.last_name,
         });
       } catch (err) {
         // if token is invalid/expired, just clear it and start fresh
@@ -65,10 +69,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const data = await loginApi(username, password);
 
     setUser({
+      id: data.id,
       username: data.username,
+      home_server: data.home_server,
       user_type: data.user_type,
+      email: data.email,
       first_name: data.first_name,
-      user_id: data.user_id,
+      last_name: data.last_name,
     });
     return data;
   };
@@ -83,15 +90,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     password: string;
     first_name: string;
     last_name: string;
-    user_type: string;
+    email?: string;
+    user_type?: string | "customer";
   }) => {
     const data = await registerApi(formData);
 
     setUser({
+      id: data.id,
       username: data.username,
+      home_server: data.home_server,
       user_type: data.user_type,
+      email: data.email,
       first_name: data.first_name,
-      user_id: data.user_id,
+      last_name: data.last_name,
     });
 
     return data;

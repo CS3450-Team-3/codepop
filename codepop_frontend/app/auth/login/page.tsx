@@ -19,6 +19,7 @@ export default function LoginPage() {
     try {
       await login(form.username, form.password);
     } catch (err: any) {
+      // TODO: this requires the backend to return meaningful error messages, otherwise we should probably just display a generic "invalid credentials" message for any 400/401 error
       setStatus({ loading: false, error: err?.message || 'Invalid credentials' });
     }
   };

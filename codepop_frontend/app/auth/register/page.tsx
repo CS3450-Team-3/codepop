@@ -24,10 +24,13 @@ export default function RegisterPage() {
       return;
     }
 
+    // TODO: validate email format, password strength, etc.
+
     try {
       await register(form);
     } catch (err: any) {
       console.error(err);
+      // TODO: this requires the backend to return meaningful error messages, otherwise we should probably just display a generic "registration failed" message for any 400 error
       setStatus({ loading: false, error: err?.message || 'An error occurred' });
     }
   };
