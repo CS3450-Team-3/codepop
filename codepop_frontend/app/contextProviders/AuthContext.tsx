@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
-import api from "@/models/api/api";
+import api, { setAccessToken } from "@/models/api/api";
 import {
   login as loginApi,
   logout as logoutApi,
@@ -56,6 +56,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch (err) {
         // if token is invalid/expired, just clear it and start fresh
         localStorage.removeItem("access_token");
+        setAccessToken(null);
         setUser(null);
       } finally {
         setLoading(false);
@@ -82,7 +83,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = () => {
     setUser(null);
-    logoutApi();
+    logoutApi().catch((err) => {
+      // TODO: decide how to show the user the logout failed
+      console.error("Logout failed:", err);
+    });
   };
 
   const register = async (formData: {

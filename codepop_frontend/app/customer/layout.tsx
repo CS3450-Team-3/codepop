@@ -13,7 +13,9 @@ export default function CustomerLayout({ children }: { children: ReactNode }) {
     return <div>Loading...</div>;
   }
 
+  // TODO: we should probably also check if the user type is correct here and redirect if not, but for now we'll just assume that the redirect worked as expected
   if (!user) {
+    // TODO: move this to a useEffect
     router.push("/auth/login");
     return null;
   }
