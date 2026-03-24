@@ -88,12 +88,18 @@ class Command(BaseCommand):
         peer_data   = None
 
         if peer_url:
-            # Join mode via env var
-            self.stdout.write(f'\nStep 2: Joining region via peer {peer_url} ...')
+            # Register a known peer at setup time.
+            # If REGION is also set, this server keeps its own region — SETUP_PEER_URL just
+            # pre-populates the peer in the local DB before bootstrap_join runs.
+            self.stdout.write(f'\nStep 2: Registering peer {peer_url} ...')
             try:
                 peer_data = fetch_peer_discovery(peer_url)
-                region_name = peer_data.get('RegionName') or f'Region-{peer_data["Region"]}'
-                self.stdout.write(self.style.SUCCESS(f'  Found region: {region_name}'))
+                if not region_name:
+                    # No explicit region — fall back to joining the peer's region
+                    region_name = peer_data.get('RegionName') or f'Region-{peer_data["Region"]}'
+                    self.stdout.write(self.style.SUCCESS(f'  Using peer region: {region_name}'))
+                else:
+                    self.stdout.write(self.style.SUCCESS(f'  Keeping own region: {region_name}'))
             except Exception as e:
                 self.stderr.write(self.style.ERROR(f'  Could not reach peer server: {e}'))
                 raise SystemExit(1)
@@ -147,7 +153,13 @@ class Command(BaseCommand):
         with transaction.atomic():
             region, _ = Region.objects.get_or_create(RegionName=region_name)
 
-            is_leader = region_mode == 'create'
+            # First active server in a region becomes its leader.
+            existing_in_region = ServerRegistry.objects.filter(
+                Region=region,
+                Status='Active',
+            ).exclude(ServerID=server_id).exists()
+            is_leader = not existing_in_region
+
             local_server, _ = ServerRegistry.objects.update_or_create(
                 ServerID=server_id,
                 defaults={
@@ -166,7 +178,7 @@ class Command(BaseCommand):
                         'ServerURL':      peer_data['ServerURL'],
                         'PublicKey':      peer_data['PublicKey'],
                         'Status':         'Active',
-                        'IsRegionLeader': True,
+                        'IsRegionLeader': peer_data.get('IsRegionLeader', False),
                         'Region':         region,
                     },
                 )

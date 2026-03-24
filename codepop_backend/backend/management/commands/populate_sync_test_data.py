@@ -30,10 +30,11 @@ class Command(BaseCommand):
             return
 
         server_url = os.environ.get('SERVER_URL', 'http://localhost:9000')
+        region_name = (os.environ.get('REGION') or os.environ.get('SETUP_REGION_NAME', 'default')).strip()
         public_key = settings.PUBLIC_KEY
 
-        # Create shared region — backend1 is the initial region leader
-        region, _ = Region.objects.get_or_create(RegionName='Region-Alpha')
+        # Create this server's region — it is the leader since it's the first server in it
+        region, _ = Region.objects.get_or_create(RegionName=region_name)
 
         # Register only this server — peer servers self-register via /backend/p2p/join/
         local_server, _ = ServerRegistry.objects.update_or_create(
@@ -60,7 +61,7 @@ class Command(BaseCommand):
         count = MasterList.objects.filter(HomeServerID=local_server).count()
         self.stdout.write(
             self.style.SUCCESS(
-                f'Server {local_id[:12]}... ({server_url}): region=Region-Alpha, '
+                f'Server {local_id[:12]}... ({server_url}): region={region_name}, '
                 f'leader=True, MasterList entries={count}'
             )
         )

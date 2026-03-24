@@ -70,7 +70,7 @@ services:
       SETUP_ADMIN_USERNAME: "admin2"
       SETUP_ADMIN_PASSWORD: "changeme123"
       SETUP_PEER_URL: "http://backend1:9000"
-      REGION: "us-west"
+      REGION: "us-east"
       BOOTSTRAP_NODES: "backend1:9000"
     volumes:
       - node_data2:/data

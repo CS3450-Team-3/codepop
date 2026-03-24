@@ -1155,6 +1155,7 @@ class PublicDiscoveryView(APIView):
                 "PublicKey": settings.PUBLIC_KEY,
                 "Region": local_server.Region.RegionID if local_server.Region else None,
                 "RegionName": local_server.Region.RegionName if local_server.Region else None,
+                "IsRegionLeader": local_server.IsRegionLeader,
             }, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({"error": "Discovery failed", "details": str(e)}, status=500)
@@ -1227,13 +1228,21 @@ class P2PJoinView(APIView):
 
         # Register the joining peer
         region, _ = Region.objects.get_or_create(RegionName=region_name)
+
+        # First server to announce a region becomes its leader; subsequent joiners are peers.
+        already_has_servers = ServerRegistry.objects.filter(
+            Region=region,
+            Status='Active',
+        ).exclude(ServerID=node_id).exists()
+        is_leader = not already_has_servers
+
         ServerRegistry.objects.update_or_create(
             ServerID=node_id,
             defaults={
                 'ServerURL': address,
                 'PublicKey': pub_pem,
                 'Status': 'Active',
-                'IsRegionLeader': False,
+                'IsRegionLeader': is_leader,
                 'Region': region,
             }
         )
