@@ -153,6 +153,23 @@ class Command(BaseCommand):
         with transaction.atomic():
             region, _ = Region.objects.get_or_create(RegionName=region_name)
 
+            # Register the peer first (if any) so the leader check below sees it.
+            # This prevents a joining node from incorrectly claiming leadership when
+            # its local DB is empty but the peer already owns the region.
+            if peer_data:
+                peer_region_name = peer_data.get('RegionName') or region_name
+                peer_region, _ = Region.objects.get_or_create(RegionName=peer_region_name)
+                ServerRegistry.objects.update_or_create(
+                    ServerID=str(peer_data['ServerID']),
+                    defaults={
+                        'ServerURL':      peer_data['ServerURL'],
+                        'PublicKey':      peer_data['PublicKey'],
+                        'Status':         'Active',
+                        'IsRegionLeader': peer_data.get('IsRegionLeader', False),
+                        'Region':         peer_region,
+                    },
+                )
+
             # First active server in a region becomes its leader.
             existing_in_region = ServerRegistry.objects.filter(
                 Region=region,
@@ -170,18 +187,6 @@ class Command(BaseCommand):
                     'Region':         region,
                 },
             )
-
-            if peer_data:
-                ServerRegistry.objects.update_or_create(
-                    ServerID=str(peer_data['ServerID']),
-                    defaults={
-                        'ServerURL':      peer_data['ServerURL'],
-                        'PublicKey':      peer_data['PublicKey'],
-                        'Status':         'Active',
-                        'IsRegionLeader': peer_data.get('IsRegionLeader', False),
-                        'Region':         region,
-                    },
-                )
 
             admin = CustomUser.objects.create_superuser(
                 username=username,
