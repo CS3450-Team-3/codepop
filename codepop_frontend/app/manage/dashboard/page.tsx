@@ -483,7 +483,7 @@ export default function StoreManagerDashboard() {
                               <span>
                                 1x {drink.name} ({drink.size})
                               </span>
-                              <span className="font-medium">${drink.price.toFixed(2)}</span>
+                              <span className="font-medium">${(drink.price || 0).toFixed(2)}</span>
                             </div>
                           ))}
                         </div>
@@ -494,7 +494,7 @@ export default function StoreManagerDashboard() {
                         <div></div>
                         <div className="text-right">
                           <p className="text-xs text-gray-600">Total:</p>
-                          <p className="text-lg font-bold">${order.TotalAmount.toFixed(2)}</p>
+                          <p className="text-lg font-bold">${(order.TotalAmount || 0).toFixed(2)}</p>
                         </div>
                       </div>
                     </div>
