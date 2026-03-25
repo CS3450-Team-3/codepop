@@ -8,6 +8,7 @@ import concurrent.futures
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.backends import default_backend
+from port_utils import find_n_available_ports
 
 # CONFIGURATION
 SECTION_TOTAL = 9
@@ -45,8 +46,13 @@ def print_header(msg):
 
 BACKEND_DIR = os.path.abspath(os.path.join(SCRIPT_DIR, ".."))
 
-PORT_A = 8000
-PORT_B = 8001
+# Find available ports starting from 8050
+print_header("Initializing Port Discovery")
+found_ports = find_n_available_ports(2)
+PORT_A = found_ports[0]
+PORT_B = found_ports[1]
+print_substep(f"Using dynamic ports: Server A = {PORT_A}, Server B = {PORT_B}")
+
 DB_A = "p2p_test_a"
 DB_B = "p2p_test_b"
 

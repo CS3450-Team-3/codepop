@@ -12,6 +12,7 @@ import requests
 import time
 import subprocess
 import os
+from port_utils import find_n_available_ports
 
 # ANSI Color Codes
 GREEN = "\033[92m"
@@ -23,11 +24,16 @@ RESET = "\033[0m"
 BOLD = "\033[1m"
 
 # CONFIGURATION
-SERVER_A_URL = "http://localhost:8000"
-SERVER_B_URL = "http://localhost:8001"
+# Find available ports starting from 8050
+found_ports = find_n_available_ports(2)
+PORT_A = found_ports[0]
+PORT_B = found_ports[1]
+SERVER_A_URL = f"http://localhost:{PORT_A}"
+SERVER_B_URL = f"http://localhost:{PORT_B}"
 
 def run_e2e_test():
     print(f"{BOLD}{BLUE}--- Starting End-to-End P2P Authentication Test ---{RESET}")
+    print(f"{CYAN}Using dynamic ports: Server A = {PORT_A}, Server B = {PORT_B}{RESET}")
 
     # 1. Verification: Are servers running?
     try:
