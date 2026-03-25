@@ -252,5 +252,5 @@ def main():
 
 if __name__ == "__main__":
     main()
-    sleep(5)  # Give user a moment to read the final message before logs start
+    sleep(2)  # Give user a moment to read the final message before logs start
     subprocess.run(["docker", "compose", "up", "--build"])

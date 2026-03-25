@@ -50,10 +50,10 @@ function StoreSelector({ onSelect }) {
           {servers.map((server) => (
             <button
               key={server.ServerID}
-              onClick={() => onSelect(server.ServerID)}
+              onClick={() => onSelect(server.StoreName)}
               className="block border rounded-lg px-6 py-4 hover:bg-gray-50 transition-colors text-left w-full"
             >
-              <div className="font-semibold">Store {server.ServerID}</div>
+              <div className="font-semibold">{server.StoreName}</div>
               {server.Region !== null && (
                 <div className="text-sm text-gray-500">Region {server.Region}</div>
               )}

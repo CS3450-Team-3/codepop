@@ -18,7 +18,6 @@ Two modes:
 
 After setup the standard menu is seeded and the server is registered in ServerRegistry.
 """
-import json
 import os
 import sys
 import getpass
@@ -189,6 +188,11 @@ class Command(BaseCommand):
                     'Status':         'Active',
                     'IsRegionLeader': is_leader,
                     'Region':         region,
+                    'StoreName':      os.environ.get('STORE_NAME', ''),
+                    'StoreAddress':   os.environ.get('STORE_ADDRESS', ''),
+                    'StoreCity':      os.environ.get('STORE_CITY', ''),
+                    'StoreState':     os.environ.get('STORE_STATE', ''),
+                    'StoreZip':       os.environ.get('STORE_ZIP', ''),
                 },
             )
 
@@ -212,20 +216,6 @@ class Command(BaseCommand):
             )
 
             seed_menu_data()
-
-            # Persist store configuration to the /data volume so it survives restarts.
-            store_config = {
-                'store_name': os.environ.get('STORE_NAME', ''),
-                'address':    os.environ.get('STORE_ADDRESS', ''),
-                'city':       os.environ.get('STORE_CITY', ''),
-                'state':      os.environ.get('STORE_STATE', ''),
-                'zip':        os.environ.get('STORE_ZIP', ''),
-            }
-            try:
-                with open('/data/store_config.json', 'w') as f:
-                    json.dump(store_config, f, indent=2)
-            except OSError:
-                pass  # /data may not exist outside Docker; non-fatal
 
         # Patch os.environ so get_local_server() works without a restart.
         os.environ['LOCAL_SERVER_ID'] = server_id
