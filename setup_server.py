@@ -243,7 +243,7 @@ def main():
             docker compose down -v
 
         Your server will be available at:
-            Frontend : http://localhost:90
+            Frontend : http://localhost:4000
             Backend  : http://localhost:9000
                           
         Now starting the server with `docker compose up --build`...
