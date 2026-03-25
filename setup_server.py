@@ -143,28 +143,46 @@ def main():
         a docker-compose.yml ready to launch your CodePop server.
     """))
 
-    # ── Admin Credentials ─────────────────────────────────────────
-    _section("Step 1: Admin Account")
-    admin_username   = _prompt("Username")
-    admin_password   = _prompt_password("Password")
-    admin_email      = _prompt("Email")
-    admin_first_name = _prompt("First name")
-    admin_last_name  = _prompt("Last name")
+    test_config      = _prompt("Setup Test Config? (Y/n)")
+    if test_config.lower() in ("y", "yes", ""):
+        # ── Test Config ───────────────────────────────────────────────
+        _section("Test Config")
+        print("  Using test configuration with default credentials and store info.")
+        admin_username   = "admin"
+        admin_password   = "password123"
+        admin_email      = "test@email.com"
+        admin_first_name = "Test"
+        admin_last_name  = "Ing"
+        store_name       = "Test Store"
+        store_address    = "123 Test St"
+        store_city       = "Testville"
+        store_state      = "TS"
+        store_zip        = "12345"
+        region_name      = "test-region"
+    else:
 
-    # ── Store Info ────────────────────────────────────────────────
-    _section("Step 2: Store Information")
-    store_name    = _prompt("Store name")
-    store_address = _prompt("Street address")
-    store_city    = _prompt("City")
-    store_state   = _prompt("State (e.g. OR)")
-    store_zip     = _prompt("ZIP code")
+      # ── Admin Credentials ─────────────────────────────────────────
+      _section("Step 1: Admin Account")
+      admin_username   = _prompt("Username")
+      admin_password   = _prompt_password("Password")
+      admin_email      = _prompt("Email")
+      admin_first_name = _prompt("First name")
+      admin_last_name  = _prompt("Last name")
 
-    # ── Region ────────────────────────────────────────────────────
-    _section("Step 3: Region")
-    print("  The region identifies this store in the CodePop network.")
-    region_name = _prompt("Region name (e.g. us-west, Pacific-Northwest)")
+      # ── Store Info ────────────────────────────────────────────────
+      _section("Step 2: Store Information")
+      store_name    = _prompt("Store name")
+      store_address = _prompt("Street address")
+      store_city    = _prompt("City")
+      store_state   = _prompt("State (e.g. OR)")
+      store_zip     = _prompt("ZIP code")
 
-    # ── Confirm ───────────────────────────────────────────────────
+      # ── Region ────────────────────────────────────────────────────
+      _section("Step 3: Region")
+      print("  The region identifies this store in the CodePop network.")
+      region_name = _prompt("Region name (e.g. us-west, Pacific-Northwest)")
+
+      # ── Confirm ───────────────────────────────────────────────────
     print("\n" + "=" * 60)
     print("  Review")
     print("=" * 60)
