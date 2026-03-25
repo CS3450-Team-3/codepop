@@ -1184,7 +1184,7 @@ class P2PJoinView(APIView):
         from cryptography.exceptions import InvalidSignature
 
         data = request.data
-        required = ['node_id', 'public_key', 'region', 'address', 'timestamp', 'signature']
+        required = ['node_id', 'public_key', 'region', 'address', 'timestamp', 'network_token', 'signature']
         missing = [f for f in required if not data.get(f)]
         if missing:
             return Response({'error': f'Missing fields: {", ".join(missing)}'}, status=status.HTTP_400_BAD_REQUEST)
@@ -1194,7 +1194,12 @@ class P2PJoinView(APIView):
         region_name = data['region']
         address = data['address']
         timestamp_str = data['timestamp']
+        network_token = data['network_token']
         sig_b64 = data['signature']
+
+        # Reject nodes not running the official CodePop codebase
+        if network_token != settings.NETWORK_TOKEN:
+            return Response({'error': 'Invalid network token'}, status=status.HTTP_403_FORBIDDEN)
 
         # Replay window: ±5 minutes
         try:
@@ -1212,8 +1217,8 @@ class P2PJoinView(APIView):
         except Exception as e:
             return Response({'error': f'Invalid public key: {e}'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Verify signature: signs f"{node_id}:{address}:{timestamp}" with PKCS1v15+SHA256
-        canonical = f"{node_id}:{address}:{timestamp_str}".encode('utf-8')
+        # Verify signature: signs f"{node_id}:{address}:{timestamp}:{network_token}" with PKCS1v15+SHA256
+        canonical = f"{node_id}:{address}:{timestamp_str}:{network_token}".encode('utf-8')
         try:
             pub_key.verify(base64.b64decode(sig_b64), canonical, padding.PKCS1v15(), hashes.SHA256())
         except InvalidSignature:

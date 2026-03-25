@@ -157,6 +157,12 @@ if not PUBLIC_KEY:
     if os.path.exists(_pub_file):
         PUBLIC_KEY = _read_key_file(_pub_file)
 
+# ── Network Token ─────────────────────────────────────────────────────────────
+# Baked-in identifier for the CodePop P2P network. Included in the signed JOIN
+# payload so only servers running this codebase can join. Not a secret — the
+# trust boundary is possession of this source/image, not secrecy of the value.
+NETWORK_TOKEN = "codepop-network-v1-a3f8c2e1"
+
 SPECTACULAR_SETTINGS = {
     'TITLE': 'CodePop API',
     'DESCRIPTION': 'Comprehensive API for CodePop beverage management and P2P networking.',
