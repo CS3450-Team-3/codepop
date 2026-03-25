@@ -1,51 +1,46 @@
 services:
-  db1:
+  db:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: codepop_db1
+      POSTGRES_DB: codepop_db
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
     volumes:
-      - postgres_data1:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "psql -U postgres -d codepop_db -c 'SELECT 1' > /dev/null 2>&1"]
       interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 20
+      start_period: 15s
 
-  db2:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: codepop_db2
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-    volumes:
-      - postgres_data2:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  backend1:
+  backend:
     build:
       context: .
       dockerfile: codepop_backend/Dockerfile
     ports:
-      - "9001:9000"
+      - "9000:9000"
     environment:
-      DB_HOST: db1
-      DB_NAME: codepop_db1
+      DB_HOST: db
+      DB_NAME: codepop_db
       DB_USER: postgres
       DB_PASSWORD: password
-      SERVER_URL: "http://backend1:9000"
-      SYNC_INTERVAL_SECONDS: "120"
-      RUN_DEV_SEED: "true"
-      REGION: "us-west"
+      SERVER_URL: "http://backend:9000"
+      SETUP_ADMIN_USERNAME: "admin1234"
+      SETUP_ADMIN_PASSWORD: "77177717"
+      SETUP_ADMIN_EMAIL: "test@email.com"
+      SETUP_ADMIN_FIRST_NAME: "Dillan"
+      SETUP_ADMIN_LAST_NAME: "Hart"
+      SETUP_REGION_NAME: "us-west"
+      STORE_NAME: "town crossing"
+      STORE_ADDRESS: "1234 town crossing"
+      STORE_CITY: "Logan"
+      STORE_STATE: "UT"
+      STORE_ZIP: "84341"
     volumes:
-      - node_data1:/data
+      - node_data:/data
     depends_on:
-      db1:
+      db:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9000/health/')"]
@@ -54,55 +49,26 @@ services:
       retries: 15
       start_period: 30s
 
-  backend2:
-    build:
-      context: .
-      dockerfile: codepop_backend/Dockerfile
-    ports:
-      - "9002:9000"
-    environment:
-      DB_HOST: db2
-      DB_NAME: codepop_db2
-      DB_USER: postgres
-      DB_PASSWORD: password
-      SERVER_URL: "http://backend2:9000"
-      SYNC_INTERVAL_SECONDS: "120"
-      SETUP_ADMIN_USERNAME: "admin2"
-      SETUP_ADMIN_PASSWORD: "changeme123"
-      SETUP_PEER_URL: "http://backend1:9000"
-      REGION: "us-west"
-      BOOTSTRAP_NODES: "backend1:9000"
-    volumes:
-      - node_data2:/data
-    depends_on:
-      db2:
-        condition: service_healthy
-      backend1:
-        condition: service_healthy
-
   frontend:
     build:
       context: ./codepop_frontend
     ports:
       - "4000:4000"
     environment:
-      BACKEND1_URL: "http://backend1:9000"
-      BACKEND2_URL: "http://backend2:9000"
+      BACKEND_URL: "http://backend:9000"
     depends_on:
-      - backend1
-      - backend2
+      backend:
+        condition: service_healthy
 
   nginx:
     image: nginx:alpine
     ports:
-      - "100:80"
+      - "90:80"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
       - frontend
 
 volumes:
-  postgres_data1:
-  postgres_data2:
-  node_data1:
-  node_data2:
+  postgres_data:
+  node_data:

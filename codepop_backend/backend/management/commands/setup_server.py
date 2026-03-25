@@ -18,6 +18,7 @@ Two modes:
 
 After setup the standard menu is seeded and the server is registered in ServerRegistry.
 """
+import json
 import os
 import sys
 import getpass
@@ -30,10 +31,13 @@ from backend.setup_helpers import is_configured, seed_menu_data, fetch_peer_disc
 from backend.models import CustomUser, Region, ServerRegistry, MasterList
 
 # Environment variable names used for non-interactive (Docker) setup
-_ENV_USERNAME   = 'SETUP_ADMIN_USERNAME'
-_ENV_PASSWORD   = 'SETUP_ADMIN_PASSWORD'
-_ENV_REGION     = 'SETUP_REGION_NAME'
-_ENV_PEER_URL   = 'SETUP_PEER_URL'
+_ENV_USERNAME    = 'SETUP_ADMIN_USERNAME'
+_ENV_PASSWORD    = 'SETUP_ADMIN_PASSWORD'
+_ENV_EMAIL       = 'SETUP_ADMIN_EMAIL'
+_ENV_FIRST_NAME  = 'SETUP_ADMIN_FIRST_NAME'
+_ENV_LAST_NAME   = 'SETUP_ADMIN_LAST_NAME'
+_ENV_REGION      = 'SETUP_REGION_NAME'
+_ENV_PEER_URL    = 'SETUP_PEER_URL'
 
 
 def _is_interactive() -> bool:
@@ -190,11 +194,15 @@ class Command(BaseCommand):
 
             admin = CustomUser.objects.create_superuser(
                 username=username,
-                email='',
+                email=os.environ.get(_ENV_EMAIL, ''),
                 password=password,
                 user_type='super_admin',
                 home_server=local_server,
             )
+            admin.first_name = os.environ.get(_ENV_FIRST_NAME, '')
+            admin.last_name  = os.environ.get(_ENV_LAST_NAME, '')
+            admin.save()
+
             MasterList.objects.get_or_create(
                 UserID=admin.id,
                 defaults={
@@ -204,6 +212,20 @@ class Command(BaseCommand):
             )
 
             seed_menu_data()
+
+            # Persist store configuration to the /data volume so it survives restarts.
+            store_config = {
+                'store_name': os.environ.get('STORE_NAME', ''),
+                'address':    os.environ.get('STORE_ADDRESS', ''),
+                'city':       os.environ.get('STORE_CITY', ''),
+                'state':      os.environ.get('STORE_STATE', ''),
+                'zip':        os.environ.get('STORE_ZIP', ''),
+            }
+            try:
+                with open('/data/store_config.json', 'w') as f:
+                    json.dump(store_config, f, indent=2)
+            except OSError:
+                pass  # /data may not exist outside Docker; non-fatal
 
         # Patch os.environ so get_local_server() works without a restart.
         os.environ['LOCAL_SERVER_ID'] = server_id
