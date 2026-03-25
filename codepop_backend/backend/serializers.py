@@ -125,7 +125,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = get_user_model()
-        fields = ('id', 'username', 'first_name', 'last_name', 'email')
+        fields = ('id', 'username', 'first_name', 'last_name', 'email', 'user_type', 'home_server')
         read_only_fields = ('id', 'username') # Username usually shouldn't be changeable easily if it's used as unique identifier, but the requirement says "Fetch their full profile (Username, First Name, Last Name, Email)". Let's allow updating first_name, last_name, email.
 
 
