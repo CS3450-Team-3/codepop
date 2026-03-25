@@ -1,9 +1,9 @@
 import React from "react";
 import { Home, ShoppingCart, Plus, Sparkles} from "lucide-react";
 
-const BottomNav = ({ current, setCurrent }) => {
+const BottomNav = ({ current, setCurrent, cartCount }) => {
   return (
-    <div className="fixed bottom-0 left-0 w-full bg-white border-t flex justify-around py-2 shadow-md">
+    <div className="fixed bottom-0 left-0 w-full bg-white border-t flex justify-around py-2 shadow-md z-30">
       
       {/* Home */}
       <NavItem
@@ -19,6 +19,7 @@ const BottomNav = ({ current, setCurrent }) => {
         label="Cart"
         active={current === "cart"}
         onClick={() => setCurrent("cart")}
+        badge={cartCount}
       />
 
       <NavItem
@@ -38,11 +39,11 @@ const BottomNav = ({ current, setCurrent }) => {
   );
 };
 
-const NavItem = ({ icon, label, active, onClick }) => {
+const NavItem = ({ icon, label, active, onClick, badge }) => {
   return (
     <button
       onClick={onClick}
-      className={`flex flex-col items-center text-xs transition ${
+      className={`flex flex-col items-center text-xs transition relative ${
         active ? "text-purple-600" : "text-gray-500"
       }`}
     >
@@ -53,6 +54,11 @@ const NavItem = ({ icon, label, active, onClick }) => {
       >
         {icon}
       </div>
+      {badge > 0 && (
+        <span className="absolute top-1 right-2 bg-red-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center border-2 border-white">
+          {badge}
+        </span>
+      )}
       <span>{label}</span>
     </button>
   );

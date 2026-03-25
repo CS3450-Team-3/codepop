@@ -1,11 +1,14 @@
 import api, { setAccessToken } from "./api";
 import { User } from "@/models/types/user";
 
-export async function login(username: string, password: string): Promise<User> {
-  const { data } = await api.post("auth/login/", {
-    username,
-    password,
-  });
+export async function signIn(email: string, password: string) {
+    const response = await fetch("/backend/auth/login/", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password }),
+    });
 
   setAccessToken(data.access);
 
@@ -15,13 +18,18 @@ export async function login(username: string, password: string): Promise<User> {
   return user.data;
 }
 
-export async function logout() {
-  try {
-    await api.post("auth/logout/");
-  } finally {
-    setAccessToken(null);
-    if (typeof window !== "undefined") {
-      window.location.href = "/auth/login";
+export async function signUp(email: string, password: string, firstName: string, lastName: string) {
+    const response = await fetch("/backend/auth/register/", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password }),
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to sign up");
     }
   }
 }

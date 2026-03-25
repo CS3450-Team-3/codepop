@@ -1,4 +1,4 @@
-from .models import Preference, Drink, Inventory, Notification, Order, Revenue, CustomUser, MasterList, Flavor, ServerRegistry
+from .models import Preference, Drink, Inventory, Notification, Order, Revenue, CustomUser, MasterList, Flavor, ServerRegistry, Region
 from django.shortcuts import get_object_or_404
 from django.db import models
 from django.utils import timezone
@@ -30,6 +30,7 @@ from django.utils.decorators import method_decorator
 import json
 import requests
 import jwt
+import uuid7
 from drf_spectacular.utils import extend_schema, OpenApiTypes
 from django.utils.dateparse import parse_datetime
 from .drinkAI import generate_soda
@@ -383,6 +384,7 @@ from .models import Drink
 from .serializers import DrinkSerializer
 from rest_framework.views import APIView
 
+@method_decorator(csrf_exempt, name='dispatch')
 class DrinkOperations(viewsets.ModelViewSet):
     queryset = Drink.objects.all()
     serializer_class = DrinkSerializer
@@ -638,6 +640,7 @@ class UserNotificationLookup(ListAPIView):
         user = get_object_or_404(User, pk=user_id)
         return Notification.objects.filter(UserID=user_id)
 
+@method_decorator(csrf_exempt, name='dispatch')
 class OrderOperations(viewsets.ModelViewSet):
     queryset = Order.objects.all()
     serializer_class = OrderSerializer
@@ -775,6 +778,25 @@ class StripePaymentIntentView(View):
             
             amount = int(amount_val * 100)  # Stripe uses cents, so multiply dollars by 100
 
+            # Mock check: if STRIPE_SECRET_KEY is the default "TODO", use dummy data
+            if settings.STRIPE_SECRET_KEY == 'TODO: get a new secret stripe key' or settings.STRIPE_SECRET_KEY == 'TODO':
+                print("Using MOCK Stripe for PaymentIntent creation.")
+                # Ensure format is pi_<id>_secret_<secret> to pass frontend regex validation
+                mock_id = str(uuid7.create())
+                mock_secret = str(uuid7.create())
+                mock_pi_id = f"pi_{mock_id}"
+                
+                if order:
+                    order.StripeID = mock_pi_id
+                    order.save(update_fields=['StripeID'])
+                
+                return JsonResponse({
+                    'paymentIntent': f"{mock_pi_id}_secret_{mock_secret}",
+                    'ephemeralKey': f"ek_test_{mock_id}",
+                    'customer': f"cus_{mock_id}",
+                    'publishableKey': 'pk_test_51... (use a real pk_test key if possible)'
+                })
+
             # Create a new customer
             customer = stripe.Customer.create()
 
@@ -805,6 +827,7 @@ class StripePaymentIntentView(View):
                 'publishableKey': getattr(settings, 'STRIPE_PUBLISHABLE_KEY', '')
             })
         except Exception as e:
+            print(f"Payment intent creation failed: {e}")
             return JsonResponse({'error': 'Payment intent creation failed', 'details': str(e)}, status=400)
 
 def refund_order(client_secret_or_id):
@@ -1083,6 +1106,7 @@ class MasterListSyncView(APIView):
     GET  → return this server's full MasterList as {"items": [...]}
     POST → accept {"items": [...]} and upsert each record by UserID
     """
+    authentication_classes = []
     permission_classes = [AllowAny]
 
     @extend_schema(
@@ -1123,32 +1147,119 @@ class PublicDiscoveryView(APIView):
         description="Return this server's public identity (ID, URL, and Public Key) for P2P networking."
     )
     def get(self, request):
-        from cryptography.hazmat.primitives import serialization
-        from cryptography.hazmat.backends import default_backend
-        
         try:
             local_server = get_local_server()
-            
-            # Derive Public Key from the Private Key in settings
-            private_key = serialization.load_pem_private_key(
-                settings.PRIVATE_KEY.encode('utf-8'),
-                password=None,
-                backend=default_backend()
-            )
-            public_key = private_key.public_key()
-            public_pem = public_key.public_bytes(
-                encoding=serialization.Encoding.PEM,
-                format=serialization.PublicFormat.SubjectPublicKeyInfo
-            ).decode('utf-8')
-
             return Response({
                 "ServerID": local_server.ServerID,
                 "ServerURL": local_server.ServerURL,
-                "PublicKey": public_pem,
-                "Region": local_server.Region.RegionID if local_server.Region else None
+                "PublicKey": settings.PUBLIC_KEY,
+                "Region": local_server.Region.RegionID if local_server.Region else None,
+                "RegionName": local_server.Region.RegionName if local_server.Region else None,
+                "IsRegionLeader": local_server.IsRegionLeader,
             }, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({"error": "Discovery failed", "details": str(e)}, status=500)
+
+
+class P2PJoinView(APIView):
+    """
+    Public endpoint for a new node to join the P2P network.
+
+    The joining node proves its identity by signing a canonical payload with its
+    private key. We verify the signature using the public key it presents, then
+    register the peer and return the full peer list.
+
+    POST /backend/p2p/join/
+    """
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        import base64
+        import hashlib
+        from datetime import datetime, timezone as dt_timezone
+        from cryptography.hazmat.primitives import serialization, hashes
+        from cryptography.hazmat.primitives.asymmetric import padding
+        from cryptography.hazmat.backends import default_backend
+        from cryptography.exceptions import InvalidSignature
+
+        data = request.data
+        required = ['node_id', 'public_key', 'region', 'address', 'timestamp', 'signature']
+        missing = [f for f in required if not data.get(f)]
+        if missing:
+            return Response({'error': f'Missing fields: {", ".join(missing)}'}, status=status.HTTP_400_BAD_REQUEST)
+
+        node_id = data['node_id']
+        pub_pem = data['public_key']
+        region_name = data['region']
+        address = data['address']
+        timestamp_str = data['timestamp']
+        sig_b64 = data['signature']
+
+        # Replay window: ±5 minutes
+        try:
+            ts = datetime.fromisoformat(timestamp_str)
+            if ts.tzinfo is None:
+                ts = ts.replace(tzinfo=dt_timezone.utc)
+            if abs((datetime.now(dt_timezone.utc) - ts).total_seconds()) > 300:
+                return Response({'error': 'Timestamp outside 5-minute window'}, status=status.HTTP_400_BAD_REQUEST)
+        except (ValueError, TypeError):
+            return Response({'error': 'Invalid timestamp; use ISO-8601'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Load and validate the public key
+        try:
+            pub_key = serialization.load_pem_public_key(pub_pem.encode(), backend=default_backend())
+        except Exception as e:
+            return Response({'error': f'Invalid public key: {e}'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Verify signature: signs f"{node_id}:{address}:{timestamp}" with PKCS1v15+SHA256
+        canonical = f"{node_id}:{address}:{timestamp_str}".encode('utf-8')
+        try:
+            pub_key.verify(base64.b64decode(sig_b64), canonical, padding.PKCS1v15(), hashes.SHA256())
+        except InvalidSignature:
+            return Response({'error': 'Signature verification failed'}, status=status.HTTP_401_UNAUTHORIZED)
+        except Exception as e:
+            return Response({'error': f'Signature error: {e}'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Validate node_id is the SHA256 fingerprint of the public key (prevents ID spoofing)
+        expected_id = hashlib.sha256(pub_pem.encode()).hexdigest()[:32]
+        if node_id != expected_id:
+            return Response({'error': 'node_id does not match public key fingerprint'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Register the joining peer
+        region, _ = Region.objects.get_or_create(RegionName=region_name)
+
+        # First server to announce a region becomes its leader; subsequent joiners are peers.
+        already_has_servers = ServerRegistry.objects.filter(
+            Region=region,
+            Status='Active',
+        ).exclude(ServerID=node_id).exists()
+        is_leader = not already_has_servers
+
+        ServerRegistry.objects.update_or_create(
+            ServerID=node_id,
+            defaults={
+                'ServerURL': address,
+                'PublicKey': pub_pem,
+                'Status': 'Active',
+                'IsRegionLeader': is_leader,
+                'Region': region,
+            }
+        )
+
+        # Return the full peer list so the joiner can discover all known nodes
+        peers = [
+            {
+                'node_id': s.ServerID,
+                'address': s.ServerURL,
+                'public_key': s.PublicKey,
+                'region': s.Region.RegionName if s.Region else None,
+                'is_region_leader': s.IsRegionLeader,
+            }
+            for s in ServerRegistry.objects.filter(Status='Active')
+        ]
+        return Response({'peers': peers}, status=status.HTTP_200_OK)
+
 
 class MenuView(APIView):
     """

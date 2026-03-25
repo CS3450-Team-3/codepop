@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
+import hashlib
 import os
 from pathlib import Path
 from datetime import timedelta
@@ -26,12 +27,14 @@ SECRET_KEY = 'django-insecure-20c3kbxd-=q$-6^1^i@6u)jklu(js%g87$9sko85kirto!8afv
 
 # Stripe Configuration
 STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY', 'TODO: get a new secret stripe key')
-STRIPE_PUBLISHABLE_KEY = os.environ.get('STRIPE_PUBLISHABLE_KEY', 'TODO: get a new publishable stripe key')
+STRIPE_PUBLISHABLE_KEY = os.environ.get('STRIPE_PUBLISHABLE_KEY', 'pk_test_51T5DqLPnaMtT5PTkugtHqM5ew5RSzkCJ0jklGkdSRXw8VnaiIN3AEW5NAYJzmdrYz2cUjQ7i9uvr9N2hpQnj01gE00jCYApVMN')
 STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET', 'TODO: get a webhook secret')
 
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
+
+APPEND_SLASH = False
 
 ALLOWED_HOSTS = ['*']
 
@@ -106,11 +109,11 @@ AUTH_USER_MODEL = 'backend.CustomUser'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'codepop_database',
-        'USER': 'postgres',  # Replace with your PostgreSQL username
-        'PASSWORD': 'password',  # Replace with your PostgreSQL password
-        'HOST': '127.0.0.1',  # Set to 'localhost' or the IP of your database server
-        'PORT': '5432', 
+        'NAME': os.environ.get('DB_NAME', 'codepop_database'),
+        'USER': os.environ.get('DB_USER', 'postgres'),
+        'PASSWORD': os.environ.get('DB_PASSWORD', 'password'),
+        'HOST': os.environ.get('DB_HOST', '127.0.0.1'),
+        'PORT': os.environ.get('DB_PORT', '5432'),
     }
 }
 
@@ -126,47 +129,33 @@ REST_FRAMEWORK = {
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
 
-# Asymmetric Key Setup for P2P Authentication
-# For production, load these from secure environment variables or a secrets manager.
-# THE PRIVATE KEY IS NEVER STORED IN SOURCE CONTROL.
-PRIVATE_KEY = os.environ.get('SERVER_PRIVATE_KEY', """-----BEGIN PRIVATE KEY-----
-MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQD0UrFTyrTNuif0
-pMrlAAZUOpH43K3VYhGyvSA9/6osWQzdkfhOyrABkebSLAXCjkOODXKVk8j6k2rl
-XZa9KpeXTPnPqUXL12oBX0VIY9cgq8klHgsUeOY2n3raMsDvGFi8uofuDC6kJGI3
-EN+CrIJuF0jbWv6spk9xmTeXgXVCcMVxeNmx4b1ysMldP3Uy++AWh+cdxWnhcvY/
-mUiGhFPcUB5ChTS8sSCDUSbT6ceoWaEDERxxoQHY1JgYsbvx7SUYo2u5XsPxxa29
-jPZKjh08y1eIkY76XBjfrrVE326DYRJYA9I6Q/Z4JHH+TgSODCAQCJbnXjlh8rdO
-uESYNpqJAgMBAAECggEAJx7dMUXXgMrE6QxAnJL4xcssYlpbeeZJCoNJQq7Jkxjz
-JsCKWiYO2+wpDGVrdVqNgJUF+uNTSU60zWMYkX4yEFI3/G3l33IaPCataPOWQln0
-oX0tAwB/btGcZzcR43bU2+tLe+yhbzuQKlxeSDB9IJ7ugIkSbEH48ynjAomtD+UU
-mhOY0BqGQEXViF+jOmghzJRuSBVe/pYySPR2AmLc4C/1yoSsSOTjQfATpAy2i+HZ
-79Yg0XMUDEf3v38coVGPRircuCFwsfBUN+w6G21H84qoK8p/+4mCM6u9ktSGLVRw
-CCtkUWyzfXX9oVq5EXvMWLYwbkHAxkNo8RiTEOrtTQKBgQD9apXnlxEJJH4By3Vb
-Uffve7o6AubLVRsrtaPQsqq3SSHIIi45jimLHoP14DojjL6lsu4EIR5a7UFG5xtT
-4t+MpDPrE1N/HkBqu5FMMExNg75jv8ZApNh+TkT76oQh1fDkXAl65wex9knf0BXu
-xM8oK/6masrfNqvdi4BC0oXx0wKBgQD20F+kjufvxVIArLfWpLd+varXsgRybPUS
-uukwlnlCNDqbpG5VJ8i5dG5VuratRjLbdbzDegazp3RJAG8FSViSxvy3LmVI9MVx
-YspcLuDSP4EyTsJAqdaBskJTw3u6tJyepRpLsWC5lhL+9/qZA3MQ195bbSUZbCxB
-HVs2y+DsswKBgEi74M6Zo0AWgzwMo2BUhG7t+iNQVeGiSawf9CagQTNeAB4rAU1v
-qijN114ov0cYzFdOpdX1k3rRgdzR1Bwdj8AUGPqtj1d63U5FC4zsh9nvqCOFFWfU
-aHbIDDCpvMbhWsSQTgBCcwj3AXkFhmYDgtmq1un42MV8MZPiyCtltSAVAoGARGrY
-yG4Q30dshuFaCLcaYpjDHg2r6+hGO03yzFQ6At8li/WV3CcuHjKnTz512yyFdo55
-qBpQd0apFn93Rxjg47cjYMgMrZ+kh9zhyZH5Im8WKlLoyDIMU2GNv1iGGOhuLhAI
-bQkbjfaLB4DIR9hL8lRUwDVOPnDdB6PSoCr+C78CgYEAxYRjx+B1I4mp07REzIHK
-5C0mWqRLokBAmQd1PI7SQc3ieLqtN/9NF3eiIZb47fX8nLCYuDTa14jemwlWaSFH
-R6zVN2x6RDBQg7rV/c2Pqxt4IFShdgYvjouO06oiTIyyjlUIJ88ighakefOXZ0Kc
-sTFtAH5UXuEcaCGvYh+u7Fk=
------END PRIVATE KEY-----""")
+# ── Asymmetric Key Setup for P2P Authentication ───────────────────────────────
+# Priority: environment variable → /data/node_key.pem (generated on first startup).
+# Falling back to the key file lets management commands run via `docker compose exec`
+# without needing the variables that entrypoint.sh exports to its own process tree.
 
-PUBLIC_KEY = os.environ.get('SERVER_PUBLIC_KEY', """-----BEGIN PUBLIC KEY-----
-MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA9FKxU8q0zbon9KTK5QAG
-VDqR+Nyt1WIRsr0gPf+qLFkM3ZH4TsqwAZHm0iwFwo5Djg1ylZPI+pNq5V2WvSqX
-l0z5z6lFy9dqAV9FSGPXIKvJJR4LFHjmNp962jLA7xhYvLqH7gwupCRiNxDfgqyC
-bhdI21r+rKZPcZk3l4F1QnDFcXjZseG9crDJXT91MvvgFofnHcVp4XL2P5lIhoRT
-3FAeQoU0vLEgg1Em0+nHqFmhAxEccaEB2NSYGLG78e0lGKNruV7D8cWtvYz2So4d
-PMtXiJGO+lwY3661RN9ug2ESWAPSOkP2eCRx/k4EjgwgEAiW5145YfK3TrhEmDaa
-iQIDAQAB
------END PUBLIC KEY-----""")
+def _read_key_file(path: str) -> str:
+    """Read a PEM file, stripping trailing whitespace (matches bash $(cat ...) behaviour)."""
+    with open(path) as _f:
+        return _f.read().rstrip()
+
+
+PRIVATE_KEY = os.environ.get('SERVER_PRIVATE_KEY')
+if not PRIVATE_KEY:
+    _priv_file = '/data/node_key.pem'
+    if os.path.exists(_priv_file):
+        PRIVATE_KEY = _read_key_file(_priv_file)
+if not PRIVATE_KEY:
+    raise ValueError(
+        "SERVER_PRIVATE_KEY is not set and /data/node_key.pem does not exist. "
+        "The key is generated automatically on first startup via entrypoint.sh."
+    )
+
+PUBLIC_KEY = os.environ.get('SERVER_PUBLIC_KEY')
+if not PUBLIC_KEY:
+    _pub_file = '/data/node_key_pub.pem'
+    if os.path.exists(_pub_file):
+        PUBLIC_KEY = _read_key_file(_pub_file)
 
 SPECTACULAR_SETTINGS = {
     'TITLE': 'CodePop API',
@@ -234,4 +223,12 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # The ServerRegistry primary key for this deployed instance.
 # Each server must set the LOCAL_SERVER_ID environment variable so the sync
 # framework can identify itself when making or receiving inter-server calls.
-LOCAL_SERVER_ID = os.environ.get('LOCAL_SERVER_ID', None)
+LOCAL_SERVER_ID = os.environ.get('LOCAL_SERVER_ID') or (
+    hashlib.sha256(PUBLIC_KEY.encode()).hexdigest()[:32] if PUBLIC_KEY else None
+)
+
+# Sync scheduler interval in seconds. Set via SYNC_INTERVAL_SECONDS env var.
+# Default: 3600 (1 hour). For testing, set to 120 (2 minutes).
+SYNC_INTERVAL_SECONDS = int(os.environ.get('SYNC_INTERVAL_SECONDS', 3600))
+
+AUTH_USER_MODEL = 'backend.CustomUser'
