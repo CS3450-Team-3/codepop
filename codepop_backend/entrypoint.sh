@@ -50,9 +50,19 @@ fi
 echo "Node ID: ${LOCAL_SERVER_ID}"
 
 # ── Migrations ────────────────────────────────────────────────────────────────
-python manage.py makemigrations --verbosity 0
-python manage.py migrate --verbosity 0
-echo "Migrations up to date."
+# Run makemigrations+migrate only when model changes or pending migrations exist
+NEEDS_MAKEMIGRATIONS=false
+NEEDS_MIGRATE=false
+python manage.py makemigrations --check --verbosity 0 2>/dev/null || NEEDS_MAKEMIGRATIONS=true
+python manage.py migrate --check --verbosity 0 2>/dev/null || NEEDS_MIGRATE=true
+
+if [ "${NEEDS_MAKEMIGRATIONS}" = "true" ] || [ "${NEEDS_MIGRATE}" = "true" ]; then
+    echo "Applying migrations..."
+    python manage.py makemigrations --verbosity 0
+    python manage.py migrate --verbosity 0
+else
+    echo "No migrations to apply."
+fi
 
 # ── Seeding / Setup ───────────────────────────────────────────────────────────
 if [ "${RUN_DEV_SEED:-false}" = "true" ]; then
