@@ -143,7 +143,7 @@ def main():
         a docker-compose.yml ready to launch your CodePop server.
     """))
 
-    test_config      = _prompt("Setup Test Config? (Y/n)")
+    test_config      = _prompt("Setup with default TESTING values? (Y/n)")
     if test_config.lower() in ("y", "yes", ""):
         # ── Test Config ───────────────────────────────────────────────
         _section("Test Config")
@@ -243,7 +243,7 @@ def main():
             docker compose down -v
 
         Your server will be available at:
-            Frontend : http://localhost:80
+            Frontend : http://localhost:90
             Backend  : http://localhost:9000
                           
         Now starting the server with `docker compose up --build`...
