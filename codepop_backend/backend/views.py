@@ -781,9 +781,9 @@ class StripePaymentIntentView(View):
             # Mock check: if STRIPE_SECRET_KEY is the default "TODO", use dummy data
             if settings.STRIPE_SECRET_KEY == 'TODO: get a new secret stripe key' or settings.STRIPE_SECRET_KEY == 'TODO':
                 print("Using MOCK Stripe for PaymentIntent creation.")
-                # Ensure format is pi_<id>_secret_<secret> to pass frontend regex validation
-                mock_id = str(uuid7.create())
-                mock_secret = str(uuid7.create())
+                # Ensure format is pi_<id>_secret_<secret> without hyphens to pass frontend validation
+                mock_id = str(uuid7.create()).replace('-', '')
+                mock_secret = str(uuid7.create()).replace('-', '')
                 mock_pi_id = f"pi_{mock_id}"
                 
                 if order:
@@ -794,7 +794,7 @@ class StripePaymentIntentView(View):
                     'paymentIntent': f"{mock_pi_id}_secret_{mock_secret}",
                     'ephemeralKey': f"ek_test_{mock_id}",
                     'customer': f"cus_{mock_id}",
-                    'publishableKey': 'pk_test_51... (use a real pk_test key if possible)'
+                    'publishableKey': settings.STRIPE_PUBLISHABLE_KEY
                 })
 
             # Create a new customer

@@ -188,7 +188,7 @@ class Command(BaseCommand):
                     'Status':         'Active',
                     'IsRegionLeader': is_leader,
                     'Region':         region,
-                    'StoreName':      os.environ.get('STORE_NAME', ''),
+                    'StoreName':      os.environ.get('STORE_NAME', f"Store {server_id[:8]}"),
                     'StoreAddress':   os.environ.get('STORE_ADDRESS', ''),
                     'StoreCity':      os.environ.get('STORE_CITY', ''),
                     'StoreState':     os.environ.get('STORE_STATE', ''),
