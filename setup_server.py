@@ -76,9 +76,14 @@ services:
       - "4000:4000"
     environment:
       BACKEND_URL: "http://backend:9000"
+      WATCHPACK_POLLING: "true"
+    volumes:
+      - ./codepop_frontend:/app
+      - /app/node_modules
+      - /app/.next
     depends_on:
       backend:
-        condition: service_healthy
+        condition: service_started
 
   nginx:
     image: nginx:alpine
