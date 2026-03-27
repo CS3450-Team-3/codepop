@@ -65,6 +65,11 @@ class ServerRegistry(models.Model):
         related_name='servers',
     )
     IsRegionLeader = models.BooleanField(default=False)
+    StoreName = models.CharField(max_length=255, blank=True, default='')
+    StoreAddress = models.CharField(max_length=255, blank=True, default='')
+    StoreCity = models.CharField(max_length=100, blank=True, default='')
+    StoreState = models.CharField(max_length=2, blank=True, default='')
+    StoreZip = models.CharField(max_length=10, blank=True, default='')
 
     def __str__(self):
         return f"Server {self.ServerID}: {self.ServerURL}"

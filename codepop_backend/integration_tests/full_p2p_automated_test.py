@@ -8,6 +8,7 @@ import concurrent.futures
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.backends import default_backend
+from port_utils import find_n_available_ports
 
 # CONFIGURATION
 SECTION_TOTAL = 9
@@ -45,8 +46,13 @@ def print_header(msg):
 
 BACKEND_DIR = os.path.abspath(os.path.join(SCRIPT_DIR, ".."))
 
-PORT_A = 8000
-PORT_B = 8001
+# Find available ports starting from 8050
+print_header("Initializing Port Discovery")
+found_ports = find_n_available_ports(2)
+PORT_A = found_ports[0]
+PORT_B = found_ports[1]
+print_substep(f"Using dynamic ports: Server A = {PORT_A}, Server B = {PORT_B}")
+
 DB_A = "p2p_test_a"
 DB_B = "p2p_test_b"
 
@@ -202,21 +208,27 @@ def main():
         # 1. Setup Databases and Self-Identify (PARALLEL)
         print_step(1, "Setting up databases and self-identification...")
         
-        def setup_single_server(db, s_id, url, key, leader, label):
+        def setup_single_server(db, s_id, url, pub_key, priv_key, leader, label):
             ensure_postgresql_db_exists(db)
-            if not run_cmd(["python", "manage.py", "migrate"], env_update={"DATABASE_NAME": db}):
+            env_update = {
+                "DATABASE_NAME": db,
+                "SERVER_PRIVATE_KEY": priv_key,
+                "SERVER_PUBLIC_KEY": pub_key,
+                "LOCAL_SERVER_ID": s_id
+            }
+            if not run_cmd(["python", "manage.py", "migrate"], env_update=env_update):
                 return False, "Migration failed"
             
-            cmd = ["python", "manage.py", "register_peer", "--id", str(s_id), "--url", url, "--key", key]
+            cmd = ["python", "manage.py", "register_peer", "--id", str(s_id), "--url", url, "--key", pub_key]
             if leader: cmd.append("--leader")
-            if not run_cmd(cmd, env_update={"DATABASE_NAME": db}):
+            if not run_cmd(cmd, env_update=env_update):
                 return False, "Register peer failed"
             return True, None
 
         with concurrent.futures.ThreadPoolExecutor() as executor:
             futures = [
-                executor.submit(setup_single_server, DB_A, "server_a", f"http://localhost:{PORT_A}", pub_a, True, "A"),
-                executor.submit(setup_single_server, DB_B, "server_b", f"http://localhost:{PORT_B}", pub_b, False, "B")
+                executor.submit(setup_single_server, DB_A, "server_a", f"http://localhost:{PORT_A}", pub_a, priv_a, True, "A"),
+                executor.submit(setup_single_server, DB_B, "server_b", f"http://localhost:{PORT_B}", pub_b, priv_b, False, "B")
             ]
             for future in concurrent.futures.as_completed(futures):
                 success, error_msg = future.result()

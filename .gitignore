@@ -34,6 +34,12 @@ pyproject.toml
 .gemini/
 conductor/
 
+# Ignore Claude
+.claude/
+
+# Ignore Docker Compose
+docker-compose.yml
+
 # Ignore continue
 .continue/
 

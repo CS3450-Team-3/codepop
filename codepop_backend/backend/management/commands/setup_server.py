@@ -30,10 +30,13 @@ from backend.setup_helpers import is_configured, seed_menu_data, fetch_peer_disc
 from backend.models import CustomUser, Region, ServerRegistry, MasterList
 
 # Environment variable names used for non-interactive (Docker) setup
-_ENV_USERNAME   = 'SETUP_ADMIN_USERNAME'
-_ENV_PASSWORD   = 'SETUP_ADMIN_PASSWORD'
-_ENV_REGION     = 'SETUP_REGION_NAME'
-_ENV_PEER_URL   = 'SETUP_PEER_URL'
+_ENV_USERNAME    = 'SETUP_ADMIN_USERNAME'
+_ENV_PASSWORD    = 'SETUP_ADMIN_PASSWORD'
+_ENV_EMAIL       = 'SETUP_ADMIN_EMAIL'
+_ENV_FIRST_NAME  = 'SETUP_ADMIN_FIRST_NAME'
+_ENV_LAST_NAME   = 'SETUP_ADMIN_LAST_NAME'
+_ENV_REGION      = 'SETUP_REGION_NAME'
+_ENV_PEER_URL    = 'SETUP_PEER_URL'
 
 
 def _is_interactive() -> bool:
@@ -185,16 +188,25 @@ class Command(BaseCommand):
                     'Status':         'Active',
                     'IsRegionLeader': is_leader,
                     'Region':         region,
+                    'StoreName':      os.environ.get('STORE_NAME', f"Store {server_id[:8]}"),
+                    'StoreAddress':   os.environ.get('STORE_ADDRESS', ''),
+                    'StoreCity':      os.environ.get('STORE_CITY', ''),
+                    'StoreState':     os.environ.get('STORE_STATE', ''),
+                    'StoreZip':       os.environ.get('STORE_ZIP', ''),
                 },
             )
 
             admin = CustomUser.objects.create_superuser(
                 username=username,
-                email='',
+                email=os.environ.get(_ENV_EMAIL, ''),
                 password=password,
                 user_type='super_admin',
                 home_server=local_server,
             )
+            admin.first_name = os.environ.get(_ENV_FIRST_NAME, '')
+            admin.last_name  = os.environ.get(_ENV_LAST_NAME, '')
+            admin.save()
+
             MasterList.objects.get_or_create(
                 UserID=admin.id,
                 defaults={

@@ -1,226 +1,92 @@
-# Setup Instructions for CodePop
+# CodePop
 
-Follow these instructions to set up the CodePop project on your machine.
+A P2P-enabled soda pop ordering platform.
 
-## Backend Setup
+## Prerequisites
 
-1. **Install Dependencies**
-   - Navigate to the base directory of your project and run the following command to create the virtual environment for the backend:
+- [Docker](https://docs.docker.com/get-docker/) with the Compose plugin (or Docker Desktop)
+- Python 3 (for the setup wizard only)
 
-     ```bash
-     python -m venv codepop_virtual_enviroment
-     ```
+## First-Time Setup
 
-   - This will create a folder in the root directory titled `codepop_virtual_enviroment`.
-   - Activate the virtual environment:
+Run the setup wizard once to configure your store and generate `docker-compose.yml`. The wizard will prompt for admin credentials and store info, then launch the server automatically.
 
-     ```bash
-     # WINDOWS command using git bash
-     source codepop_virtual_enviroment/Scripts/activate
-     # Mac and Linux version
-     source codepop_virtual_enviroment/bin/activate
-     ```
+```bash
+python setup_server.py
+```
 
-   - Run the following command once the virtual environment has been activated to install dependencies:
+The wizard offers a **test config** option (press Enter to accept) that fills in default values — useful for local development.
 
-     ```bash
-     python -m pip install -r requirements.txt
-     ```
+Once the wizard completes, the server starts via `docker compose up --build`. When it's ready:
 
-   - Run the following command to confirm you have the proper dependencies installed:
+| Service  | URL                     |
+| -------- | ----------------------- |
+| Frontend | http://localhost:4000   |
+| Backend  | http://localhost:9000   |
 
-     ```bash
-     python -m pip list
-     ```
+## Subsequent Starts
 
-   - your output should look like the following:
+```bash
+docker compose up
+```
 
-     ```bash
-     Package                       Version
-     ----------------------------- ---------------
-     asgiref                       3.8.1
-     certifi                       2024.8.30
-     cffi                          2.0.0
-     charset-normalizer            3.4.0
-     colorama                      0.4.6
-     cryptography                  46.0.5
-     Django                        5.1.2
-     django-cors-headers           4.4.0
-     djangorestframework           3.15.2
-     djangorestframework_simplejwt 5.5.1
-     drf-spectacular               0.29.0
-     filelock                      3.16.1
-     fsspec                        2024.10.0
-     huggingface-hub               0.26.2
-     idna                          3.10
-     inflection                    0.5.1
-     Jinja2                        3.1.4
-     joblib                        1.4.2
-     jsonschema                    4.26.0
-     MarkupSafe                    3.0.2
-     mpmath                        1.3.0
-     networkx                      3.4.2
-     numpy                         2.1.2
-     packaging                     24.2
-     pandas                        2.2.3
-     pip                           24.0
-     psycopg2                      2.9.9
-     pycparser                     3.0
-     PyJWT                         2.12.1
-     python-dateutil               2.9.0.post0
-     pytz                          2024.2
-     PyYAML                        6.0.2
-     regex                         2024.11.6
-     requests                      2.32.3
-     safetensors                   0.4.5
-     scikit-learn                  1.5.2
-     scipy                         1.14.1
-     sentencepiece                 0.2.0
-     setuptools                    80.9.0
-     six                           1.16.0
-     sqlparse                      0.5.1
-     stripe                        11.2.0
-     sympy                         1.13.1
-     threadpoolctl                 3.5.0
-     tokenizers                    0.20.3
-     torch                         2.5.1
-     tqdm                          4.67.0
-     transformers                  4.46.2
-     typing_extensions             4.12.2
-     tzdata                        2024.2
-     uritemplate                   4.2.0
-     urllib3                       2.2.3
-     uuid7-standard                1.1.0
-     ```
+## Stopping the Server
 
-   - **Virtual Environment FAQs**
-     - Please update what the expected output for the `python -m pip list` when you add new packages.
+```bash
+# Stop containers
+docker compose down
 
-2. **Download and Install PostgreSQL**
-   - Download PostgreSQL from the following link:
-     [PostgreSQL Downloads](https://www.enterprisedb.com/downloads/postgres-postgresql-downloads)
-   - **Important:** When installing PostgreSQL, use the following credentials:
-     - **Username:** `postgres`
-     - **Password:** `password`
+# Stop and wipe ALL data (full reset)
+docker compose down -v
+```
 
-3. **Create the Database**
-   - Sign in to PostgreSQL:
-     ```bash
-     psql -U postgres
-     ```
-   - Create the database:
-     ```sql
-     CREATE DATABASE codepop_database;
-     ```
+## API Documentation
 
-4. **Populate Database and Start the Server**
-   - Navigate to the `codepop_backend` directory.
-   - Run the setup script to clean and populate the database:
+The backend exposes interactive API docs. The backend must be running to access these.
 
-     ```bash
-     ./clean_database.sh
-     ```
-
-   - Start the server:
-
-     ```bash
-     python manage.py runserver
-     ```
-
-## API Documentation (Swagger/OpenAPI)
-
-CodePop includes interactive API documentation to help with frontend development and testing. **Note: The Django backend server must be running to access these pages.**
-
-- **[Swagger UI (Interactive Playground):](http://localhost:8000/api/schema/swagger-ui/)** `http://localhost:8000/api/schema/swagger-ui/`
-  - Use this to test endpoints directly in your browser.
-- **[Redoc (Technical Documentation):](http://localhost:8000/api/schema/redoc/)** `http://localhost:8000/api/schema/redoc/`
-  - A clean, searchable interface for viewing API specifications.
-- **[JSON Schema:](http://localhost:8000/api/schema/)** `http://localhost:8000/api/schema/`
-  - The raw OpenAPI 3.0 specification.
-
-## Frontend Setup (Next.js)
-
-The CodePop web frontend is built using Next.js and TypeScript.
-
-1. **Install Node.js**
-   - Download and install Node.js (v18+ recommended) from [nodejs.org](https://nodejs.org/en).
-
-2. **Start the Next.js App**
-   - Navigate to the `codepop_frontend` directory.
-   - Install dependencies:
-
-     ```bash
-     npm install
-     ```
-
-   - Run the development server:
-
-     ```bash
-     npm run dev
-     ```
-
-   - Open [http://localhost:3000](http://localhost:3000) in your browser to see the application.
-
-## Troubleshooting
-
-### Database State Issues
-
-If you pull new changes and the database is in an inconsistent state:
-
-1. Navigate to `codepop_backend`.
-2. Run `./clean_database.sh`.
-   **WARNING:** This will clear all data and repopulate with default values.
+- **Swagger UI:** http://localhost:9000/api/schema/swagger-ui/
+- **Redoc:** http://localhost:9000/api/schema/redoc/
+- **OpenAPI JSON:** http://localhost:9000/api/schema/
 
 ## Running Backend Tests
 
 ### Standard Tests
 
-1. Navigate to `codepop_backend`.
-2. Run migrations:
-
-   ```bash
-   python manage.py makemigrations
-   python manage.py migrate
-   ```
-
-3. Run tests:
-
-   ```bash
-   python manage.py test
-   ```
-
-### P2P & Integration Testing Suite
-
-CodePop includes a specialized suite for testing decentralized P2P functionality, including multi-instance orchestration.
-
-#### Level 1: Logic Verification (Fast)
-Validates P2P logic and JWT claims using mocks. Run from `codepop_backend`:
+Run from the project root (requires a running database or Docker environment):
 
 ```bash
-python manage.py test backend.tests_p2p
+docker compose exec backend python manage.py test
+```
+
+### P2P & Integration Tests
+
+#### Level 1: Logic Verification (Fast)
+
+Validates P2P logic and JWT claims using mocks:
+
+```bash
+docker compose exec backend python manage.py test backend.tests_p2p
 ```
 
 #### Level 2: Full Integration (Multi-Instance)
+
 Orchestrates two real servers and validates discovery and network-level proxying. Run from the **project root**:
 
 ```bash
 python codepop_backend/integration_tests/full_p2p_automated_test.py
 ```
 
-For more detailed information on P2P testing, see the [Integration Tests README](codepop_backend/integration_tests/README.md).
+For more detail, see the [Integration Tests README](codepop_backend/integration_tests/README.md).
 
-## Basic Data (Default)
+## Default Test Data
 
-These values are populated by `clean_database.sh`:
+When using the test config, the following accounts and data are created:
 
 ### Users
 
-| Username | Password | Email              | First Name  | Last Name | Role    |
-| -------- | -------- | ------------------ | ----------- | --------- | ------- |
-| super    | password | supertest@test.com | Lemonjello  | Smith     | Super   |
-| staff    | password | staff@codepop.com  | Orlando     |           | Manager |
-| test     | password | test@test.com      | Orangejello | Smith     | User    |
-| test2    | password | test@testing.com   | Bob         | Bobsford  | User    |
+| Username | Password    | Email           | Role  |
+| -------- | ----------- | --------------- | ----- |
+| admin    | password123 | test@email.com  | Admin |
 
 ### Featured Drinks
 

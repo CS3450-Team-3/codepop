@@ -1,8 +1,7 @@
 import type { NextConfig } from "next";
 import path from "path";
 
-const backend1 = process.env.BACKEND1_URL ?? "http://localhost:9001";
-const backend2 = process.env.BACKEND2_URL ?? "http://localhost:9002";
+const backend = process.env.BACKEND_URL ?? "http://localhost:9000";
 
 const nextConfig: NextConfig = {
   trailingSlash: true,
@@ -13,19 +12,19 @@ const nextConfig: NextConfig = {
     return [
       {
         source: '/backend/:path*/',
-        destination: 'http://127.0.0.1:8000/backend/:path*/',
+        destination: `${backend}/backend/:path*/`,
       },
       {
         source: '/backend/:path*',
-        destination: 'http://127.0.0.1:8000/backend/:path*',
+        destination: `${backend}/backend/:path*`,
       },
       {
         source: '/api/servers',
-        destination: `${backend1}/backend/servers/`,
+        destination: `${backend}/backend/servers/`,
       },
       {
         source: '/api/:path*',
-        destination: 'http://127.0.0.1:8000/api/:path*',
+        destination: `${backend}/api/:path*`,
       },
     ];
   },

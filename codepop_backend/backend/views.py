@@ -781,9 +781,9 @@ class StripePaymentIntentView(View):
             # Mock check: if STRIPE_SECRET_KEY is the default "TODO", use dummy data
             if settings.STRIPE_SECRET_KEY == 'TODO: get a new secret stripe key' or settings.STRIPE_SECRET_KEY == 'TODO':
                 print("Using MOCK Stripe for PaymentIntent creation.")
-                # Ensure format is pi_<id>_secret_<secret> to pass frontend regex validation
-                mock_id = str(uuid7.create())
-                mock_secret = str(uuid7.create())
+                # Ensure format is pi_<id>_secret_<secret> without hyphens to pass frontend validation
+                mock_id = str(uuid7.create()).replace('-', '')
+                mock_secret = str(uuid7.create()).replace('-', '')
                 mock_pi_id = f"pi_{mock_id}"
                 
                 if order:
@@ -794,7 +794,7 @@ class StripePaymentIntentView(View):
                     'paymentIntent': f"{mock_pi_id}_secret_{mock_secret}",
                     'ephemeralKey': f"ek_test_{mock_id}",
                     'customer': f"cus_{mock_id}",
-                    'publishableKey': 'pk_test_51... (use a real pk_test key if possible)'
+                    'publishableKey': settings.STRIPE_PUBLISHABLE_KEY
                 })
 
             # Create a new customer
@@ -1184,7 +1184,7 @@ class P2PJoinView(APIView):
         from cryptography.exceptions import InvalidSignature
 
         data = request.data
-        required = ['node_id', 'public_key', 'region', 'address', 'timestamp', 'signature']
+        required = ['node_id', 'public_key', 'region', 'address', 'timestamp', 'network_token', 'signature']
         missing = [f for f in required if not data.get(f)]
         if missing:
             return Response({'error': f'Missing fields: {", ".join(missing)}'}, status=status.HTTP_400_BAD_REQUEST)
@@ -1194,7 +1194,12 @@ class P2PJoinView(APIView):
         region_name = data['region']
         address = data['address']
         timestamp_str = data['timestamp']
+        network_token = data['network_token']
         sig_b64 = data['signature']
+
+        # Reject nodes not running the official CodePop codebase
+        if network_token != settings.NETWORK_TOKEN:
+            return Response({'error': 'Invalid network token'}, status=status.HTTP_403_FORBIDDEN)
 
         # Replay window: ±5 minutes
         try:
@@ -1212,8 +1217,8 @@ class P2PJoinView(APIView):
         except Exception as e:
             return Response({'error': f'Invalid public key: {e}'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Verify signature: signs f"{node_id}:{address}:{timestamp}" with PKCS1v15+SHA256
-        canonical = f"{node_id}:{address}:{timestamp_str}".encode('utf-8')
+        # Verify signature: signs f"{node_id}:{address}:{timestamp}:{network_token}" with PKCS1v15+SHA256
+        canonical = f"{node_id}:{address}:{timestamp_str}:{network_token}".encode('utf-8')
         try:
             pub_key.verify(base64.b64decode(sig_b64), canonical, padding.PKCS1v15(), hashes.SHA256())
         except InvalidSignature:

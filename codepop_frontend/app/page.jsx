@@ -53,7 +53,7 @@ function StoreSelector({ onSelect }) {
               onClick={() => onSelect(server.ServerID)}
               className="block border rounded-lg px-6 py-4 hover:bg-gray-50 transition-colors text-left w-full"
             >
-              <div className="font-semibold">Store {server.ServerID}</div>
+              <div className="font-semibold">{server.StoreName || `Store ${server.ServerID.slice(0, 8)}`}</div>
               {server.Region !== null && (
                 <div className="text-sm text-gray-500">Region {server.Region}</div>
               )}

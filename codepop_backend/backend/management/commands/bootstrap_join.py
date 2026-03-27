@@ -45,7 +45,8 @@ class Command(BaseCommand):
         from cryptography.hazmat.backends import default_backend
 
         timestamp = datetime.now(timezone.utc).isoformat()
-        canonical = f"{node_id}:{server_url}:{timestamp}".encode('utf-8')
+        network_token = settings.NETWORK_TOKEN
+        canonical = f"{node_id}:{server_url}:{timestamp}:{network_token}".encode('utf-8')
 
         private_key = serialization.load_pem_private_key(
             settings.PRIVATE_KEY.encode('utf-8'),
@@ -62,6 +63,7 @@ class Command(BaseCommand):
             'region': region,
             'address': server_url,
             'timestamp': timestamp,
+            'network_token': network_token,
             'signature': sig_b64,
         }
 
