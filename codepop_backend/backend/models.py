@@ -70,6 +70,7 @@ class ServerRegistry(models.Model):
     StoreCity = models.CharField(max_length=100, blank=True, default='')
     StoreState = models.CharField(max_length=2, blank=True, default='')
     StoreZip = models.CharField(max_length=10, blank=True, default='')
+    StoreGeohash = models.CharField(max_length=12, blank=True, default='')
 
     def __str__(self):
         return f"Server {self.ServerID}: {self.ServerURL}"

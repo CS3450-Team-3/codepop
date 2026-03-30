@@ -9,11 +9,14 @@ After completing the wizard, start your server with:
 
 """
 import getpass
+import json
 import os
 import re
 import subprocess
 import sys
 import textwrap
+import urllib.parse
+import urllib.request
 from time import sleep
 
 
@@ -57,6 +60,7 @@ services:
       STORE_CITY: {store_city}
       STORE_STATE: {store_state}
       STORE_ZIP: {store_zip}
+      STORE_GEOHASH: {store_geohash}
     volumes:
       - node_data:/data
     depends_on:
@@ -139,6 +143,60 @@ def _section(title):
     print(f"\n--- {title} ---")
 
 
+def _encode_geohash(lat, lon, precision=7):
+    """Encode latitude/longitude to a geohash string. Pure Python, no dependencies."""
+    BASE32 = "0123456789bcdefghjkmnpqrstuvwxyz"
+    lat_range, lon_range = [-90.0, 90.0], [-180.0, 180.0]
+    is_lon = True
+    bits = 0
+    bit_count = 0
+    result = []
+    while len(result) < precision:
+        if is_lon:
+            mid = (lon_range[0] + lon_range[1]) / 2
+            if lon >= mid:
+                bits = (bits << 1) | 1
+                lon_range[0] = mid
+            else:
+                bits = (bits << 1) | 0
+                lon_range[1] = mid
+        else:
+            mid = (lat_range[0] + lat_range[1]) / 2
+            if lat >= mid:
+                bits = (bits << 1) | 1
+                lat_range[0] = mid
+            else:
+                bits = (bits << 1) | 0
+                lat_range[1] = mid
+        is_lon = not is_lon
+        bit_count += 1
+        if bit_count == 5:
+            result.append(BASE32[bits])
+            bits = 0
+            bit_count = 0
+    return "".join(result)
+
+
+def _geocode_address(address, city, state, zip_code):
+    """
+    Query Nominatim to verify an address and return (lat, lon).
+    Returns (None, None) if the address cannot be geocoded.
+    Uses only stdlib: urllib.request, urllib.parse, json.
+    """
+    query = f"{address}, {city}, {state} {zip_code}, USA"
+    params = urllib.parse.urlencode({"q": query, "format": "json", "limit": "1"})
+    url = f"https://nominatim.openstreetmap.org/search?{params}"
+    req = urllib.request.Request(url, headers={"User-Agent": "CodePop-Setup/1.0"})
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            results = json.loads(resp.read().decode())
+            if results:
+                return float(results[0]["lat"]), float(results[0]["lon"])
+    except Exception:
+        pass
+    return None, None
+
+
 def main():
     print("=" * 60)
     print("  CodePop Server Setup Wizard")
@@ -164,6 +222,7 @@ def main():
         store_state      = "TS"
         store_zip        = "12345"
         region_name      = "test-region"
+        store_geohash    = "9q9p1z9"  # placeholder — test addresses cannot be geocoded
     else:
 
       # ── Admin Credentials ─────────────────────────────────────────
@@ -182,6 +241,20 @@ def main():
       store_state   = _prompt("State (e.g. OR)")
       store_zip     = _prompt("ZIP code")
 
+      # ── Verify Address ────────────────────────────────────────────
+      print("\n  Verifying address with OpenStreetMap...")
+      while True:
+          lat, lon = _geocode_address(store_address, store_city, store_state, store_zip)
+          if lat is not None:
+              store_geohash = _encode_geohash(lat, lon, precision=7)
+              print(f"  Address verified. Geohash: {store_geohash}")
+              break
+          print("  Could not verify that address. Please re-enter.")
+          store_address = _prompt("Street address")
+          store_city    = _prompt("City")
+          store_state   = _prompt("State (e.g. OR)")
+          store_zip     = _prompt("ZIP code")
+
       # ── Region ────────────────────────────────────────────────────
       _section("Step 3: Region")
       print("  The region identifies this store in the CodePop network.")
@@ -196,6 +269,7 @@ def main():
     print(f"  Admin name     : {admin_first_name} {admin_last_name}")
     print(f"  Store name     : {store_name}")
     print(f"  Address        : {store_address}, {store_city}, {store_state} {store_zip}")
+    print(f"  Geohash        : {store_geohash}")
     print(f"  Region         : {region_name}")
     print()
 
@@ -217,6 +291,7 @@ def main():
         store_city=_yaml_value(store_city),
         store_state=_yaml_value(store_state),
         store_zip=_yaml_value(store_zip),
+        store_geohash=_yaml_value(store_geohash),
     )
 
     script_dir = os.path.dirname(os.path.abspath(__file__))
