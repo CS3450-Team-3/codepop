@@ -11,7 +11,7 @@ from cryptography.hazmat.backends import default_backend
 from port_utils import find_n_available_ports
 
 # CONFIGURATION
-SECTION_TOTAL = 9
+SECTION_TOTAL = 11
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # ANSI Color Codes
@@ -48,10 +48,11 @@ BACKEND_DIR = os.path.abspath(os.path.join(SCRIPT_DIR, ".."))
 
 # Find available ports starting from 8050
 print_header("Initializing Port Discovery")
-found_ports = find_n_available_ports(2)
+found_ports = find_n_available_ports(3)
 PORT_A = found_ports[0]
 PORT_B = found_ports[1]
-print_substep(f"Using dynamic ports: Server A = {PORT_A}, Server B = {PORT_B}")
+PORT_M = found_ports[2]
+print_substep(f"Using dynamic ports: Server A = {PORT_A}, Server B = {PORT_B}, Machine = {PORT_M}")
 
 DB_A = "p2p_test_a"
 DB_B = "p2p_test_b"
@@ -138,6 +139,38 @@ def spawn_server(port, db_name, server_id, private_key, public_key, label):
     )
     processes.append(p)
     return {"process": p, "port": port, "label": label, "ready": False}
+
+def spawn_pseudo_machine(port, test_mode=False):
+    """Starts the pseudo machine server in the background."""
+    print_substep(f"Spawning Pseudo Machine Server on port {port} (Test Mode: {test_mode})...")
+    # Use sys.executable to ensure we use the same Python binary
+    cmd = [sys.executable, "-u", "pseudo_machine_server.py", "--port", str(port)]
+    if test_mode:
+        cmd.append("--test-mode")
+        
+    p = subprocess.Popen(
+        cmd,
+        cwd=BACKEND_DIR,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        text=True
+    )
+    processes.append(p)
+    return {"process": p, "port": port, "label": "PseudoMachine", "ready": True}
+
+def wait_for_machine(url, timeout=5):
+    """Wait for the machine server to respond on the given URL."""
+    start = time.time()
+    while time.time() - start < timeout:
+        try:
+            resp = requests.get(url, timeout=1)
+            # If we get any response from Django (even 503), check if it's the 200 we want
+            if resp.status_code == 200 and "status" in resp.json():
+                return resp
+        except (requests.RequestException, ValueError):
+            pass
+        time.sleep(0.5)
+    return None
 
 def wait_for_servers(server_list, timeout=20):
     """Wait for all servers in the list to be ready."""
@@ -240,6 +273,7 @@ def main():
         print_step(2, "Launching background servers...")
         s1 = spawn_server(PORT_A, DB_A, "server_a", priv_a, pub_a, "A")
         s2 = spawn_server(PORT_B, DB_B, "server_b", priv_b, pub_b, "B")
+        sm = spawn_pseudo_machine(PORT_M, test_mode=True)
         
         if not wait_for_servers([s1, s2]):
             failure_count += 1; raise TestFailure("Servers failed to reach READY state")
@@ -513,8 +547,8 @@ def main():
                 
                 # Verify cookie is cleared in the session
                 if 'refresh_token' in session_admin.cookies and session_admin.cookies['refresh_token'] != "":
-                     # Note: delete_cookie usually sets it to empty string or expires it
-                     pass # requests might still show the key but with empty value
+                    # Note: delete_cookie usually sets it to empty string or expires it
+                    pass # requests might still show the key but with empty value
                 
                 # Now verify the refresh token is blacklisted on Server A
                 # We need the actual token string to verify, which we can extract from the cookie jar BEFORE logout
@@ -565,7 +599,7 @@ def main():
             failure_count += 1
 
         # 9. TEST: ORDER CREATION AND STRIPE WEBHOOKS
-        print_step(SECTION_TOTAL, "TESTING ORDER CREATION AND STRIPE WEBHOOKS")
+        print_step(9, "TESTING ORDER CREATION AND STRIPE WEBHOOKS")
         
         test_count += 1
         print_substep("Test I: End-to-End Order Creation and Payment Webhook...")
@@ -719,6 +753,74 @@ def main():
             print_success("Refund webhook and state transition verified.")
             print_success("Full order creation, payment intent, and webhook flow passed.")
             
+        except Exception as e:
+            print_failure(str(e))
+            failure_count += 1
+
+        # 10. TEST: MACHINE STATUS PROXY
+        print_step(10, "TESTING MACHINE STATUS PROXY")
+        test_count += 1
+        print_substep("Test J: Fetch Machine Status from Proxy Endpoint...")
+        try:
+            # 1. Fetch from active machine
+            resp = requests.get(f"http://localhost:{PORT_A}/backend/machines/status/?port={PORT_M}", timeout=2)
+            if resp.status_code == 200:
+                data = resp.json()
+                if "machine_id" in data and "status" in data:
+                    print_success("Machine proxy successfully fetched data from pseudo server.")
+                else:
+                    raise Exception(f"Invalid data shape returned: {data}")
+            else:
+                raise Exception(f"Machine proxy returned {resp.status_code}: {resp.text}")
+
+            # 2. Terminate the machine server to test failure
+            print_substep("Test J.1: Test Machine Offline Handling...")
+            for p in list(processes):
+                # More robust check for the pseudo machine process
+                if p.poll() is None and "pseudo_machine_server.py" in p.args:
+                    p.terminate()
+                    p.wait()
+                    # Also remove it from the list so we don't try to cleanup twice
+                    processes.remove(p)
+            
+            # Allow a moment to fully shut down
+            time.sleep(1)
+
+            # 3. Fetch again and expect 503
+            resp = requests.get(f"http://localhost:{PORT_A}/backend/machines/status/?port={PORT_M}", timeout=2)
+            if resp.status_code == 503:
+                print_success("Machine proxy gracefully handled offline machine (503).")
+            else:
+                raise Exception(f"Expected 503 for offline machine, got {resp.status_code}: {resp.text}")
+
+            # 4. Test J.2: Restart machine in test mode and then fix it
+            print_substep("Test J.2: Verify Machine 'Run Test' (Fix) Flow...")
+            sm = spawn_pseudo_machine(PORT_M, test_mode=True)
+            
+            # Wait for it to become available via the Django proxy
+            status_url = f"http://localhost:{PORT_A}/backend/machines/status/?port={PORT_M}"
+            resp = wait_for_machine(status_url, timeout=5)
+            
+            if not resp:
+                # One last try to see the error
+                resp = requests.get(status_url, timeout=2)
+                raise Exception(f"Machine never became ready in J.2. Last Status Code: {resp.status_code}, Body: {resp.text}")
+
+            # Verify it's broken
+            if resp.json().get("status") != "error":
+                raise Exception(f"Machine should have started in 'error' status with --test-mode. Got: {resp.json().get('status')}")
+            
+            # Run the fix test
+            resp = requests.post(f"http://localhost:{PORT_A}/backend/machines/run-test/?port={PORT_M}", timeout=15)
+            if resp.status_code == 200:
+                data = resp.json()
+                if data.get("status") == "running" and len(data.get("broken_parts")) == 0:
+                    print_success("Machine 'run-test' successfully cleared faults.")
+                else:
+                    raise Exception(f"Machine status still indicates faults after run-test: {data}")
+            else:
+                raise Exception(f"Run-test endpoint failed: {resp.status_code} {resp.text}")
+                
         except Exception as e:
             print_failure(str(e))
             failure_count += 1

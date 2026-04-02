@@ -9,7 +9,7 @@ from .views import NotificationOperations, UserNotificationLookup
 from .views import OrderOperations, UserOrdersLookup
 from .views import RevenueViewSet
 from .views import UserOperations
-from .views import MasterListSyncView, PublicDiscoveryView, P2PJoinView, MenuView, UserProfileView, ServerRegistryAPIView, GeneralGenerateAIDrink, UserGenerateAIDrink, emailAPI
+from .views import MasterListSyncView, PublicDiscoveryView, P2PJoinView, MenuView, UserProfileView, ServerRegistryAPIView, GeneralGenerateAIDrink, UserGenerateAIDrink, emailAPI, MachineStatusView, MachineRunTestView
 from .customerAI import Chatbot
 
 #this ensures that the url calls the right function from the views for each type of request
@@ -239,4 +239,8 @@ urlpatterns = [
     # Server Registry API
     path('servers/', server_registry_list, name='server_registry_list'),
     path('servers/<str:pk>/', server_registry_detail, name='server_registry_detail'),
+
+    # Machine Status Proxy API
+    path('machines/status/', MachineStatusView.as_view(), name='machine-status'),
+    path('machines/run-test/', MachineRunTestView.as_view(), name='machine-run-test'),
 ]

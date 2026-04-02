@@ -46,6 +46,8 @@ services:
       DB_USER: postgres
       DB_PASSWORD: password
       SERVER_URL: "http://backend:9000"
+      MACHINE_HOST: "machine"
+      MACHINE_PORT: "9050"
       SETUP_ADMIN_USERNAME: {admin_username}
       SETUP_ADMIN_PASSWORD: {admin_password}
       SETUP_ADMIN_EMAIL: {admin_email}
@@ -62,12 +64,22 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      machine:
+        condition: service_started
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9000/health/')"]
       interval: 10s
       timeout: 5s
       retries: 15
       start_period: 30s
+
+  machine:
+    build:
+      context: .
+      dockerfile: codepop_backend/Dockerfile
+    entrypoint: ["python", "pseudo_machine_server.py", "--port", "9050", "--test-mode"]
+    ports:
+      - "9050:9050"
 
   frontend:
     build:
