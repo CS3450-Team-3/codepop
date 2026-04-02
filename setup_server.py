@@ -60,6 +60,7 @@ services:
       STORE_STATE: {store_state}
       STORE_ZIP: {store_zip}
     volumes:
+      - ./codepop_backend:/app
       - node_data:/data
     depends_on:
       db:
@@ -80,6 +81,8 @@ services:
     entrypoint: ["python", "pseudo_machine_server.py", "--port", "9050", "--test-mode"]
     ports:
       - "9050:9050"
+    volumes:
+      - ./codepop_backend:/app
 
   frontend:
     build:
