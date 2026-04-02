@@ -1407,3 +1407,54 @@ class StripeWebhookView(View):
         
         return JsonResponse({'status': 'success'}, status=200)
 
+class MachineStatusView(APIView):
+    """
+    Proxy endpoint that queries the independent drink machine for its current status.
+    """
+    permission_classes = [AllowAny]
+    
+    @extend_schema(
+        responses={200: OpenApiTypes.OBJECT},
+        description="Fetch the real-time status of the physical drink machine."
+    )
+    def get(self, request):
+        import os
+        # Allow specifying a custom port for testing, defaulting to env or 9050
+        machine_host = os.environ.get('MACHINE_HOST', 'localhost')
+        machine_port = request.query_params.get('port', os.environ.get('MACHINE_PORT', '9050'))
+        try:
+            # Query the standalone pseudo machine server
+            resp = requests.get(f'http://{machine_host}:{machine_port}/status', timeout=2)
+            resp.raise_for_status()
+            return Response(resp.json(), status=status.HTTP_200_OK)
+        except requests.RequestException as e:
+            return Response(
+                {"error": "Machine is offline or unreachable", "details": str(e)}, 
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
+
+class MachineRunTestView(APIView):
+    """
+    Proxy endpoint that tells the independent drink machine to run its diagnostic test.
+    Used by repair staff to verify fixes.
+    """
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        responses={200: OpenApiTypes.OBJECT},
+        description="Trigger the physical drink machine's diagnostic suite."
+    )
+    def post(self, request):
+        import os
+        machine_host = os.environ.get('MACHINE_HOST', 'localhost')
+        machine_port = request.query_params.get('port', os.environ.get('MACHINE_PORT', '9050'))
+        try:
+            # Query the standalone pseudo machine server's POST endpoint
+            resp = requests.post(f'http://{machine_host}:{machine_port}/run-test', timeout=10)
+            resp.raise_for_status()
+            return Response(resp.json(), status=status.HTTP_200_OK)
+        except requests.RequestException as e:
+            return Response(
+                {"error": "Machine is offline or unreachable", "details": str(e)}, 
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
