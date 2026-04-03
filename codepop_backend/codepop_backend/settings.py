@@ -72,6 +72,8 @@ CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "http://localhost:4000",
+    "http://127.0.0.1:4000"
     # Add other allowed origins as needed
 ]
 CORS_ALLOW_CREDENTIALS = True
@@ -79,6 +81,8 @@ CORS_ALLOW_CREDENTIALS = True
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.1:3000",
+    "http://localhost:4000",
+    "http://127.0.0.1:4000"
     # Add other trusted origins as needed·
 ]
 
