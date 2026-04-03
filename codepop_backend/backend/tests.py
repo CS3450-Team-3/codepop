@@ -2,7 +2,7 @@ from rest_framework.test import APITestCase
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
 from unittest.mock import patch
-from .models import Preference, Drink, Inventory, Notification, Order, Revenue, CustomUser
+from .models import Preference, Drink, Inventory, Notification, Order, Revenue, CustomUser, Region, ServerRegistry
 from django.utils import timezone
 from datetime import timedelta
 import uuid7
@@ -15,16 +15,23 @@ User = CustomUser
 class PreferenceTests(APITestCase):
 
     def setUp(self):
-        # Create two test users
-        self.user1 = User.objects.create_user(username='pref_user1', password='password123')
-        self.user2 = User.objects.create_user(username='pref_user2', password='password123')
+        # Create a region and server for scoping
+        self.region = Region.objects.create(RegionName="TestRegion")
+        self.server = ServerRegistry.objects.create(ServerID="LOCAL", ServerURL="http://local", Region=self.region)
+        # Configure local server ID in settings for the test
+        with self.settings(LOCAL_SERVER_ID="LOCAL"):
+            # Create two test users
+            self.user1 = User.objects.create_user(username='pref_user1', password='password123', home_server=self.server)
+            self.user2 = User.objects.create_user(username='pref_user2', password='password123', home_server=self.server)
+            self.admin = User.objects.create_user(username='pref_admin', password='password123', user_type='super_admin', home_server=self.server)
 
-        self.token1 = str(RefreshToken.for_user(self.user1).access_token)
-        self.token2 = str(RefreshToken.for_user(self.user2).access_token)
+            self.token1 = str(RefreshToken.for_user(self.user1).access_token)
+            self.token2 = str(RefreshToken.for_user(self.user2).access_token)
+            self.admin_token = str(RefreshToken.for_user(self.admin).access_token)
 
-        # Create preferences for both users
-        Preference.objects.create(UserID=self.user1, Preference="mango")
-        Preference.objects.create(UserID=self.user2, Preference="peach")
+            # Create preferences for both users
+            Preference.objects.create(UserID=self.user1, Preference="mango")
+            Preference.objects.create(UserID=self.user2, Preference="peach")
 
     def authenticate(self, token):
         """Helper method to set up JWT authentication"""
@@ -33,47 +40,47 @@ class PreferenceTests(APITestCase):
     def test_get_preferences_for_user1(self):
         # Use token authentication for user1
         self.authenticate(self.token1)
+        with self.settings(LOCAL_SERVER_ID="LOCAL"):
+            # Make a request to retrieve preferences for user1
+            response = self.client.get(f'/backend/users/{self.user1.id}/preferences/')
 
-        # Make a request to retrieve preferences for user1
-        response = self.client.get(f'/backend/users/{self.user1.id}/preferences/')
+            # Check that the response status code is 200 OK
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        # Check that the response status code is 200 OK
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+            # Check that the returned data contains one preference
+            self.assertEqual(len(response.data), 1)
 
-        # Check that the returned data contains one preference
-        self.assertEqual(len(response.data), 1)
-
-        # Check that the preference belongs to user1 and is "Mango"
-        self.assertEqual(str(response.data[0]['UserID']), str(self.user1.id))
-        self.assertEqual(response.data[0]['Preference'], "mango")
+            # Check that the preference belongs to user1 and is "Mango"
+            self.assertEqual(str(response.data[0]['UserID']), str(self.user1.id))
+            self.assertEqual(response.data[0]['Preference'], "mango")
 
     def test_get_preferences_for_user2(self):
         # Use token authentication for user2
         self.authenticate(self.token2)
+        with self.settings(LOCAL_SERVER_ID="LOCAL"):
+            # Make a request to retrieve preferences for user2
+            response = self.client.get(f'/backend/users/{self.user2.id}/preferences/')
 
-        # Make a request to retrieve preferences for user2
-        response = self.client.get(f'/backend/users/{self.user2.id}/preferences/')
+            # Check that the response status code is 200 OK
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        # Check that the response status code is 200 OK
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+            # Check that the returned data contains one preference
+            self.assertEqual(len(response.data), 1)
 
-        # Check that the returned data contains one preference
-        self.assertEqual(len(response.data), 1)
-
-        # Check that the preference belongs to user2 and is "Peach"
-        self.assertEqual(str(response.data[0]['UserID']), str(self.user2.id))
-        self.assertEqual(response.data[0]['Preference'], "peach")
+            # Check that the preference belongs to user2 and is "Peach"
+            self.assertEqual(str(response.data[0]['UserID']), str(self.user2.id))
+            self.assertEqual(response.data[0]['Preference'], "peach")
 
     def test_get_preferences_for_non_existent_user(self):
-        # Use token authentication for user1
-        self.authenticate(self.token1)
+        # Use admin token to bypass ownership check
+        self.authenticate(self.admin_token)
+        with self.settings(LOCAL_SERVER_ID="LOCAL"):
+            # Attempt to retrieve preferences for a non-existent user (using a valid UUID format)
+            random_uuid = uuid7.create()
+            response = self.client.get(f'/backend/users/{random_uuid}/preferences/')
 
-        # Attempt to retrieve preferences for a non-existent user (using a valid UUID format)
-        random_uuid = uuid7.create()
-        response = self.client.get(f'/backend/users/{random_uuid}/preferences/')
-
-        # Check that the response status code is 404 Not Found
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+            # Check that the response status code is 404 Not Found
+            self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_create_preference(self):
         # Use token authentication for user1
@@ -139,22 +146,29 @@ class PreferenceTests(APITestCase):
 class DrinkTests(APITestCase):
 
     def setUp(self):
-        # Create two test users
-        self.user1 = User.objects.create_user(username='drink_user1', password='password123')
-        self.user2 = User.objects.create_user(username='drink_user2', password='password123')
+        # Create a region and server for scoping
+        self.region = Region.objects.create(RegionName="DrinkRegion")
+        self.server = ServerRegistry.objects.create(ServerID="DRINK_LOCAL", ServerURL="http://drinklocal", Region=self.region)
+        
+        with self.settings(LOCAL_SERVER_ID="DRINK_LOCAL"):
+            # Create test users
+            self.user1 = User.objects.create_user(username='drink_user1', password='password123', home_server=self.server)
+            self.user2 = User.objects.create_user(username='drink_user2', password='password123', home_server=self.server)
+            self.manager = User.objects.create_user(username='drink_manager', password='password123', user_type='store_manager', home_server=self.server)
 
-        self.token1 = str(RefreshToken.for_user(self.user1).access_token)
-        self.token2 = str(RefreshToken.for_user(self.user2).access_token)
+            self.token1 = str(RefreshToken.for_user(self.user1).access_token)
+            self.token2 = str(RefreshToken.for_user(self.user2).access_token)
+            self.manager_token = str(RefreshToken.for_user(self.manager).access_token)
 
-        # Create sample drinks
-        drink1 = Drink.objects.create(Name="Cola Vanilla", SodaUsed=["Cola"], SyrupsUsed=["Vanilla"], Ice="Regular", Size="24oz", User_Created=False, Price=1.99)
-        drink2 = Drink.objects.create(Name="Lemonade Mint", SodaUsed=["Lemonade"], AddIns=["Mint"], Ice="None", Size="16oz", User_Created=False, Price=2.50)
-        drink3 = Drink.objects.create(Name="Custom Cherry Soda", SodaUsed=["Cherry Soda"], Ice="Light", Size="32oz", User_Created=True, Price=3.50)
+            # Create sample drinks
+            drink1 = Drink.objects.create(Name="Cola Vanilla", SodaUsed=["Cola"], SyrupsUsed=["Vanilla"], Ice="Regular", Size="24oz", User_Created=False, Price=1.99)
+            drink2 = Drink.objects.create(Name="Lemonade Mint", SodaUsed=["Lemonade"], AddIns=["Mint"], Ice="None", Size="16oz", User_Created=False, Price=2.50)
+            drink3 = Drink.objects.create(Name="Custom Cherry Soda", SodaUsed=["Cherry Soda"], Ice="Light", Size="32oz", User_Created=True, Price=3.50)
 
-        # Add users to the Favorite field
-        drink1.Favorite.add(self.user1)
-        drink2.Favorite.add(self.user2)
-        drink3.Favorite.add(self.user2)
+            # Add users to the Favorite field
+            drink1.Favorite.add(self.user1)
+            drink2.Favorite.add(self.user2)
+            drink3.Favorite.add(self.user2)
 
 
     def authenticate(self, token):
@@ -210,53 +224,57 @@ class DrinkTests(APITestCase):
 
     def test_update_existing_drink(self):
         """Test updating the price of an existing drink, and set Ice and Size"""
-        self.authenticate(self.token1)
+        # House drinks require IsStoreManager
+        self.authenticate(self.manager_token)
 
-        # Retrieve a drink to update
-        drink = Drink.objects.filter(User_Created=False).first()
+        with self.settings(LOCAL_SERVER_ID="DRINK_LOCAL"):
+            # Retrieve a drink to update
+            drink = Drink.objects.filter(User_Created=False).first()
 
-        # Data for updating the drink
-        data = {
-            "Name": drink.Name,
-            "SodaUsed": drink.SodaUsed,
-            "SyrupsUsed": drink.SyrupsUsed,
-            "Ice": "none",
-            "Size": "16oz",
-            "Price": 4.50,
-            "User_Created": drink.User_Created
-        }
+            # Data for updating the drink
+            data = {
+                "Name": drink.Name,
+                "SodaUsed": drink.SodaUsed,
+                "SyrupsUsed": drink.SyrupsUsed,
+                "Ice": "none",
+                "Size": "16oz",
+                "Price": 4.50,
+                "User_Created": drink.User_Created
+            }
 
-        # Send a PUT request to update the drink
-        response = self.client.put(f'/backend/drinks/{drink.DrinkID}/', data, format='json')
+            # Send a PUT request to update the drink
+            response = self.client.put(f'/backend/drinks/{drink.DrinkID}/', data, format='json')
 
-        # Check that the response status code is 200 OK
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+            # Check that the response status code is 200 OK
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        # Refresh the drink
-        drink.refresh_from_db()
+            # Refresh the drink
+            drink.refresh_from_db()
 
-        # Assert updates
-        self.assertEqual(drink.Price, 4.50)
-        self.assertEqual(drink.Ice, "none")
-        self.assertEqual(drink.Size, "16oz")
+            # Assert updates
+            self.assertEqual(drink.Price, 4.50)
+            self.assertEqual(drink.Ice, "none")
+            self.assertEqual(drink.Size, "16oz")
 
-        # Add to favorites
-        drink.Favorite.add(self.user1)
-        self.assertIn(self.user1, drink.Favorite.all())
+            # Add to favorites
+            drink.Favorite.add(self.user1)
+            self.assertIn(self.user1, drink.Favorite.all())
 
     def test_delete_drink(self):
         """Test deleting a drink"""
-        self.authenticate(self.token1)
+        # House drinks require IsStoreManager
+        self.authenticate(self.manager_token)
 
-        # Get a drink to delete
-        drink = Drink.objects.filter(Favorite=self.user1).first()
+        with self.settings(LOCAL_SERVER_ID="DRINK_LOCAL"):
+            # Get a drink to delete
+            drink = Drink.objects.filter(User_Created=False).first()
 
-        # Send a DELETE request to delete the drink
-        response = self.client.delete(f'/backend/drinks/{drink.DrinkID}/')
+            # Send a DELETE request to delete the drink
+            response = self.client.delete(f'/backend/drinks/{drink.DrinkID}/')
 
-        # Check response
-        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-        self.assertEqual(Drink.objects.filter(DrinkID=drink.DrinkID).count(), 0)
+            # Check response
+            self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+            self.assertEqual(Drink.objects.filter(DrinkID=drink.DrinkID).count(), 0)
 
     def test_create_drink_without_auth(self):
         """Test creating a drink without being authenticated (should succeed based on AllowAny)"""
@@ -282,14 +300,15 @@ class DrinkTests(APITestCase):
     def test_get_drinks_for_specific_user(self):
         """Test retrieving drinks based on a specific user's favorites"""
         self.authenticate(self.token2)
-        response = self.client.get(f'/backend/users/{self.user2.id}/drinks/')
-        
-        # Check response
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 2)
-        drink_names = [drink['Name'] for drink in response.data]
-        self.assertIn("Lemonade Mint", drink_names)
-        self.assertIn("Custom Cherry Soda", drink_names)
+        with self.settings(LOCAL_SERVER_ID="DRINK_LOCAL"):
+            response = self.client.get(f'/backend/users/{self.user2.id}/drinks/')
+            
+            # Check response
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            self.assertEqual(len(response.data), 2)
+            drink_names = [drink['Name'] for drink in response.data]
+            self.assertIn("Lemonade Mint", drink_names)
+            self.assertIn("Custom Cherry Soda", drink_names)
 
     def test_create_drink_with_invalid_ice_size(self):
         """Test creating a drink with invalid Ice and Size fields."""
@@ -310,17 +329,19 @@ class DrinkTests(APITestCase):
 class InventoryTests(APITestCase):
 
     def setUp(self):
-        self.user1 = User.objects.create_user(username='inv_user1', password='password123')
-        self.user1.user_type = 'admin'
-        self.user1.save()
-        self.token1 = str(RefreshToken.for_user(self.user1).access_token)
+        self.region = Region.objects.create(RegionName="InvRegion")
+        self.server = ServerRegistry.objects.create(ServerID="INV_LOCAL", ServerURL="http://invlocal", Region=self.region)
         
-        self.customer_user = User.objects.create_user(username='inv_customer', password='password123')
-        self.customer_token = str(RefreshToken.for_user(self.customer_user).access_token)
-        
-        Inventory.objects.create(ItemName="Coke", ItemType="Soda", Quantity=10, ThresholdLevel=2)
-        Inventory.objects.create(ItemName="Syrup A", ItemType="Syrup", Quantity=0, ThresholdLevel=5)
-        Inventory.objects.create(ItemName="Cup", ItemType="Physical", Quantity=50, ThresholdLevel=10)
+        with self.settings(LOCAL_SERVER_ID="INV_LOCAL"):
+            self.user1 = User.objects.create_user(username='inv_user1', password='password123', user_type='admin', home_server=self.server)
+            self.token1 = str(RefreshToken.for_user(self.user1).access_token)
+            
+            self.customer_user = User.objects.create_user(username='inv_customer', password='password123', home_server=self.server)
+            self.customer_token = str(RefreshToken.for_user(self.customer_user).access_token)
+            
+            Inventory.objects.create(ItemName="Coke", ItemType="Soda", Quantity=10, ThresholdLevel=2)
+            Inventory.objects.create(ItemName="Syrup A", ItemType="Syrup", Quantity=0, ThresholdLevel=5)
+            Inventory.objects.create(ItemName="Cup", ItemType="Physical", Quantity=50, ThresholdLevel=10)
 
     def authenticate(self, token):
         self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + token)  # type: ignore
@@ -328,69 +349,77 @@ class InventoryTests(APITestCase):
     def test_update_inventory_forbidden_for_customer(self):
         """Test that a non-manager user is forbidden from updating inventory."""
         self.authenticate(self.customer_token)
-        coke = Inventory.objects.get(ItemName="Coke")
-        data = {'used_quantity': 5}
-        response = self.client.patch(f'/backend/inventory/{coke.pk}/', data, format='json')
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        with self.settings(LOCAL_SERVER_ID="INV_LOCAL"):
+            coke = Inventory.objects.get(ItemName="Coke")
+            data = {'used_quantity': 5}
+            response = self.client.patch(f'/backend/inventory/{coke.pk}/', data, format='json')
+            self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_get_inventory_list(self):
         self.authenticate(self.token1)
-        response = self.client.get('/backend/inventory/')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 2)
+        with self.settings(LOCAL_SERVER_ID="INV_LOCAL"):
+            response = self.client.get('/backend/inventory/')
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            self.assertEqual(len(response.data), 2)
 
     def test_get_inventory_report(self):
         self.authenticate(self.token1)
-        response = self.client.get('/backend/inventory/report/')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        item_names = [item['ItemName'] for item in response.data['inventory_items']]
-        self.assertIn("Coke", item_names)
+        with self.settings(LOCAL_SERVER_ID="INV_LOCAL"):
+            response = self.client.get('/backend/inventory/report/')
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            item_names = [item['ItemName'] for item in response.data['inventory_items']]
+            self.assertIn("Coke", item_names)
 
     def test_update_inventory_success(self):
         self.authenticate(self.token1)
-        coke = Inventory.objects.get(ItemName="Coke")
-        data = {'used_quantity': 5}
-        response = self.client.patch(f'/backend/inventory/{coke.pk}/', data, format='json')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        coke.refresh_from_db()
-        self.assertEqual(coke.Quantity, 5)
+        with self.settings(LOCAL_SERVER_ID="INV_LOCAL"):
+            coke = Inventory.objects.get(ItemName="Coke")
+            data = {'used_quantity': 5}
+            response = self.client.patch(f'/backend/inventory/{coke.pk}/', data, format='json')
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            coke.refresh_from_db()
+            self.assertEqual(coke.Quantity, 5)
 
     def test_reset_inventory_success(self):
         """Test resetting inventory quantity to threshold level."""
         self.authenticate(self.token1)
-        coke = Inventory.objects.get(ItemName="Coke")
-        data = {'reset': True}
-        response = self.client.patch(f'/backend/inventory/{coke.pk}/', data, format='json')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        coke.refresh_from_db()
-        self.assertEqual(coke.Quantity, coke.ThresholdLevel)
+        with self.settings(LOCAL_SERVER_ID="INV_LOCAL"):
+            coke = Inventory.objects.get(ItemName="Coke")
+            data = {'reset': True}
+            response = self.client.patch(f'/backend/inventory/{coke.pk}/', data, format='json')
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            coke.refresh_from_db()
+            self.assertEqual(coke.Quantity, coke.ThresholdLevel)
 
     def test_reset_inventory_no_threshold(self):
         """Test resetting inventory with no threshold set (should still reset to threshold level)."""
         self.authenticate(self.token1)
-        cup = Inventory.objects.get(ItemName="Cup")
-        data = {'reset': True}
-        response = self.client.patch(f'/backend/inventory/{cup.pk}/', data, format='json')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        cup.refresh_from_db()
-        self.assertEqual(cup.Quantity, cup.ThresholdLevel)
+        with self.settings(LOCAL_SERVER_ID="INV_LOCAL"):
+            cup = Inventory.objects.get(ItemName="Cup")
+            data = {'reset': True}
+            response = self.client.patch(f'/backend/inventory/{cup.pk}/', data, format='json')
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            cup.refresh_from_db()
+            self.assertEqual(cup.Quantity, cup.ThresholdLevel)
 
     def test_reset_inventory_invalid_data(self):
         """Test invalid reset request without 'reset' flag or wrong data."""
         self.authenticate(self.token1)
-        coke = Inventory.objects.get(ItemName="Coke")
-        data = {'used_quantity': 5}
-        response = self.client.patch(f'/backend/inventory/{coke.pk}/', data, format='json')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        coke.refresh_from_db()
-        self.assertEqual(coke.Quantity, 5)
+        with self.settings(LOCAL_SERVER_ID="INV_LOCAL"):
+            coke = Inventory.objects.get(ItemName="Coke")
+            data = {'used_quantity': 5}
+            response = self.client.patch(f'/backend/inventory/{coke.pk}/', data, format='json')
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            coke.refresh_from_db()
+            self.assertEqual(coke.Quantity, 5)
 
     def test_reset_inventory_non_existent_item(self):
         """Test resetting a non-existent inventory item."""
         self.authenticate(self.token1)
-        data = {'reset': True}
-        response = self.client.patch('/backend/inventory/999/', data, format='json')
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        with self.settings(LOCAL_SERVER_ID="INV_LOCAL"):
+            data = {'reset': True}
+            response = self.client.patch('/backend/inventory/999/', data, format='json')
+            self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
 class NotificationTests(APITestCase):
 
@@ -503,27 +532,35 @@ class OrderTests(APITestCase):
 class RevenueTests(APITestCase):
 
     def setUp(self):
-        self.user1 = User.objects.create_user(username='rev_user1', password='password123')
-        self.token1 = str(RefreshToken.for_user(self.user1).access_token)
-        self.drink1 = Drink.objects.create(Name="Cola Vanilla", SodaUsed=["Cola"], SyrupsUsed=["Vanilla"], User_Created=False, Price=1.99)
-        self.drink2 = Drink.objects.create(Name="Lemonade Mint", SodaUsed=["Lemonade"], AddIns=["Mint"], User_Created=False, Price=2.50)
-        self.order = Order.objects.create(UserID=self.user1, OrderStatus="Pending", PaymentStatus="Pending")
-        self.order.Drinks.add(self.drink1)
-        self.order.Drinks.add(self.drink2)
+        self.region = Region.objects.create(RegionName="RevRegion")
+        self.server = ServerRegistry.objects.create(ServerID="REV_LOCAL", ServerURL="http://revlocal", Region=self.region)
+        
+        with self.settings(LOCAL_SERVER_ID="REV_LOCAL"):
+            self.user1 = User.objects.create_user(username='rev_user1', password='password123', home_server=self.server)
+            self.manager = User.objects.create_user(username='rev_manager', password='password123', user_type='store_manager', home_server=self.server)
+            self.token1 = str(RefreshToken.for_user(self.user1).access_token)
+            self.manager_token = str(RefreshToken.for_user(self.manager).access_token)
+            
+            self.drink1 = Drink.objects.create(Name="Cola Vanilla", SodaUsed=["Cola"], SyrupsUsed=["Vanilla"], User_Created=False, Price=1.99)
+            self.drink2 = Drink.objects.create(Name="Lemonade Mint", SodaUsed=["Lemonade"], AddIns=["Mint"], User_Created=False, Price=2.50)
+            self.order = Order.objects.create(UserID=self.user1, OrderStatus="Pending", PaymentStatus="Pending")
+            self.order.Drinks.add(self.drink1)
+            self.order.Drinks.add(self.drink2)
 
     def authenticate(self, token):
         self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + token)  # type: ignore
 
     def test_create_revenue(self):
-        self.authenticate(self.token1)
-        data = {
-            "OrderID": self.order.OrderID,
-        }
-        response = self.client.post('/backend/revenues/', data, format='json')
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        revenue = Revenue.objects.first()
-        self.assertEqual(revenue.OrderID, self.order)
-        self.assertEqual(revenue.TotalAmount, 1.99 + 2.50)
+        self.authenticate(self.manager_token)
+        with self.settings(LOCAL_SERVER_ID="REV_LOCAL"):
+            data = {
+                "OrderID": self.order.OrderID,
+            }
+            response = self.client.post('/backend/revenues/', data, format='json')
+            self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+            revenue = Revenue.objects.first()
+            self.assertEqual(revenue.OrderID, self.order)
+            self.assertEqual(revenue.TotalAmount, 1.99 + 2.50)
 
     def test_create_revenue_unauthenticated(self):
         """Test that creating a revenue without authentication fails"""
@@ -534,13 +571,14 @@ class RevenueTests(APITestCase):
 
     def test_update_revenue_to_zero(self):
         """Test updating the revenue total amount to 0."""
-        self.authenticate(self.token1)
-        revenue = Revenue.objects.create(OrderID=self.order, TotalAmount=5.0)
-        update_data = {"OrderID": self.order.OrderID, "TotalAmount": 0.0}
-        response = self.client.put(f'/backend/revenues/{revenue.RevenueID}/', update_data, format='json')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        revenue.refresh_from_db()
-        self.assertEqual(revenue.TotalAmount, 0.0)
+        self.authenticate(self.manager_token)
+        with self.settings(LOCAL_SERVER_ID="REV_LOCAL"):
+            revenue = Revenue.objects.create(OrderID=self.order, TotalAmount=5.0)
+            update_data = {"OrderID": self.order.OrderID, "TotalAmount": 0.0}
+            response = self.client.put(f'/backend/revenues/{revenue.RevenueID}/', update_data, format='json')
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            revenue.refresh_from_db()
+            self.assertEqual(revenue.TotalAmount, 0.0)
 
 class AITests(APITestCase):
     # Create users and add preferences
@@ -845,8 +883,9 @@ class MasterListSyncEndpointTest(APITestCase):
         from backend.models import Region, ServerRegistry
         self.region = Region.objects.create(RegionName="TestRegion")
         self.server = ServerRegistry.objects.create(
+            ServerID="TEST_SERVER",
             ServerURL="http://localhost:8000",
-            PublicKey="testkey",
+            PublicKey="A" * 64, # 64 chars for fingerprint
             Region=self.region,
             IsRegionLeader=True,
         )
@@ -855,6 +894,11 @@ class MasterListSyncEndpointTest(APITestCase):
         MasterList.objects.create(Username="alice", HomeServerID=self.server)
 
     def test_get_returns_items(self):
+        # IsPeerServer requires 'Server-Token <ServerID>:<Fingerprint>'
+        fingerprint = self.server.PublicKey[:64]
+        token = f"TEST_SERVER:{fingerprint}"
+        self.client.credentials(HTTP_AUTHORIZATION=f'Server-Token {token}')
+        
         response = self.client.get("/backend/sync/masterlist/")
         self.assertEqual(response.status_code, 200)
         self.assertIn("items", response.data)
@@ -863,6 +907,10 @@ class MasterListSyncEndpointTest(APITestCase):
 
     def test_post_upserts_record(self):
         from backend.models import MasterList
+        fingerprint = self.server.PublicKey[:64]
+        token = f"TEST_SERVER:{fingerprint}"
+        self.client.credentials(HTTP_AUTHORIZATION=f'Server-Token {token}')
+        
         payload = {"items": [{"UserID": str(self.user.id), "Username": "bob", "HomeServerID": self.server.ServerID}]}
         response = self.client.post("/backend/sync/masterlist/", payload, format="json")
         self.assertEqual(response.status_code, 200)
@@ -944,6 +992,57 @@ class NewFeaturesTests(APITestCase):
         self.assertIn('error', response.data)
         self.assertIn('details', response.data)
 
+class RevenueTests(APITestCase):
+
+    def setUp(self):
+        self.region = Region.objects.create(RegionName="RevRegion")
+        self.server = ServerRegistry.objects.create(ServerID="REV_LOCAL", ServerURL="http://revlocal", Region=self.region)
+        
+        with self.settings(LOCAL_SERVER_ID="REV_LOCAL"):
+            self.user1 = User.objects.create_user(username='rev_user1', password='password123', home_server=self.server)
+            self.manager = User.objects.create_user(username='rev_manager', password='password123', user_type='store_manager', home_server=self.server)
+            self.token1 = str(RefreshToken.for_user(self.user1).access_token)
+            self.manager_token = str(RefreshToken.for_user(self.manager).access_token)
+            
+            self.drink1 = Drink.objects.create(Name="Cola Vanilla", SodaUsed=["Cola"], SyrupsUsed=["Vanilla"], User_Created=False, Price=1.99)
+            self.drink2 = Drink.objects.create(Name="Lemonade Mint", SodaUsed=["Lemonade"], AddIns=["Mint"], User_Created=False, Price=2.50)
+            self.order = Order.objects.create(UserID=self.user1, OrderStatus="Pending", PaymentStatus="Pending")
+            self.order.Drinks.add(self.drink1)
+            self.order.Drinks.add(self.drink2)
+
+    def authenticate(self, token):
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + token)  # type: ignore
+
+    def test_create_revenue(self):
+        self.authenticate(self.manager_token)
+        with self.settings(LOCAL_SERVER_ID="REV_LOCAL"):
+            data = {
+                "OrderID": self.order.OrderID,
+            }
+            response = self.client.post('/backend/revenues/', data, format='json')
+            self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+            revenue = Revenue.objects.first()
+            self.assertEqual(revenue.OrderID, self.order)
+            self.assertEqual(revenue.TotalAmount, 1.99 + 2.50)
+
+    def test_create_revenue_unauthenticated(self):
+        """Test that creating a revenue without authentication fails"""
+        data = {"OrderID": self.order.OrderID}
+        self.client.credentials() # Clear credentials
+        response = self.client.post('/backend/revenues/', data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_update_revenue_to_zero(self):
+        """Test updating the revenue total amount to 0."""
+        self.authenticate(self.manager_token)
+        with self.settings(LOCAL_SERVER_ID="REV_LOCAL"):
+            revenue = Revenue.objects.create(OrderID=self.order, TotalAmount=5.0)
+            update_data = {"OrderID": self.order.OrderID, "TotalAmount": 0.0}
+            response = self.client.put(f'/backend/revenues/{revenue.RevenueID}/', update_data, format='json')
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            revenue.refresh_from_db()
+            self.assertEqual(revenue.TotalAmount, 0.0)
+
 class StripeIntegrationTests(APITestCase):
 
     def setUp(self):
@@ -1020,4 +1119,3 @@ class StripeIntegrationTests(APITestCase):
         self.order.refresh_from_db()
         self.assertEqual(self.order.PaymentStatus, 'Failed')
         self.assertTrue(Notification.objects.filter(UserID=self.user, Type="PaymentError").exists())
-
