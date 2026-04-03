@@ -9,8 +9,10 @@ export function useAuthRedirect(user: any, loading: boolean) {
 
     const routes: Record<string, string> = {
       customer: "/customer/profile",
-      manager: "/manage/dashboard",
+      store_manager: "/manage/dashboard",
+      logistics_manager: "/logistic",
       admin: "/admin",
+      super_admin: "/admin",
     };
 
     router.replace(routes[user.user_type] || "/");

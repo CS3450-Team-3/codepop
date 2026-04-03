@@ -30,6 +30,14 @@ interface InventoryReport {
   below_threshold: number;
 }
 
+interface FlavorItem {
+  SyrupID: number;
+  Name: string;
+  PrimaryFlavor: string;
+  SecondaryFlavor: string;
+  TertiaryFlavor: string;
+}
+
 interface RevenueRecord {
   RevenueID: string;
   OrderID: string;
@@ -53,21 +61,33 @@ export default function StoreManagerDashboard() {
   const [inventoryReport, setInventoryReport] = useState<InventoryReport | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [revenues, setRevenues] = useState<RevenueRecord[]>([]);
+  const [flavors, setFlavors] = useState<FlavorItem[]>([]);
   const [managerProfile, setManagerProfile] = useState<ManagerProfile | null>(null);
   const [inventoryError, setInventoryError] = useState<string | null>(null);
   const [ordersError, setOrdersError] = useState<string | null>(null);
   const [revenueError, setRevenueError] = useState<string | null>(null);
+  const [flavorError, setFlavorError] = useState<string | null>(null);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('active');
   const [dashboardView, setDashboardView] = useState<'report' | 'revenue' | 'profile'>('report');
   const [showUsageModal, setShowUsageModal] = useState(false);
+  const [showFlavorModal, setShowFlavorModal] = useState(false);
   const [selectedInventoryId, setSelectedInventoryId] = useState<number | ''>('');
+  const [selectedFlavorId, setSelectedFlavorId] = useState<number | ''>('');
   const [usedQuantity, setUsedQuantity] = useState('1');
+  const [flavorForm, setFlavorForm] = useState({
+    Name: '',
+    PrimaryFlavor: '',
+    SecondaryFlavor: '',
+    TertiaryFlavor: '',
+  });
   const [usageError, setUsageError] = useState<string | null>(null);
   const [usageMessage, setUsageMessage] = useState<string | null>(null);
+  const [flavorMessage, setFlavorMessage] = useState<string | null>(null);
   const [isSubmittingUsage, setIsSubmittingUsage] = useState(false);
+  const [isSavingFlavor, setIsSavingFlavor] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const storeName = 'Downtown Plaza';
 
@@ -82,6 +102,7 @@ export default function StoreManagerDashboard() {
     setInventoryError(null);
     setOrdersError(null);
     setRevenueError(null);
+    setFlavorError(null);
     setProfileError(null);
 
     try {
@@ -132,6 +153,19 @@ export default function StoreManagerDashboard() {
         setRevenueError("Couldn't get revenue. Error code: network_error");
       }
 
+      try {
+        const flavorRes = await fetch(`${BASE_URL}/backend/flavors/`, { headers });
+        if (!flavorRes.ok) {
+          setFlavors([]);
+          setFlavorError(`Couldn't get flavors. Error code: ${flavorRes.status}`);
+        } else {
+          setFlavors(await flavorRes.json());
+        }
+      } catch {
+        setFlavors([]);
+        setFlavorError("Couldn't get flavors. Error code: network_error");
+      }
+
       // Profile data for manager profile tab.
       try {
         const profileRes = await fetch(`${BASE_URL}/backend/users/me/`, { headers });
@@ -164,6 +198,127 @@ export default function StoreManagerDashboard() {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const openFlavorModal = () => {
+    const firstFlavor = flavors[0];
+
+    if (firstFlavor) {
+      setSelectedFlavorId(firstFlavor.SyrupID);
+      setFlavorForm({
+        Name: firstFlavor.Name,
+        PrimaryFlavor: firstFlavor.PrimaryFlavor,
+        SecondaryFlavor: firstFlavor.SecondaryFlavor,
+        TertiaryFlavor: firstFlavor.TertiaryFlavor,
+      });
+    } else {
+      setSelectedFlavorId('');
+      setFlavorForm({
+        Name: '',
+        PrimaryFlavor: '',
+        SecondaryFlavor: '',
+        TertiaryFlavor: '',
+      });
+    }
+
+    setFlavorError(null);
+    setFlavorMessage(null);
+    setShowFlavorModal(true);
+  };
+
+  const handleFlavorSelection = (value: string) => {
+    if (value === '') {
+      setSelectedFlavorId('');
+      setFlavorForm({
+        Name: '',
+        PrimaryFlavor: '',
+        SecondaryFlavor: '',
+        TertiaryFlavor: '',
+      });
+      return;
+    }
+
+    const flavorId = Number(value);
+    const matchingFlavor = flavors.find((flavor) => flavor.SyrupID === flavorId);
+    setSelectedFlavorId(flavorId);
+
+    if (matchingFlavor) {
+      setFlavorForm({
+        Name: matchingFlavor.Name,
+        PrimaryFlavor: matchingFlavor.PrimaryFlavor,
+        SecondaryFlavor: matchingFlavor.SecondaryFlavor,
+        TertiaryFlavor: matchingFlavor.TertiaryFlavor,
+      });
+    }
+  };
+
+  const submitFlavorDetails = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setFlavorError(null);
+    setFlavorMessage(null);
+
+    const trimmedName = flavorForm.Name.trim();
+    const trimmedPrimary = flavorForm.PrimaryFlavor.trim();
+    const trimmedSecondary = flavorForm.SecondaryFlavor.trim();
+    const trimmedTertiary = flavorForm.TertiaryFlavor.trim();
+
+    if (!trimmedName || !trimmedPrimary || !trimmedSecondary || !trimmedTertiary) {
+      setFlavorError('All flavor fields are required.');
+      return;
+    }
+
+    try {
+      setIsSavingFlavor(true);
+
+      const token = localStorage.getItem('access_token');
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const payload = {
+        Name: trimmedName,
+        PrimaryFlavor: trimmedPrimary,
+        SecondaryFlavor: trimmedSecondary,
+        TertiaryFlavor: trimmedTertiary,
+      };
+
+      const flavorResponse = await fetch(
+        selectedFlavorId === ''
+          ? `${BASE_URL}/backend/flavors/`
+          : `${BASE_URL}/backend/flavors/${selectedFlavorId}/`,
+        {
+          method: selectedFlavorId === '' ? 'POST' : 'PATCH',
+          headers,
+          body: JSON.stringify(payload),
+        }
+      );
+
+      const responseData = await flavorResponse.json().catch(() => ({}));
+
+      if (!flavorResponse.ok) {
+        const detailText =
+          responseData?.details && typeof responseData.details === 'object'
+            ? JSON.stringify(responseData.details)
+            : '';
+        const apiError = responseData?.error || 'Failed to save flavor details.';
+        throw new Error(detailText ? `${apiError} ${detailText}` : apiError);
+      }
+
+      setFlavorMessage(
+        selectedFlavorId === ''
+          ? 'Flavor created successfully.'
+          : 'Flavor updated successfully.'
+      );
+      setShowFlavorModal(false);
+      await fetchDashboardData();
+    } catch (err) {
+      setFlavorError(err instanceof Error ? err.message : 'Failed to save flavor details.');
+    } finally {
+      setIsSavingFlavor(false);
     }
   };
 
@@ -286,7 +441,7 @@ export default function StoreManagerDashboard() {
       localStorage.removeItem('userRole');
       localStorage.removeItem('user_id');
       setIsSigningOut(false);
-      router.push('/auth/sign_in');
+      router.push('/auth/login');
     }
   };
 
@@ -316,6 +471,7 @@ export default function StoreManagerDashboard() {
   const sortedRevenue = [...revenues].sort(
     (a, b) => new Date(b.SaleDate).getTime() - new Date(a.SaleDate).getTime()
   );
+  const sortedFlavors = [...flavors].sort((a, b) => a.Name.localeCompare(b.Name));
   const totalRevenue = revenues.reduce((sum, revenue) => sum + Number(revenue.TotalAmount || 0), 0);
   const refundedRevenue = revenues
     .filter((revenue) => revenue.Refunded)
@@ -358,6 +514,12 @@ export default function StoreManagerDashboard() {
               >
                 <span className="material-icons">assignment</span> Report Usage
               </button>
+              <button
+                onClick={openFlavorModal}
+                className="bg-white border-2 border-gray-300 text-gray-800 py-3 rounded-lg font-semibold flex items-center justify-center gap-2 hover:bg-gray-50"
+              >
+                <span className="material-icons">tune</span> Edit Flavor Details
+              </button>
             </div>
 
             {usageMessage && (
@@ -366,9 +528,21 @@ export default function StoreManagerDashboard() {
               </div>
             )}
 
+            {flavorMessage && (
+              <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded">
+                {flavorMessage}
+              </div>
+            )}
+
             {inventoryError && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
                 {inventoryError}
+              </div>
+            )}
+
+            {flavorError && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+                {flavorError}
               </div>
             )}
 
@@ -657,6 +831,145 @@ export default function StoreManagerDashboard() {
                 className="flex-1 bg-orange-600 text-white py-2 rounded-lg hover:bg-orange-700 disabled:opacity-60"
               >
                 {isSubmittingUsage ? 'Saving...' : 'Update Stock'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {showFlavorModal && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 px-4">
+          <form
+            onSubmit={submitFlavorDetails}
+            className="w-full max-w-md bg-white rounded-xl shadow-lg p-5 space-y-4"
+          >
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold">Edit Flavor Details</h2>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowFlavorModal(false);
+                  setFlavorError(null);
+                }}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="flavor-select" className="block text-sm font-medium text-gray-700">
+                Flavor Record
+              </label>
+              <div className="flex gap-2">
+                <select
+                  id="flavor-select"
+                  value={selectedFlavorId}
+                  onChange={(e) => handleFlavorSelection(e.target.value)}
+                  className="flex-1 border border-gray-300 rounded-lg px-3 py-2"
+                >
+                  <option value="">Create new flavor</option>
+                  {sortedFlavors.map((flavor) => (
+                    <option key={flavor.SyrupID} value={flavor.SyrupID}>
+                      {flavor.Name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => handleFlavorSelection('')}
+                  className="border border-gray-300 text-gray-700 px-3 py-2 rounded-lg hover:bg-gray-50"
+                >
+                  New
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="flavor-name" className="block text-sm font-medium text-gray-700">
+                Name
+              </label>
+              <input
+                id="flavor-name"
+                type="text"
+                value={flavorForm.Name}
+                onChange={(e) => setFlavorForm((prev) => ({ ...prev, Name: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                placeholder="Vanilla"
+                required
+              />
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="space-y-2">
+                <label htmlFor="primary-flavor" className="block text-sm font-medium text-gray-700">
+                  Primary
+                </label>
+                <input
+                  id="primary-flavor"
+                  type="text"
+                  value={flavorForm.PrimaryFlavor}
+                  onChange={(e) =>
+                    setFlavorForm((prev) => ({ ...prev, PrimaryFlavor: e.target.value }))
+                  }
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  placeholder="Sweet"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="secondary-flavor" className="block text-sm font-medium text-gray-700">
+                  Secondary
+                </label>
+                <input
+                  id="secondary-flavor"
+                  type="text"
+                  value={flavorForm.SecondaryFlavor}
+                  onChange={(e) =>
+                    setFlavorForm((prev) => ({ ...prev, SecondaryFlavor: e.target.value }))
+                  }
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  placeholder="Rich"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="tertiary-flavor" className="block text-sm font-medium text-gray-700">
+                  Tertiary
+                </label>
+                <input
+                  id="tertiary-flavor"
+                  type="text"
+                  value={flavorForm.TertiaryFlavor}
+                  onChange={(e) =>
+                    setFlavorForm((prev) => ({ ...prev, TertiaryFlavor: e.target.value }))
+                  }
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  placeholder="Creamy"
+                  required
+                />
+              </div>
+            </div>
+
+            {flavorError && <p className="text-sm text-red-600">{flavorError}</p>}
+
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowFlavorModal(false);
+                  setFlavorError(null);
+                }}
+                className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isSavingFlavor}
+                className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:opacity-60"
+              >
+                {isSavingFlavor ? 'Saving...' : selectedFlavorId === '' ? 'Create Flavor' : 'Save Changes'}
               </button>
             </div>
           </form>

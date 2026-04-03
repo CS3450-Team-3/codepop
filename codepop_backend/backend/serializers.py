@@ -3,7 +3,7 @@ from django.conf import settings
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
-from .models import Preference, Drink, Inventory, Order, Notification, Revenue, Region, ServerRegistry, MasterList
+from .models import Preference, Drink, Inventory, Order, Notification, Revenue, Region, ServerRegistry, MasterList, Flavor
 
 
 def get_tokens_for_user(user):
@@ -177,7 +177,7 @@ class DrinkSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(f"{value} is not a valid drink size. Allowed sizes are: {allowed_size}")
         
         return value
-    
+
     def validate_Ice(self, value):
         value = value.lower()
 
@@ -190,6 +190,12 @@ class DrinkSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(f"{value} is not a valid ice amount. Allowed amounts are: {allowed_ice}")
 
         return value
+
+
+class FlavorSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Flavor
+        fields = ['SyrupID', 'Name', 'PrimaryFlavor', 'SecondaryFlavor', 'TertiaryFlavor']
 
 class InventorySerializer(serializers.ModelSerializer):
     class Meta:

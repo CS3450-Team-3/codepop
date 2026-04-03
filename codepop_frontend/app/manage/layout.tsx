@@ -1,22 +1,37 @@
 'use client';
 
-import { ReactNode } from 'react';
+import { ReactNode, useEffect } from 'react';
 import { useAuth } from '../contextProviders/AuthContext';
 import { useRouter } from 'next/navigation';
 
 export default function ManageLayout({ children }: { children: ReactNode }) {
   const { user, loading, logout } = useAuth();
   const router = useRouter();
-  
+
+  const allowedRoles = new Set(['store_manager', 'admin', 'super_admin']);
+  const isAuthorized = !!user && allowedRoles.has(user.user_type || '');
+
+  useEffect(() => {
+    if (loading) {
+      return;
+    }
+
+    if (!user) {
+      router.replace('/auth/login');
+      return;
+    }
+
+    if (!allowedRoles.has(user.user_type || '')) {
+      router.replace('/auth/login');
+    }
+  }, [loading, user, router]);
+
   if (loading) {
     // TODO: maybe add a nicer loading state here later
     return <div>Loading...</div>;
   }
 
-  // TODO: we should probably also check if the user type is correct here and redirect if not, but for now we'll just assume that the redirect worked as expected
-  if (!user) {
-    // TODO: move this to a useEffect
-    router.push("/auth/login");
+  if (!user || !isAuthorized) {
     return null;
   }
 

@@ -15,6 +15,7 @@ from .serializers import (
     PreferenceSerializer, DrinkSerializer, InventorySerializer, 
     NotificationSerializer, OrderSerializer, RevenueSerializer, 
     MasterListSerializer, ServerRegistrySerializer, CustomTokenObtainPairSerializer,
+    FlavorSerializer,
     get_tokens_for_user
 )
 from .documentation_serializers import (
@@ -459,6 +460,12 @@ class DrinkOperations(viewsets.ModelViewSet):
     def destroy(self, request, *args, **kwargs):
         # Custom logic for deleting a drink (optional for customization)
         return super().destroy(request, *args, **kwargs)
+
+
+class FlavorOperations(viewsets.ModelViewSet):
+    queryset = Flavor.objects.all().order_by('Name')
+    serializer_class = FlavorSerializer
+    permission_classes = [IsManager]
 
 class UserDrinksLookup(ListAPIView):
     serializer_class = DrinkSerializer
