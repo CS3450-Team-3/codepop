@@ -45,6 +45,9 @@ services:
       DB_NAME: codepop_db
       DB_USER: postgres
       DB_PASSWORD: password
+      STRIPE_SECRET_KEY: "${{STRIPE_SECRET_KEY:-TODO_get_a_new_secret_stripe_key}}"
+      STRIPE_PUBLISHABLE_KEY: "${{STRIPE_PUBLISHABLE_KEY:-pk_test_51T5DqLPnaMtT5PTkugtHqM5ew5RSzkCJ0jklGkdSRXw8VnaiIN3AEW5NAYJzmdrYz2cUjQ7i9uvr9N2hpQnj01gE00jCYApVMN}}"
+      STRIPE_WEBHOOK_SECRET: "${{STRIPE_WEBHOOK_SECRET:-TODO_get_a_webhook_secret}}"
       SERVER_URL: "http://backend:9000"
       MACHINE_HOST: "machine"
       MACHINE_PORT: "9050"
