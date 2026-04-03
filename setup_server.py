@@ -9,14 +9,11 @@ After completing the wizard, start your server with:
 
 """
 import getpass
-import json
 import os
 import re
 import subprocess
 import sys
 import textwrap
-import urllib.parse
-import urllib.request
 from time import sleep
 
 
@@ -143,61 +140,51 @@ def _section(title):
     print(f"\n--- {title} ---")
 
 
-def _encode_geohash(lat, lon, precision=7):
-    """Encode latitude/longitude to a geohash string. Pure Python, no dependencies."""
-    BASE32 = "0123456789bcdefghjkmnpqrstuvwxyz"
-    lat_range, lon_range = [-90.0, 90.0], [-180.0, 180.0]
-    is_lon = True
-    bits = 0
-    bit_count = 0
-    result = []
-    while len(result) < precision:
-        if is_lon:
-            mid = (lon_range[0] + lon_range[1]) / 2
-            if lon >= mid:
-                bits = (bits << 1) | 1
-                lon_range[0] = mid
-            else:
-                bits = (bits << 1) | 0
-                lon_range[1] = mid
-        else:
-            mid = (lat_range[0] + lat_range[1]) / 2
-            if lat >= mid:
-                bits = (bits << 1) | 1
-                lat_range[0] = mid
-            else:
-                bits = (bits << 1) | 0
-                lat_range[1] = mid
-        is_lon = not is_lon
-        bit_count += 1
-        if bit_count == 5:
-            result.append(BASE32[bits])
-            bits = 0
-            bit_count = 0
-    return "".join(result)
+def _ensure_venv():
+    """Bootstrap a local venv with geopy and pygeohash if not already running inside it."""
+    venv_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".setup_venv")
+    if os.environ.get("_CODEPOP_VENV") == venv_dir:
+        return
+    if not os.path.isdir(venv_dir):
+        print("  Creating virtual environment for geocoding dependencies...")
+        subprocess.run([sys.executable, "-m", "venv", venv_dir], check=True)
+        pip = os.path.join(venv_dir, "bin", "pip")
+        subprocess.run([pip, "install", "--quiet", "geopy", "pygeohash"], check=True)
+        print("  Dependencies installed.\n")
+    python = os.path.join(venv_dir, "bin", "python")
+    env = os.environ.copy()
+    env["_CODEPOP_VENV"] = venv_dir
+    os.execve(python, [python] + sys.argv, env)
 
 
-def _geocode_address(address, city, state, zip_code):
-    """
-    Query Nominatim to verify an address and return (lat, lon).
-    Returns (None, None) if the address cannot be geocoded.
-    Uses only stdlib: urllib.request, urllib.parse, json.
-    """
-    query = f"{address}, {city}, {state} {zip_code}, USA"
-    params = urllib.parse.urlencode({"q": query, "format": "json", "limit": "1"})
-    url = f"https://nominatim.openstreetmap.org/search?{params}"
-    req = urllib.request.Request(url, headers={"User-Agent": "CodePop-Setup/1.0"})
-    try:
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            results = json.loads(resp.read().decode())
-            if results:
-                return float(results[0]["lat"]), float(results[0]["lon"])
-    except Exception:
-        pass
-    return None, None
+def _geocode_address():
+    """Prompt for a store address, geocode it with geopy, and return address components + geohash."""
+    from geopy.geocoders import Nominatim
+    import pygeohash
+
+    geolocator = Nominatim(user_agent="store_setup")
+
+    while True:
+        store_address = _prompt("Street address")
+        store_city    = _prompt("City")
+        store_state   = _prompt("State (e.g. OR)")
+        store_zip     = _prompt("ZIP code")
+
+        full_address = f"{store_address}, {store_city}, {store_state} {store_zip}"
+
+        print("\n  Verifying address with OpenStreetMap...")
+        location = geolocator.geocode(full_address)
+
+        if location:
+            geohash = pygeohash.encode(location.latitude, location.longitude, precision=6)
+            print(f"  Address verified. Geohash: {geohash}")
+            return store_address, store_city, store_state, store_zip, geohash
+
+        print("  Could not verify that address. Please re-enter.")
 
 
 def main():
+    _ensure_venv()
     print("=" * 60)
     print("  CodePop Server Setup Wizard")
     print("=" * 60)
@@ -235,25 +222,8 @@ def main():
 
       # ── Store Info ────────────────────────────────────────────────
       _section("Step 2: Store Information")
-      store_name    = _prompt("Store name")
-      store_address = _prompt("Street address")
-      store_city    = _prompt("City")
-      store_state   = _prompt("State (e.g. OR)")
-      store_zip     = _prompt("ZIP code")
-
-      # ── Verify Address ────────────────────────────────────────────
-      print("\n  Verifying address with OpenStreetMap...")
-      while True:
-          lat, lon = _geocode_address(store_address, store_city, store_state, store_zip)
-          if lat is not None:
-              store_geohash = _encode_geohash(lat, lon, precision=7)
-              print(f"  Address verified. Geohash: {store_geohash}")
-              break
-          print("  Could not verify that address. Please re-enter.")
-          store_address = _prompt("Street address")
-          store_city    = _prompt("City")
-          store_state   = _prompt("State (e.g. OR)")
-          store_zip     = _prompt("ZIP code")
+      store_name = _prompt("Store name")
+      store_address, store_city, store_state, store_zip, store_geohash = _geocode_address()
 
       # ── Region ────────────────────────────────────────────────────
       _section("Step 3: Region")
