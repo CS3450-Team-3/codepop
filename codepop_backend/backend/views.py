@@ -177,6 +177,128 @@ def custom_exception_handler(exc, context):
 
     return response
 
+def proxy_user_request(request, target_path):
+    """
+    Helper to proxy a request to the user's home server if it is remote.
+    
+    If the user's home_server is not the local server, this function
+    forwards the request (including the JWT in Authorization header) 
+    to the same path on the home server.
+    """
+    user = request.user
+    if not user.is_authenticated or not user.home_server:
+        return None
+    
+    try:
+        local_server = get_local_server()
+    except Exception:
+        return None
+
+    if user.home_server_id == local_server.ServerID:
+        return None
+    
+    # Construct proxy URL
+    proxy_url = user.home_server.ServerURL.rstrip('/') + target_path
+    
+    # Extract headers (especially Authorization)
+    headers = {
+        'Content-Type': 'application/json'
+    }
+    auth_header = request.headers.get('Authorization')
+    if auth_header:
+        headers['Authorization'] = auth_header
+    
+    # Forward the request
+    try:
+        method = request.method
+        payload = request.data if method in ['POST', 'PUT', 'PATCH'] else None
+        # For GET requests, query params should be passed
+        params = request.query_params if method == 'GET' else None
+        
+        remote_resp = requests.request(
+            method=method,
+            url=proxy_url,
+            json=payload,
+            params=params,
+            headers=headers,
+            timeout=10
+        )
+        
+        # Return a Django Response object matching the proxy result
+        try:
+            data = remote_resp.json()
+        except ValueError:
+            data = remote_resp.text
+            
+        return Response(data, status=remote_resp.status_code)
+        
+    except requests.RequestException as e:
+        return Response(
+            {"error": "Home server unreachable", "details": str(e)}, 
+            status=status.HTTP_503_SERVICE_UNAVAILABLE
+        )
+
+def sync_order_to_home_server(order, request):
+    """
+    Helper to sync a locally created order back to the user's remote home server.
+    """
+    user = order.UserID
+    if not user or not user.home_server:
+        return
+    
+    try:
+        local_server = get_local_server()
+    except Exception:
+        return
+
+    if user.home_server_id == local_server.ServerID:
+        return
+    
+    # Construct proxy URL for creating the order on the home server
+    proxy_url = user.home_server.ServerURL.rstrip('/') + '/backend/orders/'
+    
+    # Extract headers (especially Authorization)
+    headers = {
+        'Content-Type': 'application/json'
+    }
+    auth_header = request.headers.get('Authorization')
+    if auth_header:
+        headers['Authorization'] = auth_header
+    
+    # Serialize the order including its ID and related drinks
+    from .serializers import OrderSerializer, DrinkSerializer
+    serializer = OrderSerializer(order)
+    payload = serializer.data
+    
+    # Standard JSON serializer (used by requests) doesn't handle UUIDs.
+    # We must ensure all ID fields are stringified.
+    payload['OrderID'] = str(payload['OrderID'])
+    if payload.get('UserID'):
+        payload['UserID'] = str(payload['UserID'])
+    if payload.get('Drinks'):
+        payload['Drinks'] = [str(d) for d in payload['Drinks']]
+    
+    # Include full drink data so the home server can recreate missing drinks
+    drinks_queryset = order.Drinks.all()
+    payload['DrinksData'] = DrinkSerializer(drinks_queryset, many=True).data
+    # DrinkSerializer data also needs stringified UUIDs
+    for d_data in payload['DrinksData']:
+        d_data['DrinkID'] = str(d_data['DrinkID'])
+    
+    # Ensure the home server knows this came from our server
+    payload['OriginatingServer'] = local_server.ServerID
+    
+    # Forward the request (Fire and forget-ish, but let's log errors)
+    try:
+        requests.post(
+            url=proxy_url,
+            json=payload,
+            headers=headers,
+            timeout=10
+        )
+    except requests.RequestException as e:
+        logger.warning(f"Failed to sync order {order.OrderID} to home server {user.home_server_id}: {str(e)}")
+
 class CustomAuthToken(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
 
@@ -352,21 +474,49 @@ class PreferencesOperations(viewsets.ModelViewSet):
     serializer_class = PreferenceSerializer
     permission_classes = [IsAuthenticated]
 
+    def list(self, request, *args, **kwargs):
+        proxy_resp = proxy_user_request(request, '/backend/preferences/')
+        if proxy_resp:
+            return proxy_resp
+        return super().list(request, *args, **kwargs)
+
+    def retrieve(self, request, *args, **kwargs):
+        pk = kwargs.get('pk')
+        proxy_resp = proxy_user_request(request, f'/backend/preferences/{pk}/')
+        if proxy_resp:
+            return proxy_resp
+        return super().retrieve(request, *args, **kwargs)
+
     def create(self, request, *args, **kwargs):
-        # Custom logic for creating a drink can go here
+        proxy_resp = proxy_user_request(request, '/backend/preferences/')
+        if proxy_resp:
+            return proxy_resp
         return super().create(request, *args, **kwargs)
 
     def update(self, request, *args, **kwargs):
-        # Custom logic for updating a drink can go here
+        pk = kwargs.get('pk')
+        proxy_resp = proxy_user_request(request, f'/backend/preferences/{pk}/')
+        if proxy_resp:
+            return proxy_resp
         return super().update(request, *args, **kwargs)
 
     def destroy(self, request, *args, **kwargs):
-        # Custom logic for deleting a drink can go here
+        pk = kwargs.get('pk')
+        proxy_resp = proxy_user_request(request, f'/backend/preferences/{pk}/')
+        if proxy_resp:
+            return proxy_resp
         return super().destroy(request, *args, **kwargs)
 
 class UserPreferenceLookup(ListAPIView):
     serializer_class = PreferenceSerializer
     permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        user_id = self.kwargs['user_id']
+        proxy_resp = proxy_user_request(request, f'/backend/users/{user_id}/preferences/')
+        if proxy_resp:
+            return proxy_resp
+        return super().get(request, *args, **kwargs)
 
     # Override get_queryset to filter preferences by the provided UserID
     def get_queryset(self):
@@ -389,6 +539,15 @@ class DrinkOperations(viewsets.ModelViewSet):
     queryset = Drink.objects.all()
     serializer_class = DrinkSerializer
     permission_classes = [AllowAny]
+
+    def list(self, request, *args, **kwargs):
+        # If filtering for user_created drinks, proxy to home server
+        drink_type = request.query_params.get('type')
+        if drink_type == 'user_created':
+            proxy_resp = proxy_user_request(request, '/backend/drinks/')
+            if proxy_resp:
+                return proxy_resp
+        return super().list(request, *args, **kwargs)
 
     def get_queryset(self):
         """
@@ -419,13 +578,20 @@ class DrinkOperations(viewsets.ModelViewSet):
         return queryset
 
     def create(self, request, *args, **kwargs):
-        # Custom logic for creating a drink (optional for customization)
+        proxy_resp = proxy_user_request(request, '/backend/drinks/')
+        if proxy_resp:
+            return proxy_resp
         return super().create(request, *args, **kwargs)
 
     def update(self, request, *args, **kwargs):
         """
         Custom update method to handle updating a drink's fields, favorites, and validation.
         """
+        pk = kwargs.get('pk')
+        proxy_resp = proxy_user_request(request, f'/backend/drinks/{pk}/')
+        if proxy_resp:
+            return proxy_resp
+
         # Retrieve the drink object to be updated
         drink = self.get_object()
 
@@ -457,12 +623,22 @@ class DrinkOperations(viewsets.ModelViewSet):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def destroy(self, request, *args, **kwargs):
-        # Custom logic for deleting a drink (optional for customization)
+        pk = kwargs.get('pk')
+        proxy_resp = proxy_user_request(request, f'/backend/drinks/{pk}/')
+        if proxy_resp:
+            return proxy_resp
         return super().destroy(request, *args, **kwargs)
 
 class UserDrinksLookup(ListAPIView):
     serializer_class = DrinkSerializer
     permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        user_id = self.kwargs['user_id']
+        proxy_resp = proxy_user_request(request, f'/backend/users/{user_id}/drinks/')
+        if proxy_resp:
+            return proxy_resp
+        return super().get(request, *args, **kwargs)
 
     def get_queryset(self):
         """
@@ -672,30 +848,62 @@ class OrderOperations(viewsets.ModelViewSet):
 
     def create(self, request, *args, **kwargs):
         # Extract data from the request
-        user_id = request.data.get("UserID", None)
-        drinks = request.data.get("Drinks", [])
+        order_id = request.data.get("OrderID")
+        user_id = request.data.get("UserID")
+        
+        # Handle both JSON (list) and form-data (getlist)
+        if hasattr(request.data, 'getlist'):
+            drinks = request.data.getlist("Drinks")
+        else:
+            drinks = request.data.get("Drinks", [])
+        # If it's a single item not in a list, wrap it
+        if drinks and not isinstance(drinks, list):
+            drinks = [drinks]
+
         order_status = request.data.get("OrderStatus", "Pending")
         payment_status = request.data.get("PaymentStatus", "Pending")
-        stripe_id = request.data.get("StripeID", None)
-        originating_server = request.data.get("OriginatingServer", None)
+        stripe_id = request.data.get("StripeID")
+        originating_server_id = request.data.get("OriginatingServer")
 
-        # Create a new order
+        # Prepare order data for the serializer
         order_data = {
             "UserID": user_id,
             "OrderStatus": order_status,
             "Drinks": drinks,
             "PaymentStatus": payment_status,
-            "StripeID": stripe_id,
-            "OriginatingServer": originating_server,
         }
+        
+        # Only add optional fields if they are provided
+        if order_id:
+            order_data["OrderID"] = order_id
+        if stripe_id:
+            order_data["StripeID"] = stripe_id
+        if originating_server_id:
+            order_data["OriginatingServer"] = originating_server_id
 
+        # 1. Ensure all drinks in the sync payload exist locally
+        drinks_data = request.data.get("DrinksData")
+        if drinks_data and isinstance(drinks_data, list):
+            for d_data in drinks_data:
+                # Ensure DrinkID is present
+                d_id = d_data.get("DrinkID")
+                if d_id:
+                    # Filter out non-model fields like 'Favorite' if present in serializer output
+                    # but model defaults should handle most things.
+                    defaults = {k: v for k, v in d_data.items() if k != 'DrinkID' and k != 'Favorite'}
+                    Drink.objects.update_or_create(DrinkID=d_id, defaults=defaults)
+
+        # 2. Create the order
         serializer = self.get_serializer(data=order_data)
         serializer.is_valid(raise_exception=True)
         order = serializer.save()
 
-        # Add drinks to the order if provided
+        # Add drinks to the order if provided (ManyToMany)
         if drinks:
             order.add_drinks(drinks)
+
+        # Sync back to home server if we are a visiting server
+        sync_order_to_home_server(order, request)
 
         # Return the created order's data
         return Response(self.get_serializer(order).data, status=status.HTTP_201_CREATED)
@@ -710,6 +918,42 @@ class UserOrdersLookup(ListCreateAPIView):
     serializer_class = OrderSerializer
     permission_classes = [IsAuthenticated]
 
+    def list(self, request, *args, **kwargs):
+        """
+        Retrieve orders for the provided user ID.
+        If the user's home server is remote, fetch and merge remote orders.
+        """
+        user_id = self.kwargs['user_id']
+        
+        # 1. Fetch local orders
+        queryset = self.get_queryset()
+        local_serializer = self.get_serializer(queryset, many=True)
+        local_orders = local_serializer.data
+        
+        # 2. Proxy fetch remote orders if home server is remote
+        proxy_resp = proxy_user_request(request, f'/backend/users/{user_id}/orders/')
+        
+        if proxy_resp and proxy_resp.status_code == 200:
+            # remote_orders is expected to be a list
+            remote_orders = proxy_resp.data
+            if isinstance(remote_orders, list):
+                # Merge and sort by CreationTime descending
+                merged_orders = local_orders + remote_orders
+                # Deduplicate by OrderID
+                seen_ids = set()
+                unique_orders = []
+                for o in merged_orders:
+                    oid = o.get('OrderID')
+                    if oid not in seen_ids:
+                        unique_orders.append(o)
+                        seen_ids.add(oid)
+                
+                # Sort by CreationTime descending
+                unique_orders.sort(key=lambda x: x.get('CreationTime', '') or '', reverse=True)
+                return Response(unique_orders, status=status.HTTP_200_OK)
+            
+        return Response(local_orders, status=status.HTTP_200_OK)
+
     def get_queryset(self):
         """Filter orders based on the user ID from the URL."""
         user_id = self.kwargs['user_id']
@@ -720,7 +964,9 @@ class UserOrdersLookup(ListCreateAPIView):
         """Associate the new order with the correct user."""
         user_id = self.kwargs['user_id']
         user = get_object_or_404(User, pk=user_id)
-        serializer.save(UserID=user)
+        order = serializer.save(UserID=user)
+        # Sync back to home server if we are a visiting server
+        sync_order_to_home_server(order, self.request)
 
 # Constants for pricing. Easily customizable from this point.
 PRICING = {
@@ -1301,20 +1547,35 @@ class UserProfileView(RetrieveUpdateAPIView):
         description="Retrieve the profile of the currently authenticated user.",
         responses={200: UserProfileSerializer}
     )
-    def get(self, *args, **kwargs):
-        return super().get(*args, **kwargs)
+    def get(self, request, *args, **kwargs):
+        # 1. Proxy if home server is remote
+        proxy_resp = proxy_user_request(request, '/backend/users/me/')
+        if proxy_resp:
+            return proxy_resp
+            
+        return super().get(request, *args, **kwargs)
 
     @extend_schema(
         description="Update the profile details (first name, last name, email) of the authenticated user.",
         request=UserProfileSerializer,
         responses={200: UserProfileSerializer}
     )
-    def patch(self, *args, **kwargs):
-        return super().patch(*args, **kwargs)
+    def patch(self, request, *args, **kwargs):
+        # 1. Proxy if home server is remote
+        proxy_resp = proxy_user_request(request, '/backend/users/me/')
+        if proxy_resp:
+            return proxy_resp
+            
+        return super().patch(request, *args, **kwargs)
 
     @extend_schema(exclude=True) # Hide PUT if you only want to support PATCH
-    def put(self, *args, **kwargs):
-        return super().put(*args, **kwargs)
+    def put(self, request, *args, **kwargs):
+        # 1. Proxy if home server is remote
+        proxy_resp = proxy_user_request(request, '/backend/users/me/')
+        if proxy_resp:
+            return proxy_resp
+            
+        return super().put(request, *args, **kwargs)
 
     def get_object(self):
         return self.request.user

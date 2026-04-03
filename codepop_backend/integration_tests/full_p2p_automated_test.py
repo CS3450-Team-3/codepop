@@ -11,7 +11,7 @@ from cryptography.hazmat.backends import default_backend
 from port_utils import find_n_available_ports
 
 # CONFIGURATION
-SECTION_TOTAL = 11
+SECTION_TOTAL = 12
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # ANSI Color Codes
@@ -821,6 +821,145 @@ def main():
             else:
                 raise Exception(f"Run-test endpoint failed: {resp.status_code} {resp.text}")
                 
+        except Exception as e:
+            print_failure(str(e))
+            failure_count += 1
+
+        # 12. Data Proxying & Syncing (Roaming User)
+        print_step(12, "Testing Data Proxying and Syncing (Roaming User)...")
+        try:
+            # We already have Server A and B running. 
+            # We'll use the user 'traveler_bob' from Section 4 who is home on Server A.
+            roaming_username = "traveler_bob"
+            roaming_password = "password123"
+            
+            # 1. Login to Visiting Server B
+            login_url_b = f"http://localhost:{PORT_B}/backend/auth/login/"
+            resp = requests.post(login_url_b, json={"username": roaming_username, "password": roaming_password}, timeout=10)
+            if resp.status_code != 200:
+                raise Exception(f"Section 12: Roaming login failed on Server B: {resp.text}")
+            
+            data = resp.json()
+            access_token_bob_b = data["access"]
+            roaming_user_id = data["user_id"]
+            headers_bob_b = {"Authorization": f"Bearer {access_token_bob_b}"}
+            test_count += 1
+            print_success("Roaming user authenticated on Visiting Server B.")
+
+            # 2. Profile Proxying (B -> A)
+            print_substep("Testing Profile Patch Proxying (B -> A)...")
+            profile_url_b = f"http://localhost:{PORT_B}/backend/users/me/"
+            patch_resp = requests.patch(profile_url_b, json={"first_name": "RoamingJoe"}, headers=headers_bob_b, timeout=10)
+            if patch_resp.status_code != 200:
+                raise Exception(f"Section 12: Profile patch proxy failed: {patch_resp.text}")
+            
+            # Verify on Server A directly (requires logging in on A)
+            login_url_a = f"http://localhost:{PORT_A}/backend/auth/login/"
+            resp_a = requests.post(login_url_a, json={"username": roaming_username, "password": roaming_password}, timeout=10)
+            headers_bob_a = {"Authorization": f"Bearer {resp_a.json()['access']}"}
+            
+            verify_a_resp = requests.get(f"http://localhost:{PORT_A}/backend/users/me/", headers=headers_bob_a, timeout=10)
+            if verify_a_resp.json().get("first_name") != "RoamingJoe":
+                raise Exception("Section 12: Profile update did not persist on Home Server A.")
+            test_count += 1
+            print_success("Profile update proxied correctly to Home Server.")
+
+            # 3. Preference Proxying (B -> A)
+            print_substep("Testing Preference Creation Proxying (B -> A)...")
+            pref_url_b = f"http://localhost:{PORT_B}/backend/preferences/"
+            pref_payload = {"Preference": "mtn. dew", "UserID": roaming_user_id}
+            pref_resp = requests.post(pref_url_b, json=pref_payload, headers=headers_bob_b, timeout=10)
+            if pref_resp.status_code != 201:
+                raise Exception(f"Section 12: Preference creation proxy failed: {pref_resp.text}")
+            
+            # Verify on Server A
+            list_pref_url_a = f"http://localhost:{PORT_A}/backend/users/{roaming_user_id}/preferences/"
+            verify_pref_resp = requests.get(list_pref_url_a, headers=headers_bob_a, timeout=10)
+            if not any(p["Preference"] == "mtn. dew" for p in verify_pref_resp.json()):
+                raise Exception("Section 12: Preference not found on Home Server A.")
+            test_count += 1
+            print_success("Preference creation proxied correctly to Home Server.")
+
+            # 4. Order Syncing (B -> A) with automatic Drink Sync
+            print_substep("Testing Order Creation Syncing (B -> A) with automatic Drink sync...")
+            
+            # 4a. Create a drink ONLY on Server B via API
+            # traveler_joe is home on Server A, so if he creates a drink on B, 
+            # it proxies to A. We need a local user on B to create it LOCALLY on B.
+            reg_url_b = f"http://localhost:{PORT_B}/backend/auth/register/"
+            local_user_payload = {
+                "username": "local_guy_b",
+                "password": "password123",
+                "user_type": "customer",
+                "first_name": "Local",
+                "last_name": "B"
+            }
+            requests.post(reg_url_b, json=local_user_payload, timeout=10)
+            
+            # Login local user on B
+            login_local_b = requests.post(login_url_b, json={"username": "local_guy_b", "password": "password123"}, timeout=10)
+            token_local_b = login_local_b.json()["access"]
+            headers_local_b = {"Authorization": f"Bearer {token_local_b}"}
+
+            local_drink_id = "00000000-0000-0000-0000-000000000888"
+            drink_payload = {
+                "DrinkID": local_drink_id,
+                "Name": "B-Only Soda",
+                "Price": 2.5,
+                "User_Created": False,
+                "SodaUsed": ["Pepsi"]
+            }
+            create_drink_resp = requests.post(f"http://localhost:{PORT_B}/backend/drinks/", json=drink_payload, headers=headers_local_b, timeout=10)
+            if create_drink_resp.status_code != 201:
+                raise Exception(f"Section 12: Could not create test drink on Server B via API: {create_drink_resp.text}")
+
+            # 4b. Place order as Bob on Visiting Server B
+            order_url_b = f"http://localhost:{PORT_B}/backend/orders/"
+            order_data = {"UserID": roaming_user_id, "Drinks": [local_drink_id], "OrderStatus": "Pending"}
+            order_resp = requests.post(order_url_b, json=order_data, headers=headers_bob_b, timeout=10)
+            if order_resp.status_code != 201:
+                raise Exception(f"Section 12: Order creation on B failed: {order_resp.text}")
+            
+            # Verify it synced to A
+            time.sleep(2) # Wait for sync
+            verify_order_url_a = f"http://localhost:{PORT_A}/backend/users/{roaming_user_id}/orders/"
+            verify_order_resp = requests.get(verify_order_url_a, headers=headers_bob_a, timeout=10)
+            
+            synced_orders = verify_order_resp.json()
+            if not any(o["OrderID"] == order_resp.json()["OrderID"] for o in synced_orders):
+                raise Exception("Section 12: Order did not sync back to Home Server A.")
+            
+            # Verify the drink was synced to A automatically
+            verify_drink_url_a = f"http://localhost:{PORT_A}/backend/drinks/{local_drink_id}/"
+            verify_drink_resp = requests.get(verify_drink_url_a, headers=headers_bob_a, timeout=10)
+            if verify_drink_resp.status_code != 200 or verify_drink_resp.json().get("Name") != "B-Only Soda":
+                raise Exception(f"Section 12: Drink {local_drink_id} was NOT automatically synced to Home Server A.")
+
+            test_count += 1
+            print_success("Order and related Drinks successfully synced back to Home Server.")
+
+            # 5. Order History Merge (B reads local + remote A)
+            print_substep("Testing Order History Merge (B reads local + remote A)...")
+            
+            # 5a. Place an order directly on Home Server A
+            order_data_a = {"UserID": roaming_user_id, "Drinks": [local_drink_id], "OrderStatus": "Completed"}
+            order_resp_a = requests.post(f"http://localhost:{PORT_A}/backend/orders/", json=order_data_a, headers=headers_bob_a, timeout=10)
+            if order_resp_a.status_code != 201:
+                raise Exception(f"Section 12: Seeding order on Server A failed: {order_resp_a.text}")
+            
+            # 5b. Read history from Visiting Server B
+            history_url_b = f"http://localhost:{PORT_B}/backend/users/{roaming_user_id}/orders/"
+            history_resp = requests.get(history_url_b, headers=headers_bob_b, timeout=10)
+            if history_resp.status_code == 200:
+                orders = history_resp.json()
+                if len(orders) >= 2:
+                    print_success(f"Order history merge successful. Found {len(orders)} orders.")
+                else:
+                    raise Exception(f"Section 12: Expected >=2 orders in merge, found {len(orders)}")
+            else:
+                raise Exception(f"Section 12: History merge read failed: {history_resp.text}")
+            test_count += 1
+
         except Exception as e:
             print_failure(str(e))
             failure_count += 1
