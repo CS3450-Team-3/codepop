@@ -42,7 +42,8 @@ class P2PJWTAuthentication(authentication.BaseAuthentication):
                 payload = jwt.decode(
                     raw_token, 
                     issuer_server.PublicKey, 
-                    algorithms=['RS256']
+                    algorithms=['RS256'],
+                    leeway=5 # Handle slight clock skew in automated tests
                 )
             except jwt.ExpiredSignatureError:
                 raise AuthenticationFailed("Token has expired.")

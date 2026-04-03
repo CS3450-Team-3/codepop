@@ -4,12 +4,12 @@ from .views import CreateUserAPIView, LogoutUserAPIView, CustomAuthToken, Custom
 from .views import StripePaymentIntentView, StripeWebhookView
 from .views import UserPreferenceLookup, PreferencesOperations
 from .views import DrinkOperations, UserDrinksLookup
-from .views import InventoryListAPIView, InventoryReportAPIView, InventoryUpdateAPIView
+from .views import InventoryListAPIView, InventoryReportAPIView, InventoryUpdateAPIView, InventoryAggregateView
 from .views import NotificationOperations, UserNotificationLookup
 from .views import OrderOperations, UserOrdersLookup
-from .views import RevenueViewSet
+from .views import RevenueViewSet, RevenueAggregateView
 from .views import UserOperations
-from .views import MasterListSyncView, PublicDiscoveryView, P2PJoinView, MenuView, UserProfileView, ServerRegistryAPIView, GeneralGenerateAIDrink, UserGenerateAIDrink, emailAPI
+from .views import MasterListSyncView, PublicDiscoveryView, P2PJoinView, MenuView, UserProfileView, ServerRegistryAPIView, GeneralGenerateAIDrink, UserGenerateAIDrink, emailAPI, MachineStatusView, MachineRunTestView, MachineStatusAggregateView
 from .customerAI import Chatbot
 
 #this ensures that the url calls the right function from the views for each type of request
@@ -147,6 +147,9 @@ urlpatterns = [
     # - GET: Retrieve an inventory report.
     path('inventory/report/', InventoryReportAPIView.as_view(), name='inventory_report'),
 
+    # Regional aggregation endpoint
+    path('inventory/aggregate/', InventoryAggregateView.as_view(), name='inventory_aggregate'),
+
     # Endpoint to retrieve, update, or delete a specific inventory item by its primary key (ID)
     # - GET: Retrieve details of a specific inventory item.
     # - PATCH: Update the quantity of the specific inventory item.
@@ -209,6 +212,9 @@ urlpatterns = [
     # - POST: Create a new revenue. Requires authentication and revenue details in the request body.
     path('revenues/', revenue_list, name='revenue_list_create'),
 
+    # Regional aggregation endpoint
+    path('revenues/aggregate/', RevenueAggregateView.as_view(), name='revenue_aggregate'),
+
     # Endpoint to retrieve, update, or delete a specific revenue by its primary key (ID).
     # - GET: Retrieve details of a specific revenue.
     # - PUT: Update the specific revenue.
@@ -239,4 +245,9 @@ urlpatterns = [
     # Server Registry API
     path('servers/', server_registry_list, name='server_registry_list'),
     path('servers/<str:pk>/', server_registry_detail, name='server_registry_detail'),
+
+    # Machine Status Proxy API
+    path('machines/status/', MachineStatusView.as_view(), name='machine-status'),
+    path('machines/status/aggregate/', MachineStatusAggregateView.as_view(), name='machine-status-aggregate'),
+    path('machines/run-test/', MachineRunTestView.as_view(), name='machine-run-test'),
 ]
