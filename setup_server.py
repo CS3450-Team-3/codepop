@@ -193,7 +193,7 @@ def main():
         a docker-compose.yml ready to launch your CodePop server.
     """))
 
-    test_config      = _prompt("Setup with default TESTING values? (Y/n)")
+    test_config      = _prompt("Setup with default TESTING values? [Y/n]")
     if test_config.lower() in ("y", "yes", ""):
         # ── Test Config ───────────────────────────────────────────────
         _section("Test Config")
