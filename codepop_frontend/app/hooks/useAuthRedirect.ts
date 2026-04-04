@@ -8,7 +8,7 @@ export function useAuthRedirect(user: any, loading: boolean) {
     if (loading || !user) return;
 
     const routes: Record<string, string> = {
-      customer: "/customer/profile",
+      customer: "/",
       manager: "/manage/dashboard",
       admin: "/admin",
     };
