@@ -1,7 +1,5 @@
 'use client';
 
-import React from 'react';
-
 export default function CustomerProfilePage() {
   return (
     <div className="p-8 max-w-2xl mx-auto">
