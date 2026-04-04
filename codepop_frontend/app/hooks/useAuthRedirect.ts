@@ -1,18 +1,27 @@
+// app/hooks/useAuthRedirect.ts
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { User } from '@/models/types/user';
 
-export function useAuthRedirect(user: any, loading: boolean) {
+const ROLE_HOME: Record<string, string> = {
+  customer:           '/',
+  store_manager:      '/manage/dashboard',
+  logistics_manager:  '/manage/dashboard',
+  admin:              '/admin/dashboard',
+  super_admin:        '/admin/dashboard',
+};
+
+export function useAuthRedirect(user: User | null, loading: boolean) {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   useEffect(() => {
     if (loading || !user) return;
 
-    const routes: Record<string, string> = {
-      customer: "/",
-      manager: "/manage/dashboard",
-      admin: "/admin",
-    };
-
-    router.replace(routes[user.user_type] || "/");
-  }, [user, loading, router]);
+    // If they were trying to go somewhere specific before being redirected
+    // to login, send them there — otherwise send them to their role home
+    const next = searchParams.get('next');
+    const destination = next ?? ROLE_HOME[user.user_type ?? ''] ?? '/';
+    router.replace(destination);
+  }, [user, loading, router, searchParams]);
 }
