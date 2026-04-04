@@ -175,7 +175,7 @@ export default function HomePage() {
 
         {/* ── Category filter ── */}
         <section className="sticky top-14 z-20 bg-white py-3 border-b border-slate-100">
-          <CategoryFilter active={category} onChange={setCategory} />
+          <CategoryFilter active={category} onChange={setCategory} onCustomClick={openCustomDrink} />
         </section>
 
         {/* ── Drinks list ── */}
@@ -193,6 +193,8 @@ export default function HomePage() {
               ? 'Energy Drinks'
               : category === 'classic'
               ? 'Classic Drinks'
+              : category === 'custom'
+              ? 'Custom Drinks'
               : 'Custom Drinks'}
           </h2>
 

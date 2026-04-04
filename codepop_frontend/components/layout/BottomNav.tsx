@@ -32,6 +32,30 @@ export default function BottomNav({ onCustomizeClick }: BottomNavProps) {
           Home
         </Link>
 
+        {/* Customize — triggers modal, not a route */}
+        {/* <button
+          onClick={onCustomizeClick}
+          className="flex flex-col items-center gap-0.5 px-4 py-2.5 text-xs font-medium text-slate-400 hover:text-violet-600 transition-colors"
+        >
+          <div className="rounded-xl bg-violet-600 p-1.5 text-white">
+            <Plus size={21} />
+          </div>
+          <span className="text-violet-600 font-semibold">Custom</span>
+        </button> */}
+
+        {/* AI Picks */}
+        <Link
+          href="/ai-picks"
+          className={`flex flex-col items-center gap-0.5 px-4 py-2.5 text-xs font-medium transition-colors ${
+            isActive('/ai-picks/') ? 'text-violet-600' : 'text-slate-400 hover:text-slate-600'
+          }`}
+        >
+          <div className={`rounded-xl p-1.5 ${isActive('/ai-picks/') ? 'bg-violet-50' : ''}`}>
+            <Sparkles size={21} />
+          </div>
+          AI Picks
+        </Link>
+
         {/* Cart */}
         <Link
           href="/cart"
@@ -48,30 +72,6 @@ export default function BottomNav({ onCustomizeClick }: BottomNavProps) {
             )}
           </div>
           Cart
-        </Link>
-
-        {/* Customize — triggers modal, not a route */}
-        <button
-          onClick={onCustomizeClick}
-          className="flex flex-col items-center gap-0.5 px-4 py-2.5 text-xs font-medium text-slate-400 hover:text-violet-600 transition-colors"
-        >
-          <div className="rounded-xl bg-violet-600 p-1.5 text-white">
-            <Plus size={21} />
-          </div>
-          <span className="text-violet-600 font-semibold">Custom</span>
-        </button>
-
-        {/* AI Picks */}
-        <Link
-          href="/ai-picks"
-          className={`flex flex-col items-center gap-0.5 px-4 py-2.5 text-xs font-medium transition-colors ${
-            isActive('/ai-picks/') ? 'text-violet-600' : 'text-slate-400 hover:text-slate-600'
-          }`}
-        >
-          <div className={`rounded-xl p-1.5 ${isActive('/ai-picks/') ? 'bg-violet-50' : ''}`}>
-            <Sparkles size={21} />
-          </div>
-          AI Picks
         </Link>
       </div>
     </nav>
