@@ -3,7 +3,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { loadStripe, StripeElementsOptions } from '@stripe/stripe-js';
+import { loadStripe, StripeElementsOptions, Stripe } from '@stripe/stripe-js';
 import {
   Elements,
   PaymentElement,
@@ -13,15 +13,8 @@ import {
 import { ArrowLeft, ShieldCheck, Lock, Loader2, AlertCircle } from 'lucide-react';
 import { useCart } from '@/app/contextProviders/CartContext';
 import { useAuth } from '@/app/contextProviders/AuthContext';
-import { useStore } from '@/app/contextProviders/StoreContext';
 import { createOrder } from '@/models/api/order';
 import DrinkColorAvatar from '@/components/drinks/DrinkColorAvatar';
-
-// ── Stripe instance — must be outside component so it's only created once ──
-// Pull from env so the key is never hardcoded
-const stripePromise = loadStripe(
-  process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? ''
-);
 
 // ── Inner form — must be a child of <Elements> ──────────────────────────────
 interface CheckoutFormProps {
@@ -46,10 +39,8 @@ function CheckoutForm({ orderId, total, onSuccess }: CheckoutFormProps) {
     const { error: stripeError, paymentIntent } = await stripe.confirmPayment({
       elements,
       confirmParams: {
-        // Fallback redirect URL — for 3DS etc.
         return_url: `${window.location.origin}/order-confirmation/${orderId}`,
       },
-      // Don't do a full page redirect for card payments that don't need it
       redirect: 'if_required',
     });
 
@@ -69,19 +60,13 @@ function CheckoutForm({ orderId, total, onSuccess }: CheckoutFormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
-      <PaymentElement
-        options={{
-          layout: 'tabs',
-        }}
-      />
-
+      <PaymentElement options={{ layout: 'tabs' }} />
       {error && (
         <div className="flex items-start gap-2 rounded-xl border border-red-100 bg-red-50 p-3">
           <AlertCircle size={16} className="mt-0.5 shrink-0 text-red-500" />
           <p className="text-sm text-red-700">{error}</p>
         </div>
       )}
-
       <button
         type="submit"
         disabled={!stripe || !elements || processing}
@@ -96,7 +81,6 @@ function CheckoutForm({ orderId, total, onSuccess }: CheckoutFormProps) {
           `Pay $${total.toFixed(2)}`
         )}
       </button>
-
       <div className="flex items-center justify-center gap-1.5 text-xs text-slate-400">
         <Lock size={11} />
         Secure encrypted payment via Stripe
@@ -109,13 +93,12 @@ function CheckoutForm({ orderId, total, onSuccess }: CheckoutFormProps) {
 type CheckoutState =
   | { status: 'idle' }
   | { status: 'creating' }
-  | { status: 'ready'; clientSecret: string; orderId: string }
+  | { status: 'ready'; clientSecret: string; orderId: string; stripe: Stripe | null }
   | { status: 'error'; message: string };
 
 export default function CheckoutPage() {
   const router = useRouter();
   const { user } = useAuth();
-  const { storeId } = useStore();
   const { items, totalPrice, clearCart } = useCart();
 
   const [checkoutState, setCheckoutState] = useState<CheckoutState>({
@@ -125,10 +108,6 @@ export default function CheckoutPage() {
   const tax = totalPrice * 0.08;
   const grandTotal = totalPrice + tax;
 
-  // ── Create the order + PaymentIntent when page mounts ───────────────────
-  // NOTE: This assumes your backend's POST /orders/ returns a clientSecret
-  // in the response alongside the order data. If the endpoint is different,
-  // swap out the API call here.
   const initializeCheckout = useCallback(async () => {
     if (items.length === 0) {
       router.replace('/cart');
@@ -138,10 +117,6 @@ export default function CheckoutPage() {
     setCheckoutState({ status: 'creating' });
 
     try {
-      // Collect all drink IDs from cart items
-      // For drinks that are new customizations (User_Created), you may need
-      // to POST them to /drinks/ first to get a real DrinkID — for now we
-      // send the IDs we have
       const drinkIds = items.map((item) => item.drink.DrinkID);
 
       const order = await createOrder({
@@ -151,21 +126,23 @@ export default function CheckoutPage() {
         PaymentStatus: 'Pending',
       });
 
-      // ⚠️  Your backend needs to return clientSecret on order creation.
-      // If it's on a different field, adjust here.
-      const clientSecret = (order as unknown as Record<string, string>)
-        .clientSecret;
+      const data = order as unknown as Record<string, string>;
+      const clientSecret = data.clientSecret;
+      const publishableKey = data.publishableKey;
 
-      if (!clientSecret) {
+      if (!clientSecret || !publishableKey) {
         throw new Error(
-          'No clientSecret returned from server. Check backend Stripe integration.'
+          'Missing Stripe configuration from server. Check backend integration.'
         );
       }
+
+      const stripe = await loadStripe(publishableKey);
 
       setCheckoutState({
         status: 'ready',
         clientSecret,
         orderId: order.OrderID,
+        stripe,
       });
     } catch (err) {
       setCheckoutState({
@@ -189,7 +166,6 @@ export default function CheckoutPage() {
     router.replace(`/order-confirmation/${orderId}`);
   }, [clearCart, checkoutState, router]);
 
-  // ── Stripe Elements options ──────────────────────────────────────────────
   const elementsOptions: StripeElementsOptions =
     checkoutState.status === 'ready'
       ? {
@@ -205,9 +181,11 @@ export default function CheckoutPage() {
         }
       : {};
 
+  const stripePromise =
+    checkoutState.status === 'ready' ? checkoutState.stripe : null;
+
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Header */}
       <header className="fixed top-0 z-40 w-full border-b border-slate-100 bg-white/90 backdrop-blur-md">
         <div className="flex h-14 items-center px-4">
           <button
@@ -219,13 +197,11 @@ export default function CheckoutPage() {
           <h1 className="flex-1 text-center text-base font-bold text-slate-900">
             Checkout
           </h1>
-          {/* Spacer to center title */}
           <div className="w-9" />
         </div>
       </header>
 
       <main className="mx-auto max-w-md px-4 pb-12 pt-20">
-        {/* ── Order summary ── */}
         <div className="mb-4 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
           <p className="mb-3 text-xs font-bold uppercase tracking-widest text-slate-400">
             Order Summary
@@ -270,9 +246,7 @@ export default function CheckoutPage() {
           </div>
         </div>
 
-        {/* ── Payment section ── */}
         <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-          {/* Secure badge */}
           <div className="mb-5 flex items-center gap-3 border-b border-slate-100 pb-4">
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-green-100 text-green-600">
               <ShieldCheck size={20} />
@@ -285,7 +259,6 @@ export default function CheckoutPage() {
             </div>
           </div>
 
-          {/* State-driven content */}
           {checkoutState.status === 'idle' ||
           checkoutState.status === 'creating' ? (
             <div className="flex flex-col items-center py-8 text-slate-400">
@@ -294,10 +267,7 @@ export default function CheckoutPage() {
             </div>
           ) : checkoutState.status === 'error' ? (
             <div className="rounded-xl bg-red-50 p-4 text-center">
-              <AlertCircle
-                className="mx-auto mb-2 text-red-400"
-                size={22}
-              />
+              <AlertCircle className="mx-auto mb-2 text-red-400" size={22} />
               <p className="text-sm font-medium text-red-700">
                 {checkoutState.message}
               </p>
@@ -309,7 +279,6 @@ export default function CheckoutPage() {
               </button>
             </div>
           ) : (
-            // Ready — render Stripe Elements
             <Elements stripe={stripePromise} options={elementsOptions}>
               <CheckoutForm
                 orderId={checkoutState.orderId}
