@@ -735,7 +735,7 @@ def main():
                 "data": {
                     "object": {
                         "id": stripe_id,
-                        "amount": 250
+                        "amount": 324
                     }
                 }
             }
@@ -780,8 +780,8 @@ def main():
             order_revenue = next((r for r in revenue_data if isinstance(r, dict) and r.get('OrderID') == order_id), None)
             if not order_revenue:
                 raise Exception(f"No Revenue record found for Order {order_id} in {revenue_data}")
-            if order_revenue['TotalAmount'] != 2.50:
-                 raise Exception(f"Revenue TotalAmount is incorrect. Expected 2.50, got {order_revenue['TotalAmount']}")
+            if order_revenue['TotalAmount'] != 3.0:
+                 raise Exception(f"Revenue TotalAmount is incorrect. Expected 3.0, got {order_revenue['TotalAmount']}")
             
             print_success("Payment success and Revenue creation verified.")
 
@@ -1087,7 +1087,7 @@ def main():
                         "data": {
                             "object": {
                                 "id": f"pi_bulk_{port}_{i}",
-                                "amount": 350
+                                "amount": 432
                             }
                         }
                     }

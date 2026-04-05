@@ -1150,11 +1150,15 @@ class OrderOperations(viewsets.ModelViewSet):
         response_data = self.get_serializer(order).data
 
         # ── Integrate Stripe PaymentIntent creation ──
+        # Skip Stripe for inter-server syncs or if StripeID is already present (e.g. from sync)
+        if originating_server_id or order.StripeID:
+            return Response(response_data, status=status.HTTP_201_CREATED)
+
         try:
             amount_val = calculate_order_total(order)
             # Add tax (8%) to match frontend calculation
             amount_val = amount_val * 1.08
-            amount = int(amount_val * 100) # cents
+            amount = round(amount_val * 100) # cents
 
             if settings.STRIPE_SECRET_KEY in ['TODO: get a new secret stripe key', 'TODO']:
                 # Mock Stripe logic
@@ -1261,38 +1265,40 @@ class UserOrdersLookup(ListCreateAPIView):
         # Sync back to home server if we are a visiting server
         sync_order_to_home_server(order, self.request)
 
-# Constants for pricing. Easily customizable from this point.
+# Constants for pricing. Aligned with frontend CustomizeModal.tsx
 PRICING = {
-    'sizes': {
-        '16oz': 2.00,
-        '24oz': 2.50,
-        '32oz': 3.00,
-        '44oz': 3.50,
-        'default': 2.00
+    'upcharges': {
+        'small': 0.00,
+        'medium': 0.50,
+        'large': 1.00,
+        '16oz': 0.00,
+        '24oz': 0.50,
+        '32oz': 1.00,
+        'default': 0.00
     },
     'syrup_price_per_pump': 0.50,
-    'addin_price_per_item': 0.75
+    'addin_price_per_item': 0.00  # Frontend says Add-Ins are free
 }
 
 def calculate_order_total(order):
     total = 0.0
     for drink in order.Drinks.all():
+        # Use the drink's base price from the database
+        base_price = drink.Price if drink.Price is not None else 0.0
+
+        # Determine size upcharge
         size_str = str(drink.Size).lower().strip()
-        base_price = PRICING['sizes'].get(size_str, PRICING['sizes']['default'])
-        
+        size_upcharge = PRICING['upcharges'].get(size_str, PRICING['upcharges']['default'])
+
+        # Calculate syrup cost ($0.50 each)
         syrups_cost = len(drink.SyrupsUsed) * PRICING['syrup_price_per_pump'] if drink.SyrupsUsed else 0.0
+
+        # Calculate add-ins cost (Free in frontend)
         addins_cost = len(drink.AddIns) * PRICING['addin_price_per_item'] if drink.AddIns else 0.0
-        
-        drink_total = base_price + syrups_cost + addins_cost
-        
-        # Update the drink's saved price so it reflects the real calculation
-        if drink.Price != drink_total:
-            drink.Price = drink_total
-            drink.save(update_fields=['Price'])
-            
+
+        drink_total = base_price + size_upcharge + syrups_cost + addins_cost
         total += drink_total
     return total
-
 @method_decorator(csrf_exempt, name='dispatch')
 class StripePaymentIntentView(View):
     
@@ -1307,15 +1313,38 @@ class StripePaymentIntentView(View):
             if order_id:
                 try:
                     order = Order.objects.get(pk=order_id)
+                    # If the order already has a StripeID, we should reuse it to avoid duplicates
+                    if order.StripeID:
+                        # Mock check for existing StripeID
+                        if settings.STRIPE_SECRET_KEY in ['TODO: get a new secret stripe key', 'TODO']:
+                            mock_id = order.StripeID.replace('pi_', '')
+                            return JsonResponse({
+                                'paymentIntent': f"{order.StripeID}_secret_existing_mock_secret",
+                                'publishableKey': settings.STRIPE_PUBLISHABLE_KEY
+                            })
+                        else:
+                            # Retrieve existing intent from Stripe
+                            try:
+                                intent = stripe.PaymentIntent.retrieve(order.StripeID)
+                                return JsonResponse({
+                                    'paymentIntent': intent.client_secret,
+                                    'publishableKey': settings.STRIPE_PUBLISHABLE_KEY
+                                })
+                            except stripe.error.StripeError:
+                                # If retrieval fails, we will proceed to create a new one below
+                                pass
+
                     # Override the frontend's amount to ensure correctness
                     amount_val = calculate_order_total(order)
+                    # Add tax (8%) to match frontend calculation
+                    amount_val = amount_val * 1.08
                 except Order.DoesNotExist:
                     print(f"Order {order_id} not found during PaymentIntent creation.")
 
             if amount_val is None or amount_val <= 0:
                 return JsonResponse({'error': 'A valid amount or valid order_id is required.'}, status=400)
             
-            amount = int(amount_val * 100)  # Stripe uses cents, so multiply dollars by 100
+            amount = round(amount_val * 100)  # Stripe uses cents, so multiply dollars by 100
 
             # Mock check: if STRIPE_SECRET_KEY is the default "TODO", use dummy data
             if settings.STRIPE_SECRET_KEY == 'TODO: get a new secret stripe key' or settings.STRIPE_SECRET_KEY == 'TODO':
@@ -2003,8 +2032,8 @@ class StripeWebhookView(View):
                 # Validation: Recalculate the order total and compare it with the Stripe amount (in cents)
                 backend_total = calculate_order_total(order)
                 stripe_amount = payment_intent.get('amount')
-                
-                if int(backend_total * 100) == stripe_amount:
+
+                if round(backend_total * 1.08 * 100) == stripe_amount:
                     order.PaymentStatus = 'Paid'
                     order.save()
                     # Explicitly set the TotalAmount during revenue creation to ensure accuracy

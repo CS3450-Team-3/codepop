@@ -1083,7 +1083,7 @@ class StripeIntegrationTests(APITestCase):
             'data': {
                 'object': {
                     'id': 'pi_test_webhook_123',
-                    'amount': 200
+                    'amount': 540
                 }
             }
         }
