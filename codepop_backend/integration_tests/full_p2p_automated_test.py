@@ -1103,6 +1103,41 @@ def main():
                     if w_resp.status_code != 200:
                         raise Exception(f"Webhook failed for order {i} on port {port}: {w_resp.text}")
 
+            print_substep("Populating extra users and orders for Leaderboard testing on PORT_A...")
+            for i in range(1, 7): # Users 1 to 6
+                username = f"lb_user_{i}"
+                resp = requests.post(f"http://localhost:{PORT_A}/backend/auth/register/", json={
+                    "username": username, "password": "password123", "first_name": "Test", "last_name": "User"
+                })
+                if resp.status_code not in [201, 200]:
+                    raise Exception(f"Failed to create {username}: {resp.text}")
+                
+                # Login
+                resp = requests.post(f"http://localhost:{PORT_A}/backend/auth/login/", json={"username": username, "password": "password123"})
+                token = resp.json()['access']
+                headers = {"Authorization": f"Bearer {token}"}
+                
+                me_resp = requests.get(f"http://localhost:{PORT_A}/backend/users/me/", headers=headers)
+                user_id = me_resp.json()['id']
+                
+                # Create Drink
+                drink_payload = {
+                    "Name": f"LB Drink {username}",
+                    "Price": 3.0,
+                    "Size": "16oz",
+                    "Ice": "regular",
+                    "SodaUsed": ["Cola"],
+                    "User_Created": False
+                }
+                d_resp = requests.post(f"http://localhost:{PORT_A}/backend/drinks/", json=drink_payload, headers=headers)
+                drink_id = d_resp.json()['DrinkID']
+                
+                # Create Orders: lb_user_1 gets 6, lb_user_6 gets 1
+                num_orders = 7 - i 
+                for _ in range(num_orders):
+                    o_payload = {"UserID": user_id, "Drinks": [drink_id], "OrderStatus": "Completed"}
+                    requests.post(f"http://localhost:{PORT_A}/backend/orders/", json=o_payload, headers=headers)
+
             print_success("Extensive Order & Revenue data populated via API across all servers.")
         except Exception as e:
             print_failure(str(e))
@@ -1224,6 +1259,61 @@ def main():
             else:
                 raise Exception(f"Unexpected status for offline node: {resp.status_code}")
                 
+        except Exception as e:
+            print_failure(str(e))
+            failure_count += 1
+
+        # 17. LEADERBOARD TESTS
+        print_step(17, "Testing Store Leaderboard Functionality...")
+        test_count += 1
+        try:
+            # Test as user in Top 5 (lb_user_1)
+            resp = requests.post(f"http://localhost:{PORT_A}/backend/auth/login/", json={"username": "lb_user_1", "password": "password123"})
+            token_u1 = resp.json()['access']
+            headers_u1 = {"Authorization": f"Bearer {token_u1}"}
+            
+            resp_lb_1 = requests.get(f"http://localhost:{PORT_A}/backend/leaderboard/", headers=headers_u1)
+            if resp_lb_1.status_code != 200:
+                raise Exception(f"Failed to get leaderboard as top 5 user: {resp_lb_1.text}")
+            data_1 = resp_lb_1.json()
+            
+            if not any(u["userName"] == "lb_user_1" for u in data_1["top5"]):
+                raise Exception("lb_user_1 should be in the top5")
+            if len(data_1["localLeaderboard"]) != 0:
+                raise Exception("localLeaderboard should be empty for a user in the top 5")
+
+            # Test as user outside Top 5 (lb_user_6)
+            resp = requests.post(f"http://localhost:{PORT_A}/backend/auth/login/", json={"username": "lb_user_6", "password": "password123"})
+            token_u6 = resp.json()['access']
+            headers_u6 = {"Authorization": f"Bearer {token_u6}"}
+            
+            resp_lb_6 = requests.get(f"http://localhost:{PORT_A}/backend/leaderboard/", headers=headers_u6)
+            if resp_lb_6.status_code != 200:
+                raise Exception(f"Failed to get leaderboard as outside top 5 user: {resp_lb_6.text}")
+            data_6 = resp_lb_6.json()
+            
+            if any(u["userName"] == "lb_user_6" for u in data_6["top5"]):
+                raise Exception("lb_user_6 should NOT be in the top5")
+            
+            if len(data_6["localLeaderboard"]) == 0:
+                raise Exception("localLeaderboard should NOT be empty for a user outside the top 5")
+                
+            if not any(u["userName"] == "lb_user_6" for u in data_6["localLeaderboard"]):
+                raise Exception("lb_user_6 should be present in localLeaderboard")
+                
+            # Verify no duplication of top 5 in localLeaderboard
+            top5_names = {u["userName"] for u in data_6["top5"]}
+            local_names = {u["userName"] for u in data_6["localLeaderboard"]}
+            if top5_names.intersection(local_names):
+                raise Exception("Top 5 users are duplicated in the localLeaderboard!")
+            
+            # Test scopes
+            for scope in ["local", "regional", "national"]:
+                resp_lb_scope = requests.get(f"http://localhost:{PORT_A}/backend/leaderboard/?scope={scope}", headers=headers_u6)
+                if resp_lb_scope.status_code != 200:
+                    raise Exception(f"Leaderboard scope {scope} failed.")
+                
+            print_success("Leaderboard functionality tested successfully.")
         except Exception as e:
             print_failure(str(e))
             failure_count += 1

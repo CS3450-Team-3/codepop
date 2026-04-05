@@ -2173,3 +2173,67 @@ class MachineStatusAggregateView(APIView):
                 results[server.ServerID] = {"error": "Connection failed", "details": str(e)}
         
         return Response({"results": results}, status=status.HTTP_200_OK)
+
+class LeaderboardView(APIView):
+    """
+    Provides a leaderboard, sorting users by the number of drinks they've ordered.
+    Supports a 'scope' query parameter (local, regional, national), currently all default to local store data.
+    Separates the top 5 users from a local leaderboard block to provide context.
+    """
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        responses={200: OpenApiTypes.OBJECT},
+        description="Get store leaderboard showing top 5 users and surrounding rank."
+    )
+    def get(self, request):
+        scope = request.query_params.get('scope', 'local')
+        
+        # Currently, all scopes filter by the requesting user's home_server.
+        # Future iteration: regional/national scopes will be updated.
+        users_query = CustomUser.objects.filter(home_server=request.user.home_server)
+        
+        # Annotate with drink count and sort
+        users_annotated = users_query.annotate(
+            score=models.Count('order__Drinks')
+        ).order_by('-score', 'username')
+        
+        # Convert to list and process ranks
+        users_list = list(users_annotated)
+        ranked_users = []
+        for index, user in enumerate(users_list, start=1):
+            ranked_users.append({
+                "position": index,
+                "userName": user.username,
+                "score": user.score
+            })
+            
+        top5 = ranked_users[:5]
+        
+        local_leaderboard = []
+        
+        # Check if requesting user is in the top 5
+        is_in_top5 = any(u["userName"] == request.user.username for u in top5)
+        
+        if not is_in_top5:
+            # Find user's position
+            user_index = -1
+            for i, u in enumerate(ranked_users):
+                if u["userName"] == request.user.username:
+                    user_index = i
+                    break
+            
+            if user_index != -1:
+                start_idx = max(0, user_index - 2)
+                end_idx = min(len(ranked_users), user_index + 3)
+                
+                # Sliced local list
+                local_slice = ranked_users[start_idx:end_idx]
+                
+                # Filter out any users who have a position of 5 or less
+                local_leaderboard = [u for u in local_slice if u["position"] > 5]
+                
+        return Response({
+            "top5": top5,
+            "localLeaderboard": local_leaderboard
+        }, status=status.HTTP_200_OK)
