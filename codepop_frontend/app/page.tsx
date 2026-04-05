@@ -150,7 +150,7 @@ export default function HomePage() {
 
   // ── Render ─────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-slate-50 app-bg relative">
       <Header
         onMenuClick={() => setSidebarOpen(true)}
         onCustomizeClick={openCustomDrink}
@@ -158,7 +158,7 @@ export default function HomePage() {
 
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <main className="mx-auto max-w-2xl px-0 pb-28 pt-14">
+      <main className="relative mx-auto max-w-2xl px-0 pb-28 pt-14 z-10">
         {/* ── Hero greeting ── */}
         <section className="bg-white px-4 py-5 border-b border-slate-100">
           <h1 className="text-xl font-bold text-slate-900">
@@ -175,7 +175,7 @@ export default function HomePage() {
 
         {/* ── Category filter ── */}
         <section className="sticky top-14 z-20 bg-white py-3 border-b border-slate-100">
-          <CategoryFilter active={category} onChange={setCategory} />
+          <CategoryFilter active={category} onChange={setCategory} onCustomClick={openCustomDrink} />
         </section>
 
         {/* ── Drinks list ── */}
@@ -193,6 +193,8 @@ export default function HomePage() {
               ? 'Energy Drinks'
               : category === 'classic'
               ? 'Classic Drinks'
+              : category === 'custom'
+              ? 'Custom Drinks'
               : 'Custom Drinks'}
           </h2>
 
