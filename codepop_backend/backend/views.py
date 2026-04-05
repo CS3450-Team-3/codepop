@@ -753,7 +753,7 @@ class InventoryUpdateAPIView(RetrieveUpdateAPIView):
 
     def patch(self, request, *args, **kwargs):
         item = self.get_object()  # Retrieve the specific item based on ID
-        
+
         reset_quantity = request.data.get('reset')  # Check if the request is for a reset
         used_quantity = request.data.get('used_quantity')  # Used quantity for orders
 
@@ -766,13 +766,29 @@ class InventoryUpdateAPIView(RetrieveUpdateAPIView):
             # Return the updated item details in the response
             return Response(self.get_serializer(item).data, status=status.HTTP_200_OK)
 
-        # Handle normal used quantity update (for orders)
-        if used_quantity is None or int(used_quantity) <= 0:
+        # If it's a normal patch update with specific fields (like Quantity or ThresholdLevel)
+        if used_quantity is None:
+            # Check if any standard inventory fields are in the request
+            inventory_fields = ['ItemName', 'ItemType', 'Quantity', 'ThresholdLevel']
+            if any(field in request.data for field in inventory_fields):
+                # Use standard partial update logic
+                serializer = self.get_serializer(item, data=request.data, partial=True)
+                serializer.is_valid(raise_exception=True)
+                serializer.save()
+                return Response(serializer.data, status=status.HTTP_200_OK)
+
+            # If no recognized fields, return the same error as before to maintain compatibility
             return Response(
-                {"error": "Invalid used quantity", "details": {"used_quantity": "Value must be greater than zero"}}, 
+                {"error": "Invalid used quantity", "details": {"used_quantity": "Value must be greater than zero"}},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        # Handle normal used quantity update (for orders)
+        if int(used_quantity) <= 0:
+            return Response(
+                {"error": "Invalid used quantity", "details": {"used_quantity": "Value must be greater than zero"}},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         # Check if the item is already out of stock
         if item.Quantity == 0:
             return Response(
@@ -1124,7 +1140,44 @@ class OrderOperations(viewsets.ModelViewSet):
         sync_order_to_home_server(order, request)
 
         # Return the created order's data
-        return Response(self.get_serializer(order).data, status=status.HTTP_201_CREATED)
+        response_data = self.get_serializer(order).data
+
+        # ── Integrate Stripe PaymentIntent creation ──
+        try:
+            amount_val = calculate_order_total(order)
+            # Add tax (8%) to match frontend calculation
+            amount_val = amount_val * 1.08
+            amount = int(amount_val * 100) # cents
+
+            if settings.STRIPE_SECRET_KEY in ['TODO: get a new secret stripe key', 'TODO']:
+                # Mock Stripe logic
+                mock_id = str(uuid7.create()).replace('-', '')
+                mock_secret = str(uuid7.create()).replace('-', '')
+                mock_pi_id = f"pi_{mock_id}"
+                
+                order.StripeID = mock_pi_id
+                order.save(update_fields=['StripeID'])
+                
+                response_data['clientSecret'] = f"{mock_pi_id}_secret_{mock_secret}"
+            else:
+                # Real Stripe logic
+                intent = stripe.PaymentIntent.create(
+                    amount=amount,
+                    currency='usd',
+                    metadata={'order_id': str(order.OrderID)}
+                )
+                order.StripeID = intent['id']
+                order.save(update_fields=['StripeID'])
+                response_data['clientSecret'] = intent['client_secret']
+
+            response_data['publishableKey'] = settings.STRIPE_PUBLISHABLE_KEY
+
+        except Exception as e:
+            # Log the error but don't fail the order creation entirely
+            # The frontend can handle missing clientSecret
+            print(f"Stripe PaymentIntent creation failed for order {order.OrderID}: {str(e)}")
+
+        return Response(response_data, status=status.HTTP_201_CREATED)
 
     def update(self, request, *args, **kwargs):
         return super().update(request, *args, **kwargs)
@@ -1613,14 +1666,16 @@ class UserOperations(viewsets.ModelViewSet):
         try:
             user = User.objects.get(id=user_id)
 
-            data = json.loads(request.body)
-            edits = data.get('edits', {})
+            # Use request.data (DRF) or fallback to body parsing
+            data = request.data if hasattr(request, 'data') else json.loads(request.body)
+            # Support both { edits: { ... } } and direct { ... } payloads
+            edits = data.get('edits', data)
 
-            username = edits.get("username", None)
-            first_name = edits.get("firstName", None)
-            last_name = edits.get("lastName", None)
-            password = edits.get("password", None)
-            role = edits.get("role", None)
+            username = edits.get("username")
+            first_name = edits.get("firstName") or edits.get("first_name")
+            last_name = edits.get("lastName") or edits.get("last_name")
+            password = edits.get("password")
+            role = edits.get("role") or edits.get("user_type")
 
             if (user.username != username and username != "unchanged" and username):
                 user.username = username

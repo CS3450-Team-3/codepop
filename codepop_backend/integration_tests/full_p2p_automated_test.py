@@ -1178,12 +1178,12 @@ def main():
             else:
                 raise Exception(f"RBAC Failed: Store Manager got {resp.status_code} on aggregate revenue.")
                 
-            # Customer Restrictions
-            resp = requests.get(f"http://localhost:{PORT_A}/backend/inventory/", headers={"Authorization": f"Bearer {token_cust}"})
+            # Customer Restrictions (Customer tries to get granular inventory report)
+            resp = requests.get(f"http://localhost:{PORT_A}/backend/inventory/report/", headers={"Authorization": f"Bearer {token_cust}"})
             if resp.status_code == 403:
-                print_success("RBAC: Customer Restrictions enforced (403 on inventory).")
+                print_success("RBAC: Customer Restrictions enforced (403 on inventory report).")
             else:
-                raise Exception(f"RBAC Failed: Customer got {resp.status_code} on inventory.")
+                raise Exception(f"RBAC Failed: Customer got {resp.status_code} on inventory report.")
                 
             # Admin Boundaries (Admin A tries to delete user)
             resp = requests.get(f"http://localhost:{PORT_A}/backend/revenues/aggregate/", headers={"Authorization": f"Bearer {token_admin}"})
