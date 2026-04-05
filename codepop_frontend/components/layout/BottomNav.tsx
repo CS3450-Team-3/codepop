@@ -32,17 +32,6 @@ export default function BottomNav({ onCustomizeClick }: BottomNavProps) {
           Home
         </Link>
 
-        {/* Customize — triggers modal, not a route */}
-        {/* <button
-          onClick={onCustomizeClick}
-          className="flex flex-col items-center gap-0.5 px-4 py-2.5 text-xs font-medium text-slate-400 hover:text-violet-600 transition-colors"
-        >
-          <div className="rounded-xl bg-violet-600 p-1.5 text-white">
-            <Plus size={21} />
-          </div>
-          <span className="text-violet-600 font-semibold">Custom</span>
-        </button> */}
-
         {/* AI Picks */}
         <Link
           href="/ai-picks"
