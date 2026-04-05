@@ -50,7 +50,7 @@ export default function CategoryFilter({
             className={`flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium transition-all ${
               isActive
                 ? 'bg-violet-600 text-white shadow-md shadow-violet-200'
-                : 'bg-white text-slate-600 border border-slate-200 hover:border-violet-300 hover:text-violet-600'
+                : 'bg-white/90 backdrop-blur-md text-slate-600 border border-slate-200 hover:border-violet-300 hover:text-violet-600'
             }`}
             onClick={() => (cat.id === 'custom' ? onCustomClick?.() : onChange(cat.id))}
           >
