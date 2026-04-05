@@ -985,13 +985,20 @@ class OrderOperations(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action == 'destroy':
              return [IsStoreManager()]
-        elif self.action in ['update', 'partial_update']:
+        elif self.action in ['update', 'partial_update', 'create', 'retrieve']:
             return [AllowAny()]
         return super().get_permissions()
 
     def get_queryset(self):
         user = self.request.user
         
+        # Handle AnonymousUser
+        if not user or not user.is_authenticated:
+            if self.action == 'list':
+                return Order.objects.none()
+            # Guests can only see orders that are not associated with any registered user
+            return Order.objects.filter(UserID=None)
+
         # Super Admins see everything locally
         if user.user_type == 'super_admin':
             return Order.objects.all()
