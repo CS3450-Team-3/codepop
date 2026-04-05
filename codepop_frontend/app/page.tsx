@@ -135,7 +135,7 @@ export default function HomePage() {
   // ── Loading / store gate ───────────────────────────────────
   if (authLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+      <div className="flex min-h-screen items-center justify-center">
         <div className="flex flex-col items-center gap-3 text-slate-400">
           <Loader2 size={32} className="animate-spin text-violet-500" />
           <p className="text-sm font-medium">Loading CodePop...</p>
@@ -150,7 +150,7 @@ export default function HomePage() {
 
   // ── Render ─────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-slate-50 app-bg relative">
+    <div className="min-h-screen app-bg relative">
       <Header
         onMenuClick={() => setSidebarOpen(true)}
         onCustomizeClick={openCustomDrink}
@@ -158,7 +158,7 @@ export default function HomePage() {
 
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <main className="relative mx-auto max-w-2xl px-0 pb-28 pt-14 z-10">
+      <main className="relative mx-auto w-full min-w-80 max-w-screen-xl px-0 pb-28 pt-14 z-10">
         {/* ── Hero greeting ── */}
         <section className="bg-white px-4 py-5 border-b border-slate-100">
           <h1 className="text-xl font-bold text-slate-900">
@@ -174,7 +174,7 @@ export default function HomePage() {
         </section>
 
         {/* ── Category filter ── */}
-        <section className="sticky top-14 z-20 bg-white py-3 border-b border-slate-100">
+        <section className="sticky top-14 z-20 bg-white/90 backdrop-blur-md py-3 rounded-b-2xl shadow-sm">
           <CategoryFilter active={category} onChange={setCategory} onCustomClick={openCustomDrink} />
         </section>
 
