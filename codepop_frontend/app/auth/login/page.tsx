@@ -3,15 +3,12 @@
 import { useAuth } from '@/app/contextProviders/AuthContext';
 import { useState } from 'react';
 import Link from 'next/link';
-import { useAuthRedirect } from '@/app/hooks/useAuthRedirect';
 import { InputField } from '@/components/inputField';
 
 export default function LoginPage() {
   const { login, user, loading: authLoading } = useAuth();
   const [form, setForm] = useState({ username: '', password: '' });
   const [status, setStatus] = useState({ loading: false, error: null as string | null });
-
-  useAuthRedirect(user, authLoading);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

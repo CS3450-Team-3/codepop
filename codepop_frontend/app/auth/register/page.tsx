@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useAuth } from "@/app/contextProviders/AuthContext";
 import { InputField } from "@/components/inputField";
-import { useAuthRedirect } from "@/app/hooks/useAuthRedirect";
 import Link from 'next/link';
 
 export default function RegisterPage() {
@@ -12,8 +11,6 @@ export default function RegisterPage() {
     username: "", password: "", confirm_password: "", first_name: "", last_name: "", email: "", user_type: "customer",
   });
   const [status, setStatus] = useState({ loading: false, error: null as string | null });
-
-  useAuthRedirect(user, authLoading);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -164,6 +164,8 @@ class PreferenceSerializer(serializers.ModelSerializer):
         return value
     
 class DrinkSerializer(serializers.ModelSerializer):
+    DrinkID = serializers.UUIDField(required=False)
+
     class Meta:
         model = Drink
         fields = '__all__'
@@ -205,7 +207,8 @@ class NotificationSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class OrderSerializer(serializers.ModelSerializer):
-    Drinks = serializers.PrimaryKeyRelatedField(many=True, queryset=Drink.objects.all())
+    Drinks = serializers.PrimaryKeyRelatedField(many=True, queryset=Drink.objects.all(), required=False)
+    OrderID = serializers.UUIDField(required=False, allow_null=True)
 
     class Meta:
         model = Order
@@ -216,15 +219,43 @@ class OrderSerializer(serializers.ModelSerializer):
             'StripeID', 'Synced'
         ]
 
+    def to_internal_value(self, data):
+        # Ensure 'Drinks' is a list (e.g., from form-data)
+        if 'Drinks' in data and not isinstance(data['Drinks'], list):
+            if hasattr(data, 'getlist'):
+                # Handle QueryDict (common in DRF requests)
+                data = data.copy()
+                data['Drinks'] = data.getlist('Drinks')
+            else:
+                data = data.copy()
+                data['Drinks'] = [data['Drinks']]
+        return super().to_internal_value(data)
+
     def create(self, validated_data):
-            drinks = validated_data.pop('Drinks')
-            order = Order.objects.create(**validated_data)  # Create the order without drinks
-            order.Drinks.set(drinks)  # Set the ManyToMany relationship
+            drinks = validated_data.pop('Drinks', [])
+            # Use update_or_create if OrderID is provided to support P2P syncing
+            order_id = validated_data.get('OrderID')
+            if order_id:
+                # Remove OrderID from defaults to avoid redundancy/errors
+                validated_data.pop('OrderID', None)
+                order, created = Order.objects.update_or_create(
+                    OrderID=order_id,
+                    defaults=validated_data
+                )
+            else:
+                # If OrderID is None, pop it so model default is used
+                validated_data.pop('OrderID', None)
+                order = Order.objects.create(**validated_data)
+            
+            if drinks:
+                order.Drinks.set(drinks)
             return order
 
     def validate_Drinks(self, value):
-        if not value:
-            raise serializers.ValidationError("At least one drink must be included in the order.")
+        # We still want at least one drink for NEW orders, 
+        # but for syncs/updates it might be handled differently.
+        if value is not None and not value:
+             raise serializers.ValidationError("At least one drink must be included in the order.")
         return value
 
 class RevenueSerializer(serializers.ModelSerializer):

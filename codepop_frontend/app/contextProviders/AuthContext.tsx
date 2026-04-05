@@ -42,7 +42,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         // Test token validity and get user info
-        const { data } = await api.get("users/me");
+        const { data } = await api.get("users/me/");
 
         setUser({
           id: data.id,
