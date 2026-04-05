@@ -145,15 +145,18 @@ class PreferenceSerializer(serializers.ModelSerializer):
             "dr pepper cream soda", "sprite", "sprite zero", "coke", "diet coke", "coke zero",
             "pepsi", "diet pepsi", "rootbeer", "fanta", "big red", "powerade", "lemonade",
             "light lemonade", "coconut", "pineapple", "passion fruit", "mango", "guava", "banana",
-            "strawberry", "raspberry", "blackberry", "pomegranate", "cranberry", "grape", "kiwi", 
-            "huckleberry", "peach", "watermelon", "green apple", "pear", "cherry", "orange", 
+            "strawberry", "raspberry", "blackberry", "pomegranate", "cranberry", "grape", "kiwi",
+            "huckleberry", "peach", "watermelon", "green apple", "pear", "cherry", "orange",
             "blood orange", "grapefruit", "sweetened lime", "lemon", "lime", "vanilla", "cupcake",
-            "salted caramel", "chocolate milano", "cinnamon", "choc chip cookie dough", 
-            "brown sugar cinnamon", "hazelnut", "white chocolate", "butterscotch", "blue raspberry", 
+            "salted caramel", "chocolate milano", "cinnamon", "choc chip cookie dough",
+            "brown sugar cinnamon", "hazelnut", "white chocolate", "butterscotch", "blue raspberry",
             "sour", "blue curacao", "bubble gum", "cotton candy", "mojito", "cucumber", "lavender",
-            "pumpkin spice", "peppermint", "irish cream", "gingerbread", "butterbrew mix", "cream", 
+            "pumpkin spice", "peppermint", "irish cream", "gingerbread", "butterbrew mix", "cream",
             "coconut cream", "whip", "lemon wedge", "lime wedge", "french vanilla creamer", "candy",
-            "sprinkles", "strawberry puree", "peach puree", "mango puree", "raspberry puree", "candy sprinkles", "chocolate"
+            "sprinkles", "strawberry puree", "peach puree", "mango puree", "raspberry puree", "candy sprinkles", "chocolate",
+            # Taste/style descriptors used by the frontend profile preference tags
+            "fruity", "sweet", "citrus", "tropical", "berry", "mint", "caramel",
+            "bubbly", "light", "bold", "no caffeine", "energy", "creamy", "refreshing",
         ]
 
         # Check if the value is in the allowed preferences

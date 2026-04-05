@@ -1,10 +1,13 @@
 // app/auth/layout.tsx
 'use client';
 
+import { useState } from 'react';
 import { useAuth } from '@/app/contextProviders/AuthContext';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
+import Header from '@/components/layout/Header';
+import Sidebar from '@/components/layout/Sidebar';
 
 const ROLE_HOME: Record<string, string> = {
   customer:          '/',
@@ -21,6 +24,7 @@ export default function AuthLayout({
 }) {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     if (loading || !user) return;
@@ -41,16 +45,27 @@ export default function AuthLayout({
   if (user) return null;
 
   return (
-    <div className="flex min-h-screen flex-col justify-center bg-slate-50 py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h2 className="mt-6 text-center text-3xl font-extrabold tracking-tight text-slate-900">
-          Codepop
-        </h2>
-      </div>
+    <div className="min-h-screen bg-slate-50">
+      <Header
+        onMenuClick={() => setSidebarOpen(true)}
+        onCustomizeClick={() => {}}
+      />
+      <Sidebar
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+      />
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white px-4 py-8 shadow-xl border border-slate-200 sm:rounded-xl sm:px-10">
-          {children}
+      <div className="flex min-h-screen flex-col justify-center py-12 sm:px-6 lg:px-8 pt-14">
+        <div className="sm:mx-auto sm:w-full sm:max-w-md">
+          <h2 className="mt-6 text-center text-3xl font-extrabold tracking-tight text-slate-900">
+            Codepop
+          </h2>
+        </div>
+
+        <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+          <div className="bg-white px-4 py-8 shadow-xl border border-slate-200 sm:rounded-xl sm:px-10">
+            {children}
+          </div>
         </div>
       </div>
     </div>
