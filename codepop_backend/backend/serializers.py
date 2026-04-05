@@ -296,7 +296,7 @@ class RegionSerializer(serializers.ModelSerializer):
 class ServerRegistrySerializer(serializers.ModelSerializer):
     class Meta:
         model = ServerRegistry
-        fields = ['ServerID', 'ServerURL', 'PublicKey', 'Status', 'LastSeen', 'Region', 'IsRegionLeader', 'StoreName']
+        fields = ['ServerID', 'ServerURL', 'PublicKey', 'Status', 'LastSeen', 'Region', 'IsRegionLeader', 'StoreName', 'StoreGeohash']
 
 
 class MasterListSerializer(serializers.ModelSerializer):

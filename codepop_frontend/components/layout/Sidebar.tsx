@@ -85,6 +85,8 @@ function getNavSections(userType?: string): NavSection[] {
         items: [
           { label: 'Home',            href: '/',                icon: <Home size={19} /> },
           { label: 'Dashboard',       href: '/admin/dashboard', icon: <Shield size={19} /> },
+          { label: 'Manager',         href: '/manage/dashboard',  icon: <LayoutDashboard size={19} /> },
+          { label: 'Logistics Manager', href: 'REPLACE', icon: <LayoutDashboard size={19} /> }, //TODO replace with logistics manager dashboard when implemented
         ],
       },
       {
