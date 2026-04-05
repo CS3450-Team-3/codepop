@@ -21,6 +21,20 @@ export async function updateDrink(drinkId: string, payload: Omit<Drink, "DrinkID
   return data;
 }
 
+export async function favoriteDrink(drinkId: string, userId: string): Promise<Drink> {
+  const { data } = await api.put(`drinks/${drinkId}/`, {
+    addFavorite: [userId],
+  });
+  return data;
+}
+
+export async function unfavoriteDrink(drinkId: string, userId: string): Promise<Drink> {
+  const { data } = await api.put(`drinks/${drinkId}/`, {
+    removeFavorite: [userId],
+  });
+  return data;
+}
+
 export async function deleteDrink(drinkId: string): Promise<void> {
   await api.delete(`drinks/${drinkId}/`);
 }

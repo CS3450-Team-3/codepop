@@ -1,9 +1,12 @@
 // components/drinks/DrinkCard.tsx
 'use client';
 
-import { TrendingUp, Star } from 'lucide-react';
+import { TrendingUp, Star, Heart } from 'lucide-react';
 import { Drink } from '@/models/types/drink';
 import DrinkColorAvatar from './DrinkColorAvatar';
+import { useEffect, useState } from 'react';
+import { useAuth } from '@/app/contextProviders/AuthContext';
+import { favoriteDrink, unfavoriteDrink } from '@/models/api/drinks';
 
 interface DrinkCardProps {
   drink: Drink;
@@ -20,6 +23,44 @@ export default function DrinkCard({
   aiSuggested = false,
   aiQuote,
 }: DrinkCardProps) {
+  const { user } = useAuth();
+  const [isFavorite, setIsFavorite] = useState<boolean>(
+    !!drink.Favorite?.includes(user?.id ?? '')
+  );
+  const [favoritePending, setFavoritePending] = useState(false);
+
+  useEffect(() => {
+    setIsFavorite(!!drink.Favorite?.includes(user?.id ?? ''));
+  }, [drink.Favorite, user?.id]);
+
+  const handleFavoriteClick = async () => {
+    if (!user) {
+      alert('Please log in to save favorites.');
+      return;
+    }
+
+    if (!drink.DrinkID) {
+      alert('This drink cannot be favorited right now.');
+      return;
+    }
+
+    setFavoritePending(true);
+    try {
+      if (isFavorite) {
+        await unfavoriteDrink(drink.DrinkID, user.id);
+        setIsFavorite(false);
+      } else {
+        await favoriteDrink(drink.DrinkID, user.id);
+        setIsFavorite(true);
+      }
+    } catch (error) {
+      console.error('Favorite update failed', error);
+      alert('Could not update favorites. Please try again.');
+    } finally {
+      setFavoritePending(false);
+    }
+  };
+
   // Build a short description from the drink's ingredients
   const description = [
   ...(Array.isArray(drink.SyrupsUsed) ? drink.SyrupsUsed : []),
@@ -31,6 +72,8 @@ export default function DrinkCard({
 const sodaLabel = Array.isArray(drink.SodaUsed)
   ? drink.SodaUsed.join(', ')
   : drink.SodaUsed ?? '';
+
+  
 
   return (
     <div className="relative flex flex-col rounded-2xl border border-slate-100 bg-white shadow-sm overflow-hidden transition-shadow hover:shadow-md">
@@ -90,6 +133,19 @@ const sodaLabel = Array.isArray(drink.SodaUsed)
           )}
         </div>
       </div>
+
+          {/* Favorite button */}
+          <button
+            type="button"
+            disabled={favoritePending}
+            title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+            className={`absolute top-11 right-3 p-1.5 transition-colors ${
+              isFavorite ? 'text-violet-600' : 'text-slate-400 hover:text-violet-600'
+            }`}
+            onClick={handleFavoriteClick}
+          >
+            <Heart size={18} />
+          </button>
 
       {/* Order button */}
       <button

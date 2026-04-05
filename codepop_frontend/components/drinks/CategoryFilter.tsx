@@ -25,16 +25,19 @@ const CATEGORIES: Category[] = [
   { id: 'fruity',    label: 'Fruity',    icon: <Droplets size={14} /> },
   { id: 'energy',    label: 'Energy',    icon: <Zap size={14} /> },
   { id: 'classic',   label: 'Classic',   icon: <Sparkles size={14} /> },
+  { id: 'custom',    label: 'Custom',    icon: <Sparkles size={14} /> },
 ];
 
 interface CategoryFilterProps {
   active: DrinkCategory;
   onChange: (cat: DrinkCategory) => void;
+  onCustomClick?: () => void;
 }
 
 export default function CategoryFilter({
   active,
   onChange,
+  onCustomClick,
 }: CategoryFilterProps) {
   return (
     <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none px-4">
@@ -43,12 +46,13 @@ export default function CategoryFilter({
         return (
           <button
             key={cat.id}
-            onClick={() => onChange(cat.id)}
+            //onClick={() => (cat.id === 'custom' ? onCustomClick?.() : onChange(cat.id))}
             className={`flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium transition-all ${
               isActive
                 ? 'bg-violet-600 text-white shadow-md shadow-violet-200'
                 : 'bg-white text-slate-600 border border-slate-200 hover:border-violet-300 hover:text-violet-600'
             }`}
+            onClick={() => (cat.id === 'custom' ? onCustomClick?.() : onChange(cat.id))}
           >
             {cat.icon}
             {cat.label}

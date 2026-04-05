@@ -612,41 +612,55 @@ class DrinkOperations(viewsets.ModelViewSet):
         # Retrieve the drink object to be updated
         drink = self.get_object()
 
+        # Check if this is a favorite-only operation (addFavorite / removeFavorite)
+        is_favorite_only = set(request.data.keys()) <= {'addFavorite', 'removeFavorite'}
+
         # Permission logic from plan:
-        # If it's a house drink: IsStoreManager only
-        if not drink.User_Created:
-            if not IsStoreManager().has_permission(request, self):
-                return Response({"error": "Only store managers can modify house drinks."}, status=status.HTTP_403_FORBIDDEN)
-        else:
-            # If it's a user created drink: Only the owner.
-            # NOTE: Without a UserID field on Drink, we cannot strictly verify the owner.
-            # We assume any authenticated user can update if it's user created for now,
-            # but ideally a UserID field should be added to Drink.
-            if not request.user.is_authenticated:
-                 return Response({"error": "Authentication required to update drinks."}, status=status.HTTP_401_UNAUTHORIZED)
-
-        # Use the serializer to validate and update the data
-        serializer = self.get_serializer(drink, data=request.data)
+        # Favorite-only operations: allow any authenticated user
+        if not is_favorite_only:
+            # If it's a house drink and modifying other fields: IsStoreManager only
+            if not drink.User_Created:
+                if not IsStoreManager().has_permission(request, self):
+                    return Response({"error": "Only store managers can modify house drinks."}, status=status.HTTP_403_FORBIDDEN)
+            else:
+                # If it's a user created drink: Only the owner.
+                # NOTE: Without a UserID field on Drink, we cannot strictly verify the owner.
+                # We assume any authenticated user can update if it's user created for now,
+                # but ideally a UserID field should be added to Drink.
+                if not request.user.is_authenticated:
+                     return Response({"error": "Authentication required to update drinks."}, status=status.HTTP_401_UNAUTHORIZED)
         
-        # ... (rest of the method)
-
-        # Validate the data (including Ice and Size field checks)
-        serializer.is_valid(raise_exception=True)
-
-        # If valid, update the fields
-        # Explicitly update fields from request data if they exist on the drink model
-        for field, value in request.data.items():
-            if hasattr(drink, field):
-                setattr(drink, field, value)
+        # For favorite operations, require authentication
+        if is_favorite_only and not request.user.is_authenticated:
+            return Response({"error": "Authentication required to favorite drinks."}, status=status.HTTP_401_UNAUTHORIZED)
 
         # Handle adding/removing favorites
         favorite_to_add = request.data.get("addFavorite", [])
         favorite_to_remove = request.data.get("removeFavorite", [])
         
+        # For non-favorite updates, validate and apply field changes
+        if not is_favorite_only:
+            # Use the serializer to validate and update the data
+            serializer = self.get_serializer(drink, data=request.data, partial=True)
+            
+            # Validate the data (including Ice and Size field checks)
+            serializer.is_valid(raise_exception=True)
+
+            # If valid, update the fields
+            # Explicitly update fields from request data if they exist on the drink model
+            for field, value in request.data.items():
+                if field not in ['addFavorite', 'removeFavorite'] and hasattr(drink, field):
+                    setattr(drink, field, value)
+        else:
+            serializer = self.get_serializer(drink)
+        
+        # Handle favorites iteratively (both are lists)
         if favorite_to_add:
-            drink.addFavorite(favorite_to_add)
+            for user_id in favorite_to_add:
+                drink.addFavorite(user_id)
         if favorite_to_remove:
-            drink.removeFavorite(favorite_to_remove)
+            for user_id in favorite_to_remove:
+                drink.removeFavorite(user_id)
 
         # Save the updated drink
         drink.save()
