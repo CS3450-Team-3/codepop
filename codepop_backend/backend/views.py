@@ -693,7 +693,7 @@ class DrinkOperations(viewsets.ModelViewSet):
 class FlavorOperations(viewsets.ModelViewSet):
     queryset = Flavor.objects.all().order_by('Name')
     serializer_class = FlavorSerializer
-    permission_classes = [IsManager]
+    permission_classes = [IsStoreManager | IsLogisticsManager]
 
 class UserDrinksLookup(ListAPIView):
     serializer_class = DrinkSerializer
