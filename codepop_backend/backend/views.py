@@ -19,6 +19,7 @@ from .serializers import (
     PreferenceSerializer, DrinkSerializer, InventorySerializer, 
     NotificationSerializer, OrderSerializer, RevenueSerializer, 
     MasterListSerializer, ServerRegistrySerializer, CustomTokenObtainPairSerializer,
+    FlavorSerializer,
     get_tokens_for_user
 )
 from .documentation_serializers import (
@@ -687,6 +688,12 @@ class DrinkOperations(viewsets.ModelViewSet):
                 return Response({"error": "Authentication required to delete drinks."}, status=status.HTTP_401_UNAUTHORIZED)
                 
         return super().destroy(request, *args, **kwargs)
+
+
+class FlavorOperations(viewsets.ModelViewSet):
+    queryset = Flavor.objects.all().order_by('Name')
+    serializer_class = FlavorSerializer
+    permission_classes = [IsStoreManager | IsLogisticsManager]
 
 class UserDrinksLookup(ListAPIView):
     serializer_class = DrinkSerializer

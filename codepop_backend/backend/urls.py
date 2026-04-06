@@ -4,6 +4,7 @@ from .views import CreateUserAPIView, LogoutUserAPIView, CustomAuthToken, Custom
 from .views import StripePaymentIntentView, StripeWebhookView
 from .views import UserPreferenceLookup, PreferencesOperations
 from .views import DrinkOperations, UserDrinksLookup
+from .views import FlavorOperations
 from .views import InventoryListAPIView, InventoryReportAPIView, InventoryUpdateAPIView, InventoryAggregateView
 from .views import NotificationOperations, UserNotificationLookup
 from .views import OrderOperations, UserOrdersLookup
@@ -32,6 +33,18 @@ drink_list = DrinkOperations.as_view({
 drink_detail = DrinkOperations.as_view({
     'get': 'retrieve',
     'put': 'update',
+    'delete': 'destroy'
+})
+
+flavor_list = FlavorOperations.as_view({
+    'get': 'list',
+    'post': 'create'
+})
+
+flavor_detail = FlavorOperations.as_view({
+    'get': 'retrieve',
+    'put': 'update',
+    'patch': 'partial_update',
     'delete': 'destroy'
 })
 
@@ -127,6 +140,10 @@ urlpatterns = [
 
     # Retrieve Drinks by UserID
     path('users/<uuid:user_id>/drinks/', UserDrinksLookup.as_view(), name='user drink list'),
+
+    # Flavor URLs
+    path('flavors/', flavor_list, name='flavor_list_create'),
+    path('flavors/<int:pk>/', flavor_detail, name='flavor_detail'),
 
     #inventory related URLs
     # Endpoint to list all drinks created by a specific user identified by their user ID.

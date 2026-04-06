@@ -12,7 +12,7 @@ import Sidebar from '@/components/layout/Sidebar';
 const ROLE_HOME: Record<string, string> = {
   customer:          '/',
   store_manager:     '/manage/dashboard',
-  logistics_manager: '/manage/dashboard',
+  logistics_manager: '/logistic',
   admin:             '/admin/dashboard',
   super_admin:       '/admin/dashboard',
 };
