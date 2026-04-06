@@ -1,8 +1,8 @@
 "use client";
 
 import { ReactNode, useEffect } from 'react';
-import { useAuth } from '../contextProviders/AuthContext';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '../contextProviders/AuthContext';
 
 export default function LogisticLayout({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
@@ -16,12 +16,7 @@ export default function LogisticLayout({ children }: { children: ReactNode }) {
       return;
     }
 
-    if (!user) {
-      router.replace('/auth/login');
-      return;
-    }
-
-    if (!allowedRoles.has(user.user_type || '')) {
+    if (!user || !allowedRoles.has(user.user_type || '')) {
       router.replace('/auth/login');
     }
   }, [loading, user, router]);
@@ -30,7 +25,7 @@ export default function LogisticLayout({ children }: { children: ReactNode }) {
     return <div>Loading...</div>;
   }
 
-  if (!user || !isAuthorized) {
+  if (!isAuthorized) {
     return null;
   }
 

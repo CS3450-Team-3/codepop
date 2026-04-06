@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { AlertCircle, MapPin, Package, User, Route, Send, Truck, CheckCircle2, Trash2, AlertTriangle, CalendarDays } from 'lucide-react';
+import { AlertCircle, MapPin, Package, User, Route, Send, Truck, CheckCircle2, Trash2, AlertTriangle, CalendarDays, LogOut } from 'lucide-react';
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
+const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL ?? '').replace(/\/$/, '');
+const apiUrl = (path: string) => `${API_BASE}${path}`;
 const ROUTE_PLANS_STORAGE_KEY = 'codepop-routing-plans-v1';
 const STORE_SCHEDULES_STORAGE_KEY = 'codepop-store-schedules-v1';
 
@@ -177,7 +178,7 @@ export default function LogisticsManagerDashboard() {
         headers['Authorization'] = `Bearer ${token}`;
       }
 
-      const response = await fetch(`${BASE_URL}/backend/users/me/`, { headers });
+      const response = await fetch(apiUrl('/backend/users/me/'), { headers });
       if (response.ok) {
         const data = await response.json();
         setUserProfile(data);
@@ -208,7 +209,7 @@ export default function LogisticsManagerDashboard() {
         headers['Authorization'] = `Bearer ${token}`;
       }
 
-      const storesResponse = await fetch(`${BASE_URL}/backend/servers/`, { headers });
+      const storesResponse = await fetch(apiUrl('/backend/servers/'), { headers });
       let loadedStores: StoreInventory[] = [];
 
       if (storesResponse.ok) {
@@ -217,7 +218,7 @@ export default function LogisticsManagerDashboard() {
         let regionServers = activeServers;
         let managerRegion: number | null = null;
 
-        const meResponse = await fetch(`${BASE_URL}/backend/users/me/`, { headers });
+        const meResponse = await fetch(apiUrl('/backend/users/me/'), { headers });
         if (meResponse.ok) {
           const me: UserProfile = await meResponse.json();
           const homeServer = activeServers.find((server) => server.ServerID === me.home_server);
@@ -241,15 +242,30 @@ export default function LogisticsManagerDashboard() {
           return;
         }
 
+        const aggregateResponse = await fetch(apiUrl('/backend/inventory/aggregate/'), { headers });
+        const aggregatePayload = aggregateResponse.ok ? await aggregateResponse.json() : null;
+        const aggregateResults: Record<string, InventoryReport | { error: string }> =
+          aggregatePayload && typeof aggregatePayload.results === 'object' ? aggregatePayload.results : {};
+
         const serverReports = await Promise.all(
           regionServers.map(async (server) => {
             try {
+              const aggregated = aggregateResults[server.ServerID as unknown as string];
+              if (aggregated && !('error' in aggregated) && Array.isArray(aggregated.inventory_items)) {
+                return mapReportToStore(
+                  server.ServerID,
+                  server.StoreName?.trim() || `Store ${server.ServerID.slice(0, 8)}`,
+                  server.ServerURL,
+                  aggregated
+                );
+              }
+
+              // Fallback path if aggregate endpoint is unavailable.
               const baseUrl = server.ServerURL.replace(/\/$/, '');
               const reportResponse = await fetch(`${baseUrl}/backend/inventory/report/`, { headers });
               if (!reportResponse.ok) {
                 return null;
               }
-
               const data: InventoryReport = await reportResponse.json();
               return mapReportToStore(
                 server.ServerID,
@@ -1238,7 +1254,7 @@ export default function LogisticsManagerDashboard() {
               className="w-full bg-white border border-gray-300 rounded-xl py-3 font-medium flex items-center justify-center gap-2 hover:bg-gray-50"
               type="button"
             >
-              <span className="material-icons text-base">logout</span>
+              <LogOut className="h-4 w-4" />
               <span>Sign Out</span>
             </button>
           </>
