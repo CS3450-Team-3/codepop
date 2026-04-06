@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 import path from "path";
 
-const backend = process.env.BACKEND_URL ?? "http://localhost:9000";
+const backend = process.env.BACKEND_URL ?? "http://backend:9000";
 
 const nextConfig: NextConfig = {
   trailingSlash: true,

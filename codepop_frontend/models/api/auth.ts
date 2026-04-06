@@ -21,7 +21,7 @@ export async function logout() {
   } finally {
     setAccessToken(null);
     if (typeof window !== "undefined") {
-      window.location.href = "/auth/login";
+      window.location.href = "/";
     }
   }
 }

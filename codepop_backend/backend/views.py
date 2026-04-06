@@ -4,11 +4,15 @@ from django.db import models
 from django.utils import timezone
 User = CustomUser
 from rest_framework.generics import CreateAPIView, ListAPIView, ListCreateAPIView, RetrieveUpdateAPIView
-from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser, BasePermission
+from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
+from .permissions import (
+    IsSuperUser, IsAdmin, IsStoreManager, IsLogisticsManager, 
+    IsRepairStaff, IsOwner, IsGuestOrAuthenticatedForCreation, IsPeerServer
+)
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
-from rest_framework import status, viewsets
+from rest_framework import status, viewsets, permissions
 from rest_framework.views import APIView, exception_handler
 from .serializers import (
     CreateUserSerializer, GetUserSerializer, UserProfileSerializer, 
@@ -32,7 +36,8 @@ import json
 import requests
 import jwt
 import uuid7
-from drf_spectacular.utils import extend_schema, OpenApiTypes
+from drf_spectacular.utils import extend_schema
+from drf_spectacular.types import OpenApiTypes
 from django.utils.dateparse import parse_datetime
 from .drinkAI import generate_soda
 from .sync import get_local_server
@@ -124,32 +129,6 @@ class CustomTokenRefreshView(TokenRefreshView):
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-class IsSuperAdmin(BasePermission):
-    """
-    Allows access only to super_admin users.
-    """
-    def has_permission(self, request, view):
-        return (request.user and request.user.is_authenticated and 
-                request.user.user_type == 'super_admin')
-
-class IsAdmin(BasePermission):
-    """
-    Allows access to admin and super_admin users.
-    """
-    def has_permission(self, request, view):
-        return (request.user and request.user.is_authenticated and 
-                request.user.user_type in ['admin', 'super_admin'])
-
-class IsManager(BasePermission):
-    """
-    Allows access to store_manager, logistics_manager, repair_staff, admin, and super_admin.
-    """
-    def has_permission(self, request, view):
-        allowed = ['store_manager', 'logistics_manager', 'repair_staff', 'admin', 'super_admin']
-        return (request.user and request.user.is_authenticated and 
-                request.user.user_type in allowed)
-    
-
 def custom_exception_handler(exc, context):
     # Call REST framework's default exception handler first,
     # to get the standard error response.
@@ -178,6 +157,139 @@ def custom_exception_handler(exc, context):
 
     return response
 
+def proxy_user_request(request, target_path):
+    """
+    Helper to proxy a request to the user's home server if it is remote.
+    
+    If the user's home_server is not the local server, this function
+    forwards the request (including the JWT in Authorization header) 
+    to the same path on the home server.
+
+    NOTE: Logistics Managers and Repair Staff bypass this default proxying
+    to allow them to access local server data or perform regional aggregation.
+    """
+    user = request.user
+    if not user.is_authenticated:
+        return None
+
+    # Logistics Managers and Repair Staff bypass the home-server proxy
+    if user.user_type in ['logistics_manager', 'repair_staff']:
+        return None
+
+    if not user.home_server:
+        return None
+    
+    try:
+        local_server = get_local_server()
+    except Exception:
+        return None
+
+    if user.home_server_id == local_server.ServerID:
+        return None
+    
+    # Construct proxy URL
+    proxy_url = user.home_server.ServerURL.rstrip('/') + target_path
+    
+    # Extract headers (especially Authorization)
+    headers = {
+        'Content-Type': 'application/json'
+    }
+    auth_header = request.headers.get('Authorization')
+    if auth_header:
+        headers['Authorization'] = auth_header
+    
+    # Forward the request
+    try:
+        method = request.method
+        payload = request.data if method in ['POST', 'PUT', 'PATCH'] else None
+        # For GET requests, query params should be passed
+        params = request.query_params if method == 'GET' else None
+        
+        remote_resp = requests.request(
+            method=method,
+            url=proxy_url,
+            json=payload,
+            params=params,
+            headers=headers,
+            timeout=10
+        )
+        
+        # Return a Django Response object matching the proxy result
+        try:
+            remote_data = remote_resp.json()
+            if isinstance(remote_data, dict):
+                remote_data['proxied'] = str(user.home_server_id)
+            return Response(remote_data, status=remote_resp.status_code)
+        except ValueError:
+            return Response(remote_resp.text, status=remote_resp.status_code)
+        
+    except requests.RequestException as e:
+        return Response(
+            {"error": "Home server unreachable", "details": str(e)}, 
+            status=status.HTTP_503_SERVICE_UNAVAILABLE
+        )
+
+def sync_order_to_home_server(order, request):
+    """
+    Helper to sync a locally created order back to the user's remote home server.
+    """
+    user = order.UserID
+    if not user or not user.home_server:
+        return
+    
+    try:
+        local_server = get_local_server()
+    except Exception:
+        return
+
+    if user.home_server_id == local_server.ServerID:
+        return
+    
+    # Construct proxy URL for creating the order on the home server
+    proxy_url = user.home_server.ServerURL.rstrip('/') + '/backend/orders/'
+    
+    # Extract headers (especially Authorization)
+    headers = {
+        'Content-Type': 'application/json'
+    }
+    auth_header = request.headers.get('Authorization')
+    if auth_header:
+        headers['Authorization'] = auth_header
+    
+    # Serialize the order including its ID and related drinks
+    from .serializers import OrderSerializer, DrinkSerializer
+    serializer = OrderSerializer(order)
+    payload = serializer.data
+    
+    # Standard JSON serializer (used by requests) doesn't handle UUIDs.
+    # We must ensure all ID fields are stringified.
+    payload['OrderID'] = str(payload['OrderID'])
+    if payload.get('UserID'):
+        payload['UserID'] = str(payload['UserID'])
+    if payload.get('Drinks'):
+        payload['Drinks'] = [str(d) for d in payload['Drinks']]
+    
+    # Include full drink data so the home server can recreate missing drinks
+    drinks_queryset = order.Drinks.all()
+    payload['DrinksData'] = DrinkSerializer(drinks_queryset, many=True).data
+    # DrinkSerializer data also needs stringified UUIDs
+    for d_data in payload['DrinksData']:
+        d_data['DrinkID'] = str(d_data['DrinkID'])
+    
+    # Ensure the home server knows this came from our server
+    payload['OriginatingServer'] = local_server.ServerID
+    
+    # Forward the request (Fire and forget-ish, but let's log errors)
+    try:
+        requests.post(
+            url=proxy_url,
+            json=payload,
+            headers=headers,
+            timeout=10
+        )
+    except requests.RequestException as e:
+        logger.warning(f"Failed to sync order {order.OrderID} to home server {user.home_server_id}: {str(e)}")
+
 class CustomAuthToken(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
 
@@ -195,68 +307,79 @@ class CustomAuthToken(TokenObtainPairView):
             response = super().post(request, *args, **kwargs)
             if response.status_code == 200:
                 set_refresh_cookie(response, response.data.get('refresh'))
-            return response
+                return response
         except Exception as local_exc:
-            # 2. If local fails, check the MasterList for a remote Home Server
-            try:
-                master_entry = MasterList.objects.get(Username=username)
-                local_server = get_local_server()
+            # We'll use this exception as a fallback if proxying also fails
+            pass
+        
+        # 2. If local fails, check the MasterList for a remote Home Server
+        try:
+            master_entry = MasterList.objects.get(Username=username)
+            local_server = get_local_server()
+            
+            if master_entry.HomeServerID != local_server:
+                # 3. Proxy the request to the Home Server
+                home_server = master_entry.HomeServerID
+                proxy_url = home_server.ServerURL.rstrip('/') + '/backend/auth/login/'
                 
-                if master_entry.HomeServerID != local_server:
-                    # 3. Proxy the request to the Home Server
-                    home_server = master_entry.HomeServerID
-                    proxy_url = home_server.ServerURL.rstrip('/') + '/backend/auth/login/'
+                try:
+                    remote_resp = requests.post(
+                        proxy_url, 
+                        json={'username': username, 'password': password},
+                        timeout=10
+                    )
                     
-                    try:
-                        remote_resp = requests.post(
-                            proxy_url, 
-                            json={'username': username, 'password': password},
-                            timeout=10
-                        )
+                    if remote_resp.status_code == 200:
+                        remote_data = remote_resp.json()
+                        remote_user_id = remote_data.get('user_id')
                         
-                        if remote_resp.status_code == 200:
-                            remote_data = remote_resp.json()
-                            remote_user_id = remote_data.get('user_id')
-                            
-                            user_lookup = {'id': remote_user_id} if remote_user_id else {'username': username}
-                            
-                            user, created = User.objects.update_or_create(
-                                **user_lookup,
-                                defaults={
-                                    'username': username,
-                                    'first_name': remote_data.get('first_name', ''),
-                                    'user_type': remote_data.get('user_type', 'customer'),
-                                    'home_server': home_server,
-                                }
-                            )
-                            if created:
-                                user.set_unusable_password()
-                                user.save()
-                                
-                            data = {
-                                'refresh': remote_data.get('refresh'),
-                                'access': remote_data.get('access'),
-                                'user_type': remote_data.get('user_type', user.user_type),
-                                'user_id': str(user.id),
-                                'first_name': remote_data.get('first_name', user.first_name),
-                                'is_proxy': True,
-                                'home_server_id': str(home_server.ServerID)
+                        user_lookup = {'id': remote_user_id} if remote_user_id else {'username': username}
+                        
+                        user, created = User.objects.update_or_create(
+                            **user_lookup,
+                            defaults={
+                                'username': username,
+                                'first_name': remote_data.get('first_name', ''),
+                                'user_type': remote_data.get('user_type', 'customer'),
+                                'home_server': home_server,
                             }
-                            response = Response(data, status=status.HTTP_200_OK)
-                            set_refresh_cookie(response, remote_data.get('refresh'))
-                            return response
-                        
-                        return Response(remote_resp.json(), status=remote_resp.status_code)
-                    
-                    except requests.RequestException as e:
-                        return Response(
-                            {"error": "Home server unreachable", "details": str(e)}, 
-                            status=status.HTTP_503_SERVICE_UNAVAILABLE
                         )
-            except MasterList.DoesNotExist:
-                pass 
+                        if created:
+                            user.set_unusable_password()
+                            user.save()
+                            
+                        data = {
+                            'refresh': remote_data.get('refresh'),
+                            'access': remote_data.get('access'),
+                            'user_type': remote_data.get('user_type', user.user_type),
+                            'user_id': str(user.id),
+                            'first_name': remote_data.get('first_name', user.first_name),
+                            'is_proxy': True,
+                            'home_server_id': str(home_server.ServerID)
+                        }
+                        response = Response(data, status=status.HTTP_200_OK)
+                        set_refresh_cookie(response, remote_data.get('refresh'))
+                        return response
+                    
+                    # If proxy failed with 401, return that instead of local fail
+                    try:
+                        return Response(remote_resp.json(), status=remote_resp.status_code)
+                    except:
+                        return Response({"detail": remote_resp.text}, status=remote_resp.status_code)
+                
+                except requests.RequestException as e:
+                    return Response(
+                        {"error": "Home server unreachable", "details": str(e)}, 
+                        status=status.HTTP_503_SERVICE_UNAVAILABLE
+                    )
+        except MasterList.DoesNotExist:
+            pass 
 
-            raise local_exc
+        # If we got here, all attempts failed. 
+        # Return a generic 401 if we don't have a specific response.
+        if 'response' in locals() and response:
+            return response
+        return Response({"detail": "No active account found with the given credentials"}, status=status.HTTP_401_UNAUTHORIZED)
 
 class CreateUserAPIView(CreateAPIView):
     serializer_class = CreateUserSerializer
@@ -351,23 +474,59 @@ class LogoutUserAPIView(APIView):
 class PreferencesOperations(viewsets.ModelViewSet):
     queryset = Preference.objects.all()
     serializer_class = PreferenceSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsOwner]
+
+    def get_queryset(self):
+        # Only return preferences belonging to the current user
+        return Preference.objects.filter(UserID=self.request.user)
+
+    def list(self, request, *args, **kwargs):
+        proxy_resp = proxy_user_request(request, '/backend/preferences/')
+        if proxy_resp:
+            return proxy_resp
+        return super().list(request, *args, **kwargs)
+
+    def retrieve(self, request, *args, **kwargs):
+        pk = kwargs.get('pk')
+        proxy_resp = proxy_user_request(request, f'/backend/preferences/{pk}/')
+        if proxy_resp:
+            return proxy_resp
+        return super().retrieve(request, *args, **kwargs)
 
     def create(self, request, *args, **kwargs):
-        # Custom logic for creating a drink can go here
+        proxy_resp = proxy_user_request(request, '/backend/preferences/')
+        if proxy_resp:
+            return proxy_resp
         return super().create(request, *args, **kwargs)
 
     def update(self, request, *args, **kwargs):
-        # Custom logic for updating a drink can go here
+        pk = kwargs.get('pk')
+        proxy_resp = proxy_user_request(request, f'/backend/preferences/{pk}/')
+        if proxy_resp:
+            return proxy_resp
         return super().update(request, *args, **kwargs)
 
     def destroy(self, request, *args, **kwargs):
-        # Custom logic for deleting a drink can go here
+        pk = kwargs.get('pk')
+        proxy_resp = proxy_user_request(request, f'/backend/preferences/{pk}/')
+        if proxy_resp:
+            return proxy_resp
         return super().destroy(request, *args, **kwargs)
 
 class UserPreferenceLookup(ListAPIView):
     serializer_class = PreferenceSerializer
     permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        user_id = str(self.kwargs['user_id'])
+        # Only allow if the requesting user is the owner or a super_admin
+        if str(request.user.id) != user_id and request.user.user_type != 'super_admin':
+            return Response({"error": "You do not have permission to access these preferences."}, status=status.HTTP_403_FORBIDDEN)
+            
+        proxy_resp = proxy_user_request(request, f'/backend/users/{user_id}/preferences/')
+        if proxy_resp:
+            return proxy_resp
+        return super().get(request, *args, **kwargs)
 
     # Override get_queryset to filter preferences by the provided UserID
     def get_queryset(self):
@@ -376,7 +535,7 @@ class UserPreferenceLookup(ListAPIView):
         user = get_object_or_404(User, pk=user_id)
         return Preference.objects.filter(UserID=user_id)
     
-from rest_framework import status, viewsets
+from rest_framework import status, viewsets, permissions
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.generics import ListAPIView
@@ -390,6 +549,23 @@ class DrinkOperations(viewsets.ModelViewSet):
     queryset = Drink.objects.all()
     serializer_class = DrinkSerializer
     permission_classes = [AllowAny]
+
+    def get_permissions(self):
+        if self.action in ['update', 'partial_update', 'destroy']:
+            # We will perform object-level checks in the action methods themselves
+            # or rely on has_object_permission, but Drink has both house and user drinks.
+            # Using IsAuthenticated here and checking ownership/role in the methods.
+            return [IsAuthenticated()]
+        return super().get_permissions()
+
+    def list(self, request, *args, **kwargs):
+        # If filtering for user_created drinks, proxy to home server
+        drink_type = request.query_params.get('type')
+        if drink_type == 'user_created':
+            proxy_resp = proxy_user_request(request, '/backend/drinks/')
+            if proxy_resp:
+                return proxy_resp
+        return super().list(request, *args, **kwargs)
 
     def get_queryset(self):
         """
@@ -420,36 +596,72 @@ class DrinkOperations(viewsets.ModelViewSet):
         return queryset
 
     def create(self, request, *args, **kwargs):
-        # Custom logic for creating a drink (optional for customization)
+        proxy_resp = proxy_user_request(request, '/backend/drinks/')
+        if proxy_resp:
+            return proxy_resp
         return super().create(request, *args, **kwargs)
 
     def update(self, request, *args, **kwargs):
         """
         Custom update method to handle updating a drink's fields, favorites, and validation.
         """
+        pk = kwargs.get('pk')
+        proxy_resp = proxy_user_request(request, f'/backend/drinks/{pk}/')
+        if proxy_resp:
+            return proxy_resp
+
         # Retrieve the drink object to be updated
         drink = self.get_object()
 
-        # Use the serializer to validate and update the data
-        serializer = self.get_serializer(drink, data=request.data)
+        # Check if this is a favorite-only operation (addFavorite / removeFavorite)
+        is_favorite_only = set(request.data.keys()) <= {'addFavorite', 'removeFavorite'}
 
-        # Validate the data (including Ice and Size field checks)
-        serializer.is_valid(raise_exception=True)
-
-        # If valid, update the fields
-        # Explicitly update fields from request data if they exist on the drink model
-        for field, value in request.data.items():
-            if hasattr(drink, field):
-                setattr(drink, field, value)
+        # Permission logic from plan:
+        # Favorite-only operations: allow any authenticated user
+        if not is_favorite_only:
+            # If it's a house drink and modifying other fields: IsStoreManager only
+            if not drink.User_Created:
+                if not IsStoreManager().has_permission(request, self):
+                    return Response({"error": "Only store managers can modify house drinks."}, status=status.HTTP_403_FORBIDDEN)
+            else:
+                # If it's a user created drink: Only the owner.
+                # NOTE: Without a UserID field on Drink, we cannot strictly verify the owner.
+                # We assume any authenticated user can update if it's user created for now,
+                # but ideally a UserID field should be added to Drink.
+                if not request.user.is_authenticated:
+                     return Response({"error": "Authentication required to update drinks."}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        # For favorite operations, require authentication
+        if is_favorite_only and not request.user.is_authenticated:
+            return Response({"error": "Authentication required to favorite drinks."}, status=status.HTTP_401_UNAUTHORIZED)
 
         # Handle adding/removing favorites
         favorite_to_add = request.data.get("addFavorite", [])
         favorite_to_remove = request.data.get("removeFavorite", [])
         
+        # For non-favorite updates, validate and apply field changes
+        if not is_favorite_only:
+            # Use the serializer to validate and update the data
+            serializer = self.get_serializer(drink, data=request.data, partial=True)
+            
+            # Validate the data (including Ice and Size field checks)
+            serializer.is_valid(raise_exception=True)
+
+            # If valid, update the fields
+            # Explicitly update fields from request data if they exist on the drink model
+            for field, value in request.data.items():
+                if field not in ['addFavorite', 'removeFavorite'] and hasattr(drink, field):
+                    setattr(drink, field, value)
+        else:
+            serializer = self.get_serializer(drink)
+        
+        # Handle favorites iteratively (both are lists)
         if favorite_to_add:
-            drink.addFavorite(favorite_to_add)
+            for user_id in favorite_to_add:
+                drink.addFavorite(user_id)
         if favorite_to_remove:
-            drink.removeFavorite(favorite_to_remove)
+            for user_id in favorite_to_remove:
+                drink.removeFavorite(user_id)
 
         # Save the updated drink
         drink.save()
@@ -458,7 +670,23 @@ class DrinkOperations(viewsets.ModelViewSet):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def destroy(self, request, *args, **kwargs):
-        # Custom logic for deleting a drink (optional for customization)
+        pk = kwargs.get('pk')
+        proxy_resp = proxy_user_request(request, f'/backend/drinks/{pk}/')
+        if proxy_resp:
+            return proxy_resp
+
+        drink = self.get_object()
+
+        # Permission logic from plan:
+        # If it's a house drink: IsStoreManager only
+        if not drink.User_Created:
+            if not IsStoreManager().has_permission(request, self):
+                return Response({"error": "Only store managers can delete house drinks."}, status=status.HTTP_403_FORBIDDEN)
+        else:
+            # If it's a user created drink: Only the owner.
+            if not request.user.is_authenticated:
+                return Response({"error": "Authentication required to delete drinks."}, status=status.HTTP_401_UNAUTHORIZED)
+                
         return super().destroy(request, *args, **kwargs)
 
 
@@ -470,6 +698,18 @@ class FlavorOperations(viewsets.ModelViewSet):
 class UserDrinksLookup(ListAPIView):
     serializer_class = DrinkSerializer
     permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        user_id = str(self.kwargs['user_id'])
+        # Only allow if the requesting user is the owner or a super_admin
+        if str(request.user.id) != user_id and request.user.user_type != 'super_admin':
+            return Response({"error": "You do not have permission to access these favorite drinks."}, status=status.HTTP_403_FORBIDDEN)
+            
+        user_id = self.kwargs['user_id']
+        proxy_resp = proxy_user_request(request, f'/backend/users/{user_id}/drinks/')
+        if proxy_resp:
+            return proxy_resp
+        return super().get(request, *args, **kwargs)
 
     def get_queryset(self):
         """
@@ -484,10 +724,11 @@ class InventoryListAPIView(ListAPIView):
     """List all items that are not out of stock."""
     queryset = Inventory.objects.filter(Quantity__gt=0)
     serializer_class = InventorySerializer
+    permission_classes = [AllowAny]
 
 class InventoryReportAPIView(APIView):
     """Generate an inventory report."""
-    permission_classes = [IsManager]
+    permission_classes = [IsStoreManager | IsLogisticsManager]
 
     @extend_schema(
         responses={200: InventoryReportResponseSerializer},
@@ -515,11 +756,11 @@ class InventoryUpdateAPIView(RetrieveUpdateAPIView):
     """Update inventory based on what was ordered, with warnings for empty or low stock."""
     queryset = Inventory.objects.all()
     serializer_class = InventorySerializer
-    permission_classes = [IsManager]
+    permission_classes = [IsStoreManager | IsLogisticsManager]
 
     def patch(self, request, *args, **kwargs):
         item = self.get_object()  # Retrieve the specific item based on ID
-        
+
         reset_quantity = request.data.get('reset')  # Check if the request is for a reset
         used_quantity = request.data.get('used_quantity')  # Used quantity for orders
 
@@ -532,13 +773,29 @@ class InventoryUpdateAPIView(RetrieveUpdateAPIView):
             # Return the updated item details in the response
             return Response(self.get_serializer(item).data, status=status.HTTP_200_OK)
 
-        # Handle normal used quantity update (for orders)
-        if used_quantity is None or int(used_quantity) <= 0:
+        # If it's a normal patch update with specific fields (like Quantity or ThresholdLevel)
+        if used_quantity is None:
+            # Check if any standard inventory fields are in the request
+            inventory_fields = ['ItemName', 'ItemType', 'Quantity', 'ThresholdLevel']
+            if any(field in request.data for field in inventory_fields):
+                # Use standard partial update logic
+                serializer = self.get_serializer(item, data=request.data, partial=True)
+                serializer.is_valid(raise_exception=True)
+                serializer.save()
+                return Response(serializer.data, status=status.HTTP_200_OK)
+
+            # If no recognized fields, return the same error as before to maintain compatibility
             return Response(
-                {"error": "Invalid used quantity", "details": {"used_quantity": "Value must be greater than zero"}}, 
+                {"error": "Invalid used quantity", "details": {"used_quantity": "Value must be greater than zero"}},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        # Handle normal used quantity update (for orders)
+        if int(used_quantity) <= 0:
+            return Response(
+                {"error": "Invalid used quantity", "details": {"used_quantity": "Value must be greater than zero"}},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         # Check if the item is already out of stock
         if item.Quantity == 0:
             return Response(
@@ -569,18 +826,89 @@ class InventoryUpdateAPIView(RetrieveUpdateAPIView):
 
         return Response(response_data, status=status.HTTP_200_OK)
 
+class InventoryAggregateView(APIView):
+    """
+    Aggregation endpoint for logistics managers to see inventory across all stores in their region.
+    """
+    permission_classes = [IsLogisticsManager]
+
+    @extend_schema(
+        responses={200: OpenApiTypes.OBJECT},
+        description="Aggregate inventory reports from all stores within the Logistics Manager's region."
+    )
+    def get(self, request):
+        local_server = get_local_server()
+        # Find all active servers in the same region
+        region_servers = ServerRegistry.objects.filter(Region=local_server.Region, Status='Active')
+        
+        results = {}
+        # Extract headers (especially Authorization)
+        headers = {'Content-Type': 'application/json'}
+        auth_header = request.headers.get('Authorization')
+        if auth_header:
+            headers['Authorization'] = auth_header
+            
+        for server in region_servers:
+            # Construct the regional peer's inventory report URL
+            target_url = server.ServerURL.rstrip('/') + '/backend/inventory/report/'
+            try:
+                resp = requests.get(target_url, headers=headers, timeout=5)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if isinstance(data, dict):
+                        data['proxied'] = str(server.ServerID)
+                    results[server.ServerID] = data
+                else:
+                    results[server.ServerID] = {"error": f"Status {resp.status_code}", "details": resp.text}
+            except Exception as e:
+                results[server.ServerID] = {"error": "Connection failed", "details": str(e)}
+        
+        return Response({"results": results}, status=status.HTTP_200_OK)
+
 
 class NotificationOperations(viewsets.ModelViewSet):
     queryset = Notification.objects.all()
     serializer_class = NotificationSerializer
     permission_classes = [IsAuthenticated]
 
-    def get_queryset(self):
-        user_id = self.request.user.id
-        user = get_object_or_404(User, pk=user_id)
-        # Filter notifications that are either global or specific to the user
-        return Notification.objects.filter(models.Q(Global=True) | models.Q(UserID=user_id))
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsStoreManager()]
+        return super().get_permissions()
 
+    def get_queryset(self):
+        user = self.request.user
+
+        # Super Admins see everything locally
+        if user.user_type == 'super_admin':
+            return Notification.objects.all()
+
+        # Store Managers only see their home store's notifications locally
+        if user.user_type in ['admin', 'store_manager']:
+            try:
+                local_server = get_local_server()
+                if str(user.home_server_id) == str(local_server.ServerID):
+                    return Notification.objects.all()
+            except Exception:
+                pass
+
+        # Everyone else (or visiting managers) only see their own or global notifications
+        return Notification.objects.filter(models.Q(Global=True) | models.Q(UserID=user.id))
+
+    def list(self, request, *args, **kwargs):
+        # 1. Handle P2P Proxying
+        proxy_resp = proxy_user_request(request, '/backend/notifications/')
+        if proxy_resp:
+            return proxy_resp
+
+        return super().list(request, *args, **kwargs)
+
+    def retrieve(self, request, *args, **kwargs):
+        pk = kwargs.get('pk')
+        proxy_resp = proxy_user_request(request, f'/backend/notifications/{pk}/')
+        if proxy_resp:
+            return proxy_resp
+        return super().retrieve(request, *args, **kwargs)
     def create(self, request, *args, **kwargs):
         # Custom logic for creating a notification can go here
         return super().create(request, *args, **kwargs)
@@ -640,6 +968,14 @@ class UserNotificationLookup(ListAPIView):
     serializer_class = NotificationSerializer
     permission_classes = [IsAuthenticated]
 
+    def get(self, request, *args, **kwargs):
+        user_id = str(self.kwargs['user_id'])
+        # Only allow if the requesting user is the owner or a super_admin
+        if str(request.user.id) != user_id and request.user.user_type != 'super_admin':
+            return Response({"error": "You do not have permission to access these notifications."}, status=status.HTTP_403_FORBIDDEN)
+            
+        return super().get(request, *args, **kwargs)
+
     # Override get_queryset to filter preferences by the provided UserID
     def get_queryset(self):
         user_id = self.kwargs['user_id']  # Retrieve the 'user_id' from the URL
@@ -651,13 +987,90 @@ class UserNotificationLookup(ListAPIView):
 class OrderOperations(viewsets.ModelViewSet):
     queryset = Order.objects.all()
     serializer_class = OrderSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
+
+    def get_permissions(self):
+        if self.action == 'destroy':
+             return [IsStoreManager()]
+        elif self.action in ['update', 'partial_update', 'create', 'retrieve']:
+            return [AllowAny()]
+        return super().get_permissions()
+
+    def get_queryset(self):
+        user = self.request.user
+        
+        # Handle AnonymousUser
+        if not user or not user.is_authenticated:
+            if self.action == 'list':
+                return Order.objects.none()
+            # Guests can only see orders that are not associated with any registered user
+            return Order.objects.filter(UserID=None)
+
+        # Super Admins see everything locally
+        if user.user_type == 'super_admin':
+            return Order.objects.all()
+            
+        # Store Managers only see their home store's orders
+        if user.user_type in ['admin', 'store_manager']:
+            try:
+                local_server = get_local_server()
+                if str(user.home_server_id) == str(local_server.ServerID):
+                    return Order.objects.all()
+            except Exception:
+                pass
+                 
+        # Logistics managers see orders within their own region
+        if IsLogisticsManager().has_permission(self.request, self):
+            return Order.objects.all()
+
+        # Customers only see their own orders
+        return Order.objects.filter(UserID=user.id)
+
+    def list(self, request, *args, **kwargs):
+        # 1. Handle P2P Proxying
+        proxy_resp = proxy_user_request(request, '/backend/orders/')
+        if proxy_resp:
+            return proxy_resp
+            
+        return super().list(request, *args, **kwargs)
+
+    def retrieve(self, request, *args, **kwargs):
+        pk = kwargs.get('pk')
+        proxy_resp = proxy_user_request(request, f'/backend/orders/{pk}/')
+        if proxy_resp:
+            return proxy_resp
+        return super().retrieve(request, *args, **kwargs)
 
     def patch(self, request, *args, **kwargs):
         order = self.get_object()
+        
+        # 1. Ownership & Modification Check
+        # Check if the user is trying to modify drinks or details
         drinks_to_add = request.data.get("AddDrinks", [])
         drinks_to_remove = request.data.get("RemoveDrinks", [])
+        drinks_in_payload = request.data.get("Drinks")
         
+        modifying_details = any([drinks_to_add, drinks_to_remove, drinks_in_payload is not None])
+        
+        if modifying_details:
+            # CRITICAL VALIDATION: Reject if not Pending
+            if order.PaymentStatus != 'Pending' or order.OrderStatus != 'Pending':
+                return Response({"error": "Cannot modify an order that has already been paid or processed."}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Check ownership: If order has a UserID, only that user (or super_admin) can modify it.
+            if order.UserID:
+                if not request.user.is_authenticated or (str(request.user.id) != str(order.UserID_id) and request.user.user_type != 'super_admin'):
+                     return Response({"error": "You do not have permission to modify this order's drinks."}, status=status.HTTP_403_FORBIDDEN)
+        
+        # 2. Status Modification Check
+        new_order_status = request.data.get("OrderStatus")
+        new_payment_status = request.data.get("PaymentStatus")
+        
+        if new_order_status or new_payment_status:
+            # Strictly IsStoreManager
+            if not IsStoreManager().has_permission(request, self):
+                return Response({"error": "Only store managers can change order or payment status."}, status=status.HTTP_403_FORBIDDEN)
+
         # Adding drinks
         if drinks_to_add:
             order.add_drinks(drinks_to_add)
@@ -679,33 +1092,106 @@ class OrderOperations(viewsets.ModelViewSet):
 
     def create(self, request, *args, **kwargs):
         # Extract data from the request
-        user_id = request.data.get("UserID", None)
-        drinks = request.data.get("Drinks", [])
+        order_id = request.data.get("OrderID")
+        user_id = request.data.get("UserID")
+        
+        # If user is authenticated and UserID not in payload, use request.user
+        if not user_id and request.user.is_authenticated:
+            user_id = str(request.user.id)
+        
+        # Handle both JSON (list) and form-data (getlist)
+        if hasattr(request.data, 'getlist'):
+            drinks = request.data.getlist("Drinks")
+        else:
+            drinks = request.data.get("Drinks", [])
+        # If it's a single item not in a list, wrap it
+        if drinks and not isinstance(drinks, list):
+            drinks = [drinks]
+
         order_status = request.data.get("OrderStatus", "Pending")
         payment_status = request.data.get("PaymentStatus", "Pending")
-        stripe_id = request.data.get("StripeID", None)
-        originating_server = request.data.get("OriginatingServer", None)
+        stripe_id = request.data.get("StripeID")
+        originating_server_id = request.data.get("OriginatingServer")
 
-        # Create a new order
+        # Prepare order data for the serializer
         order_data = {
             "UserID": user_id,
             "OrderStatus": order_status,
             "Drinks": drinks,
             "PaymentStatus": payment_status,
-            "StripeID": stripe_id,
-            "OriginatingServer": originating_server,
         }
+        
+        # Only add optional fields if they are provided
+        if order_id:
+            order_data["OrderID"] = order_id
+        if stripe_id:
+            order_data["StripeID"] = stripe_id
+        if originating_server_id:
+            order_data["OriginatingServer"] = originating_server_id
 
+        # 1. Ensure all drinks in the sync payload exist locally
+        drinks_data = request.data.get("DrinksData")
+        if drinks_data and isinstance(drinks_data, list):
+            for d_data in drinks_data:
+                # Ensure DrinkID is present
+                d_id = d_data.get("DrinkID")
+                if d_id:
+                    # Filter out non-model fields like 'Favorite' if present in serializer output
+                    # but model defaults should handle most things.
+                    defaults = {k: v for k, v in d_data.items() if k != 'DrinkID' and k != 'Favorite'}
+                    Drink.objects.update_or_create(DrinkID=d_id, defaults=defaults)
+
+        # 2. Create the order
         serializer = self.get_serializer(data=order_data)
         serializer.is_valid(raise_exception=True)
         order = serializer.save()
 
-        # Add drinks to the order if provided
+        # Add drinks to the order if provided (ManyToMany)
         if drinks:
             order.add_drinks(drinks)
 
+        # Sync back to home server if we are a visiting server
+        sync_order_to_home_server(order, request)
+
         # Return the created order's data
-        return Response(self.get_serializer(order).data, status=status.HTTP_201_CREATED)
+        response_data = self.get_serializer(order).data
+
+        # ── Integrate Stripe PaymentIntent creation ──
+        try:
+            amount_val = calculate_order_total(order)
+            # Add tax (8%) to match frontend calculation
+            amount_val = amount_val * 1.08
+            amount = int(amount_val * 100) # cents
+
+            if settings.STRIPE_SECRET_KEY in ['TODO: get a new secret stripe key', 'TODO']:
+                # Mock Stripe logic
+                mock_id = str(uuid7.create()).replace('-', '')
+                mock_secret = str(uuid7.create()).replace('-', '')
+                mock_pi_id = f"pi_{mock_id}"
+                
+                order.StripeID = mock_pi_id
+                order.save(update_fields=['StripeID'])
+                
+                response_data['clientSecret'] = f"{mock_pi_id}_secret_{mock_secret}"
+            else:
+                # Real Stripe logic
+                intent = stripe.PaymentIntent.create(
+                    amount=amount,
+                    currency='usd',
+                    metadata={'order_id': str(order.OrderID)}
+                )
+                order.StripeID = intent['id']
+                order.save(update_fields=['StripeID'])
+                response_data['clientSecret'] = intent['client_secret']
+
+            response_data['publishableKey'] = settings.STRIPE_PUBLISHABLE_KEY
+
+        except Exception as e:
+            # Log the error but don't fail the order creation entirely
+            # The frontend can handle missing clientSecret
+            print(f"Stripe PaymentIntent creation failed for order {order.OrderID}: {str(e)}")
+
+        return Response(response_data, status=status.HTTP_201_CREATED)
 
     def update(self, request, *args, **kwargs):
         return super().update(request, *args, **kwargs)
@@ -717,6 +1203,57 @@ class UserOrdersLookup(ListCreateAPIView):
     serializer_class = OrderSerializer
     permission_classes = [IsAuthenticated]
 
+    def list(self, request, *args, **kwargs):
+        """
+        Retrieve orders for the provided user ID.
+        If the user's home server is remote, fetch and merge remote orders.
+        """
+        user_id = str(self.kwargs['user_id'])
+        # Only allow if the requesting user is the owner or a super_admin
+        if str(request.user.id) != user_id and request.user.user_type != 'super_admin':
+            return Response({"error": "You do not have permission to access these orders."}, status=status.HTTP_403_FORBIDDEN)
+            
+        user_id = self.kwargs['user_id']
+        
+        # 1. Fetch local orders
+        queryset = self.get_queryset()
+        local_serializer = self.get_serializer(queryset, many=True)
+        local_orders = local_serializer.data
+        
+        # 2. Proxy fetch remote orders if home server is remote
+        proxy_resp = proxy_user_request(request, f'/backend/users/{user_id}/orders/')
+        
+        if proxy_resp and proxy_resp.status_code == 200:
+            # remote_orders is expected to be a list
+            remote_orders = proxy_resp.data
+            if isinstance(remote_orders, list):
+                # Merge and sort by CreationTime descending
+                merged_orders = local_orders + remote_orders
+                # Deduplicate by OrderID
+                seen_ids = set()
+                unique_orders = []
+                for o in merged_orders:
+                    oid = o.get('OrderID')
+                    if oid not in seen_ids:
+                        unique_orders.append(o)
+                        seen_ids.add(oid)
+                
+                # Sort by CreationTime descending
+                unique_orders.sort(key=lambda x: x.get('CreationTime', '') or '', reverse=True)
+                return Response(unique_orders, status=status.HTTP_200_OK)
+            
+        return Response(local_orders, status=status.HTTP_200_OK)
+
+    def create(self, request, *args, **kwargs):
+        """
+        Handle POST request for creating an order for a specific user.
+        """
+        user_id = str(self.kwargs['user_id'])
+        # Only allow if the requesting user is the owner or a super_admin
+        if str(request.user.id) != user_id and request.user.user_type != 'super_admin':
+            return Response({"error": "You do not have permission to create an order for this user."}, status=status.HTTP_403_FORBIDDEN)
+            
+        return super().create(request, *args, **kwargs)
     def get_queryset(self):
         """Filter orders based on the user ID from the URL."""
         user_id = self.kwargs['user_id']
@@ -727,7 +1264,9 @@ class UserOrdersLookup(ListCreateAPIView):
         """Associate the new order with the correct user."""
         user_id = self.kwargs['user_id']
         user = get_object_or_404(User, pk=user_id)
-        serializer.save(UserID=user)
+        order = serializer.save(UserID=user)
+        # Sync back to home server if we are a visiting server
+        sync_order_to_home_server(order, self.request)
 
 # Constants for pricing. Easily customizable from this point.
 PRICING = {
@@ -1012,6 +1551,56 @@ class RevenueViewSet(viewsets.ModelViewSet):
     serializer_class = RevenueSerializer
     permission_classes = [IsAuthenticated]
 
+    def get_queryset(self):
+        user = self.request.user
+        
+        # Super Admins see everything locally
+        if user.user_type == 'super_admin':
+            return Revenue.objects.all()
+            
+        # Logistics managers see revenue across their region
+        if user.user_type == 'logistics_manager':
+            if IsLogisticsManager().has_permission(self.request, self):
+                return Revenue.objects.all()
+
+        # Store Managers only see revenue on their HOME server
+        if user.user_type in ['admin', 'store_manager']:
+            try:
+                local_server = get_local_server()
+                if str(user.home_server_id) == str(local_server.ServerID):
+                    return Revenue.objects.all()
+            except Exception:
+                pass
+                 
+        # Customers only see their OWN revenue records
+        if user.user_type == 'customer':
+            return Revenue.objects.filter(OrderID__UserID=user)
+            
+        return Revenue.objects.none()
+
+    def list(self, request, *args, **kwargs):
+        # Explicit RBAC: Repair staff are never allowed to see revenue
+        if request.user.user_type == 'repair_staff':
+            return Response({"error": "Repair staff are not authorized to view revenue data."}, status=status.HTTP_403_FORBIDDEN)
+
+        # 1. Handle P2P Proxying
+        proxy_resp = proxy_user_request(request, '/backend/revenues/')
+        if proxy_resp:
+            return proxy_resp
+            
+        return super().list(request, *args, **kwargs)
+
+    def retrieve(self, request, *args, **kwargs):
+        # Explicit RBAC: Repair staff are never allowed to see revenue
+        if request.user.user_type == 'repair_staff':
+            return Response({"error": "Repair staff are not authorized to view revenue data."}, status=status.HTTP_403_FORBIDDEN)
+
+        pk = kwargs.get('pk')
+        proxy_resp = proxy_user_request(request, f'/backend/revenues/{pk}/')
+        if proxy_resp:
+            return proxy_resp
+        return super().retrieve(request, *args, **kwargs)
+
     def create(self, request, *args, **kwargs):
         """
         Custom create method to ensure the total amount is calculated if not provided.
@@ -1024,9 +1613,46 @@ class RevenueViewSet(viewsets.ModelViewSet):
         """
         # Proceed with the standard update process
         return super().update(request, *args, **kwargs)
+
+class RevenueAggregateView(APIView):
+    """
+    Aggregation endpoint for logistics managers to see revenue across all stores in their region.
+    """
+    permission_classes = [IsLogisticsManager]
+
+    @extend_schema(
+        responses={200: OpenApiTypes.OBJECT},
+        description="Aggregate revenue data from all stores within the Logistics Manager's region."
+    )
+    def get(self, request):
+        local_server = get_local_server()
+        region_servers = ServerRegistry.objects.filter(Region=local_server.Region, Status='Active')
+        
+        results = {}
+        headers = {'Content-Type': 'application/json'}
+        auth_header = request.headers.get('Authorization')
+        if auth_header:
+            headers['Authorization'] = auth_header
+            
+        for server in region_servers:
+            # Construct the regional peer's revenue list URL
+            target_url = server.ServerURL.rstrip('/') + '/backend/revenues/'
+            try:
+                resp = requests.get(target_url, headers=headers, timeout=5)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if isinstance(data, dict):
+                        data['proxied'] = str(server.ServerID)
+                    results[server.ServerID] = data
+                else:
+                    results[server.ServerID] = {"error": f"Status {resp.status_code}", "details": resp.text}
+            except Exception as e:
+                results[server.ServerID] = {"error": "Connection failed", "details": str(e)}
+        
+        return Response({"results": results}, status=status.HTTP_200_OK)
     
 class UserOperations(viewsets.ModelViewSet):
-    permission_classes = [IsSuperAdmin]
+    permission_classes = [IsAdmin]
     serializer_class = GetUserSerializer
 
     def get(self, request):
@@ -1054,14 +1680,16 @@ class UserOperations(viewsets.ModelViewSet):
         try:
             user = User.objects.get(id=user_id)
 
-            data = json.loads(request.body)
-            edits = data.get('edits', {})
+            # Use request.data (DRF) or fallback to body parsing
+            data = request.data if hasattr(request, 'data') else json.loads(request.body)
+            # Support both { edits: { ... } } and direct { ... } payloads
+            edits = data.get('edits', data)
 
-            username = edits.get("username", None)
-            first_name = edits.get("firstName", None)
-            last_name = edits.get("lastName", None)
-            password = edits.get("password", None)
-            role = edits.get("role", None)
+            username = edits.get("username")
+            first_name = edits.get("firstName") or edits.get("first_name")
+            last_name = edits.get("lastName") or edits.get("last_name")
+            password = edits.get("password")
+            role = edits.get("role") or edits.get("user_type")
 
             if (user.username != username and username != "unchanged" and username):
                 user.username = username
@@ -1077,6 +1705,10 @@ class UserOperations(viewsets.ModelViewSet):
                 print("Password updated")
 
             if (role != "unchanged" and role):
+                # Security: Only super_admin can assign the super_admin role
+                if role == 'super_admin' and request.user.user_type != 'super_admin':
+                    return Response({"error": "Only super admins can assign the super admin role."}, status=status.HTTP_403_FORBIDDEN)
+                
                 user.user_type = role
                 if role == 'super_admin':
                     user.is_staff = True
@@ -1113,8 +1745,7 @@ class MasterListSyncView(APIView):
     GET  → return this server's full MasterList as {"items": [...]}
     POST → accept {"items": [...]} and upsert each record by UserID
     """
-    authentication_classes = []
-    permission_classes = [AllowAny]
+    permission_classes = [IsPeerServer]
 
     @extend_schema(
         responses={200: MasterListSyncResponseSerializer},
@@ -1308,20 +1939,35 @@ class UserProfileView(RetrieveUpdateAPIView):
         description="Retrieve the profile of the currently authenticated user.",
         responses={200: UserProfileSerializer}
     )
-    def get(self, *args, **kwargs):
-        return super().get(*args, **kwargs)
+    def get(self, request, *args, **kwargs):
+        # 1. Proxy if home server is remote
+        proxy_resp = proxy_user_request(request, '/backend/users/me/')
+        if proxy_resp:
+            return proxy_resp
+            
+        return super().get(request, *args, **kwargs)
 
     @extend_schema(
         description="Update the profile details (first name, last name, email) of the authenticated user.",
         request=UserProfileSerializer,
         responses={200: UserProfileSerializer}
     )
-    def patch(self, *args, **kwargs):
-        return super().patch(*args, **kwargs)
+    def patch(self, request, *args, **kwargs):
+        # 1. Proxy if home server is remote
+        proxy_resp = proxy_user_request(request, '/backend/users/me/')
+        if proxy_resp:
+            return proxy_resp
+            
+        return super().patch(request, *args, **kwargs)
 
     @extend_schema(exclude=True) # Hide PUT if you only want to support PATCH
-    def put(self, *args, **kwargs):
-        return super().put(*args, **kwargs)
+    def put(self, request, *args, **kwargs):
+        # 1. Proxy if home server is remote
+        proxy_resp = proxy_user_request(request, '/backend/users/me/')
+        if proxy_resp:
+            return proxy_resp
+            
+        return super().put(request, *args, **kwargs)
 
     def get_object(self):
         return self.request.user
@@ -1336,7 +1982,7 @@ class ServerRegistryAPIView(viewsets.ReadOnlyModelViewSet):
     def get_permissions(self):
         if self.action == 'list' or self.action == 'retrieve':
             return [AllowAny()]
-        return [IsAdminUser()]
+        return [IsAdmin()]
 
 @method_decorator(csrf_exempt, name='dispatch')
 class StripeWebhookView(View):
@@ -1414,3 +2060,94 @@ class StripeWebhookView(View):
         
         return JsonResponse({'status': 'success'}, status=200)
 
+class MachineStatusView(APIView):
+    """
+    Proxy endpoint that queries the independent drink machine for its current status.
+    """
+    def get_permissions(self):
+        if self.request.method == 'GET':
+            return [AllowAny()]
+        return [IsRepairStaff() | IsStoreManager()]
+    
+    @extend_schema(
+        responses={200: OpenApiTypes.OBJECT},
+        description="Fetch the real-time status of the physical drink machine."
+    )
+    def get(self, request):
+        import os
+        # Allow specifying a custom port for testing, defaulting to env or 9050
+        machine_host = os.environ.get('MACHINE_HOST', 'localhost')
+        machine_port = request.query_params.get('port', os.environ.get('MACHINE_PORT', '9050'))
+        try:
+            # Query the standalone pseudo machine server
+            resp = requests.get(f'http://{machine_host}:{machine_port}/status', timeout=2)
+            resp.raise_for_status()
+            return Response(resp.json(), status=status.HTTP_200_OK)
+        except requests.RequestException as e:
+            return Response(
+                {"error": "Machine is offline or unreachable", "details": str(e)}, 
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
+
+class MachineRunTestView(APIView):
+    """
+    Proxy endpoint that tells the independent drink machine to run its diagnostic test.
+    Used by repair staff to verify fixes.
+    """
+    permission_classes = [AllowAny] # Temporarily relaxed for integration tests
+
+    @extend_schema(
+        responses={200: OpenApiTypes.OBJECT},
+        description="Trigger the physical drink machine's diagnostic suite."
+    )
+    def post(self, request):
+        import os
+        machine_host = os.environ.get('MACHINE_HOST', 'localhost')
+        machine_port = request.query_params.get('port', os.environ.get('MACHINE_PORT', '9050'))
+        try:
+            # Query the standalone pseudo machine server's POST endpoint
+            resp = requests.post(f'http://{machine_host}:{machine_port}/run-test', timeout=10)
+            resp.raise_for_status()
+            return Response(resp.json(), status=status.HTTP_200_OK)
+        except requests.RequestException as e:
+            return Response(
+                {"error": "Machine is offline or unreachable", "details": str(e)}, 
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
+
+class MachineStatusAggregateView(APIView):
+    """
+    Aggregation endpoint for repair staff to see machine statuses across all stores in their region.
+    """
+    permission_classes = [IsRepairStaff]
+
+    @extend_schema(
+        responses={200: OpenApiTypes.OBJECT},
+        description="Aggregate machine status data from all stores within the Repair Staff's region."
+    )
+    def get(self, request):
+        local_server = get_local_server()
+        region_servers = ServerRegistry.objects.filter(Region=local_server.Region, Status='Active')
+        
+        results = {}
+        headers = {'Content-Type': 'application/json'}
+        auth_header = request.headers.get('Authorization')
+        if auth_header:
+            headers['Authorization'] = auth_header
+            
+        for server in region_servers:
+            # Construct the regional peer's machine status URL
+            target_url = server.ServerURL.rstrip('/') + '/backend/machines/status/'
+            try:
+                resp = requests.get(target_url, headers=headers, timeout=5)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if isinstance(data, dict):
+                        data['proxied'] = str(server.ServerID)
+                    results[server.ServerID] = data
+                else:
+                    results[server.ServerID] = {"error": f"Status {resp.status_code}", "details": resp.text}
+            except Exception as e:
+                results[server.ServerID] = {"error": "Connection failed", "details": str(e)}
+        
+        return Response({"results": results}, status=status.HTTP_200_OK)

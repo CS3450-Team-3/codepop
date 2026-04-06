@@ -70,16 +70,14 @@ ROOT_URLCONF = 'codepop_backend.urls'
 CORS_ALLOW_ALL_ORIGINS = False
 
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    # Add other allowed origins as needed
+    "http://localhost:4000",
+    "http://127.0.0.1:4000",
 ]
 CORS_ALLOW_CREDENTIALS = True
 
 CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.1:3000",
-    # Add other trusted origins as needed·
+    "http://localhost:4000",
+    "http://127.0.0.1:4000",
 ]
 
 TEMPLATES = [
@@ -181,6 +179,7 @@ SIMPLE_JWT = {
     'AUTH_HEADER_TYPES': ('Bearer',),
     'USER_ID_FIELD': 'id',
     'USER_ID_CLAIM': 'user_id',
+    'LEEWAY': 5,
 }
 
 

@@ -193,6 +193,7 @@ class Command(BaseCommand):
                     'StoreCity':      os.environ.get('STORE_CITY', ''),
                     'StoreState':     os.environ.get('STORE_STATE', ''),
                     'StoreZip':       os.environ.get('STORE_ZIP', ''),
+                    'StoreGeohash':   os.environ.get('STORE_GEOHASH', ''),
                 },
             )
 

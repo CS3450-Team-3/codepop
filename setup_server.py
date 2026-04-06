@@ -45,7 +45,12 @@ services:
       DB_NAME: codepop_db
       DB_USER: postgres
       DB_PASSWORD: password
+      STRIPE_SECRET_KEY: "${{STRIPE_SECRET_KEY:-TODO_get_a_new_secret_stripe_key}}"
+      STRIPE_PUBLISHABLE_KEY: "${{STRIPE_PUBLISHABLE_KEY:-pk_test_51T5DqLPnaMtT5PTkugtHqM5ew5RSzkCJ0jklGkdSRXw8VnaiIN3AEW5NAYJzmdrYz2cUjQ7i9uvr9N2hpQnj01gE00jCYApVMN}}"
+      STRIPE_WEBHOOK_SECRET: "${{STRIPE_WEBHOOK_SECRET:-TODO_get_a_webhook_secret}}"
       SERVER_URL: "http://backend:9000"
+      MACHINE_HOST: "machine"
+      MACHINE_PORT: "9050"
       SETUP_ADMIN_USERNAME: {admin_username}
       SETUP_ADMIN_PASSWORD: {admin_password}
       SETUP_ADMIN_EMAIL: {admin_email}
@@ -57,17 +62,31 @@ services:
       STORE_CITY: {store_city}
       STORE_STATE: {store_state}
       STORE_ZIP: {store_zip}
+      STORE_GEOHASH: {store_geohash}
     volumes:
+      - ./codepop_backend:/app
       - node_data:/data
     depends_on:
       db:
         condition: service_healthy
+      machine:
+        condition: service_started
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9000/health/')"]
       interval: 10s
       timeout: 5s
       retries: 15
       start_period: 30s
+
+  machine:
+    build:
+      context: .
+      dockerfile: codepop_backend/Dockerfile
+    entrypoint: ["python", "pseudo_machine_server.py", "--port", "9050", "--test-mode"]
+    ports:
+      - "9050:9050"
+    volumes:
+      - ./codepop_backend:/app
 
   frontend:
     build:
@@ -139,7 +158,51 @@ def _section(title):
     print(f"\n--- {title} ---")
 
 
+def _ensure_venv():
+    """Bootstrap a local venv with geopy and pygeohash if not already running inside it."""
+    venv_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".setup_venv")
+    if os.environ.get("_CODEPOP_VENV") == venv_dir:
+        return
+    if not os.path.isdir(venv_dir):
+        print("  Creating virtual environment for geocoding dependencies...")
+        subprocess.run([sys.executable, "-m", "venv", venv_dir], check=True)
+        pip = os.path.join(venv_dir, "bin", "pip")
+        subprocess.run([pip, "install", "--quiet", "geopy", "pygeohash"], check=True)
+        print("  Dependencies installed.\n")
+    python = os.path.join(venv_dir, "bin", "python")
+    env = os.environ.copy()
+    env["_CODEPOP_VENV"] = venv_dir
+    os.execve(python, [python] + sys.argv, env)
+
+
+def _geocode_address():
+    """Prompt for a store address, geocode it with geopy, and return address components + geohash."""
+    from geopy.geocoders import Nominatim
+    import pygeohash
+
+    geolocator = Nominatim(user_agent="store_setup")
+
+    while True:
+        store_address = _prompt("Street address")
+        store_city    = _prompt("City")
+        store_state   = _prompt("State (e.g. OR)")
+        store_zip     = _prompt("ZIP code")
+
+        full_address = f"{store_address}, {store_city}, {store_state} {store_zip}"
+
+        print("\n  Verifying address with OpenStreetMap...")
+        location = geolocator.geocode(full_address)
+
+        if location:
+            geohash = pygeohash.encode(location.latitude, location.longitude, precision=6)
+            print(f"  Address verified. Geohash: {geohash}")
+            return store_address, store_city, store_state, store_zip, geohash
+
+        print("  Could not verify that address. Please re-enter.")
+
+
 def main():
+    _ensure_venv()
     print("=" * 60)
     print("  CodePop Server Setup Wizard")
     print("=" * 60)
@@ -148,7 +211,7 @@ def main():
         a docker-compose.yml ready to launch your CodePop server.
     """))
 
-    test_config      = _prompt("Setup with default TESTING values? (Y/n)")
+    test_config      = _prompt("Setup with default TESTING values? [Y/n]")
     if test_config.lower() in ("y", "yes", ""):
         # ── Test Config ───────────────────────────────────────────────
         _section("Test Config")
@@ -164,6 +227,7 @@ def main():
         store_state      = "TS"
         store_zip        = "12345"
         region_name      = "test-region"
+        store_geohash    = "9q9p1z9"  # placeholder — test addresses cannot be geocoded
     else:
 
       # ── Admin Credentials ─────────────────────────────────────────
@@ -176,11 +240,8 @@ def main():
 
       # ── Store Info ────────────────────────────────────────────────
       _section("Step 2: Store Information")
-      store_name    = _prompt("Store name")
-      store_address = _prompt("Street address")
-      store_city    = _prompt("City")
-      store_state   = _prompt("State (e.g. OR)")
-      store_zip     = _prompt("ZIP code")
+      store_name = _prompt("Store name")
+      store_address, store_city, store_state, store_zip, store_geohash = _geocode_address()
 
       # ── Region ────────────────────────────────────────────────────
       _section("Step 3: Region")
@@ -196,6 +257,7 @@ def main():
     print(f"  Admin name     : {admin_first_name} {admin_last_name}")
     print(f"  Store name     : {store_name}")
     print(f"  Address        : {store_address}, {store_city}, {store_state} {store_zip}")
+    print(f"  Geohash        : {store_geohash}")
     print(f"  Region         : {region_name}")
     print()
 
@@ -217,6 +279,7 @@ def main():
         store_city=_yaml_value(store_city),
         store_state=_yaml_value(store_state),
         store_zip=_yaml_value(store_zip),
+        store_geohash=_yaml_value(store_geohash),
     )
 
     script_dir = os.path.dirname(os.path.abspath(__file__))
