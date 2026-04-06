@@ -59,7 +59,7 @@ function getNavSections(userType?: string): NavSection[] {
   }
 
   // ── Store / Logistics Manager ─────────────────────────────
-  if (userType === 'store_manager' || userType === 'logistics_manager') {
+  if (userType === 'store_manager') {
     return [
       {
         items: [
@@ -78,6 +78,17 @@ function getNavSections(userType?: string): NavSection[] {
     ];
   }
 
+  if (userType === 'logistics_manager') {
+    return [
+      {
+        items: [
+          { label: 'Home',              href: '/',           icon: <Home size={19} /> },
+          { label: 'Dashboard',         href: '/logistic',   icon: <LayoutDashboard size={19} /> },
+        ],
+      },
+    ];
+  }
+
   // ── Admin / Super Admin ───────────────────────────────────
   if (userType === 'admin' || userType === 'super_admin') {
     return [
@@ -86,7 +97,7 @@ function getNavSections(userType?: string): NavSection[] {
           { label: 'Home',            href: '/',                icon: <Home size={19} /> },
           { label: 'Dashboard',       href: '/admin/dashboard', icon: <Shield size={19} /> },
           { label: 'Manager',         href: '/manage/dashboard',  icon: <LayoutDashboard size={19} /> },
-          { label: 'Logistics Manager', href: 'REPLACE', icon: <LayoutDashboard size={19} /> }, //TODO replace with logistics manager dashboard when implemented
+          { label: 'Logistics Manager', href: '/logistic', icon: <LayoutDashboard size={19} /> },
         ],
       },
       {
@@ -195,6 +206,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
           </div>
           <button
             onClick={onClose}
+            aria-label="Close sidebar"
             className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100 transition-colors"
           >
             <X size={18} />
