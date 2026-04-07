@@ -220,10 +220,6 @@ _Screenshots are included in Appendix 7 where available; missing items will be c
 
 ## 7. Appendices (Screenshots & Logs)
 
-- _Include screenshots of successful test runs and system states here._
-
 ### 7.1 Automated Multi-Instance Orchestration Log
 
 ![Integration Suite](/documents/new_docs/images/integration_suite_log.png)
-
-- [Placeholder for Screenshot: Frontend Order Confirmation]
