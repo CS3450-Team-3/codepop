@@ -15,10 +15,11 @@
   - [5. Code Coverage \& Metrics](#5-code-coverage--metrics)
     - [5.1 Backend Coverage](#51-backend-coverage)
     - [5.2 Frontend Coverage](#52-frontend-coverage)
-  - [6. Testing Sprint Results (Draft 2: "What")](#6-testing-sprint-results-draft-2-what)
-    - [6.1 What We Tested](#61-what-we-tested)
-    - [6.2 What We Learned](#62-what-we-learned)
-    - [6.3 What We Fixed](#63-what-we-fixed)
+  - [6. Final Testing Execution Plan (Draft 2: "How")](#6-final-testing-execution-plan-draft-2-how)
+    - [6.1 How We Will Execute Existing Tests](#61-how-we-will-execute-existing-tests)
+    - [6.2 High-Risk Areas and Expected Failure Modes](#62-high-risk-areas-and-expected-failure-modes)
+    - [6.3 How We Will Respond to Issues](#63-how-we-will-respond-to-issues)
+    - [6.4 Coverage Targets and Final Demo E2E Rehearsal](#64-coverage-targets-and-final-demo-e2e-rehearsal)
   - [7. Appendices (Screenshots \& Logs)](#7-appendices-screenshots--logs)
     - [7.1 Automated Multi-Instance Orchestration Log](#71-automated-multi-instance-orchestration-log)
 
@@ -140,23 +141,82 @@ We currently have around 70% overall code coverage for the backend endpoints (33
 
 Frontend coverage is currently estimated at **~20%**, focused entirely on the **API and Model layer**. We utilize a custom TypeScript test runner (`api_tests.ts`) that exercises the frontend's communication with the backend, covering authentication, order placement, and inventory retrieval. While the data-handling logic is verified, the React UI components and pages (presentation layer) currently have 0% automated unit test coverage. Manual testing serves as the primary verification for the visual and interactive elements of the application.
 
-## 6. Testing Sprint Results (Draft 2: "What")
+## 6. Final Testing Execution Plan (Draft 2: "How")
 
-_To be completed at the end of the testing sprint._
+This section explains how we will run final testing before presentation. Some tests were built earlier; we will now use them as our official release checks.
 
-### 6.1 What We Tested
+### 6.1 How We Will Execute Existing Tests
 
-- Summary of the final test execution run.
-- Any new tests added during the testing sprint.
+- **Backend Unit/API Baseline (Django + DRF):**
+  - We will run `tests.py` and `tests_p2p.py` as baseline regression tests.
+  - Current baseline: **65 tests** (56 backend + 9 P2P/auth).
+- **Frontend API/Model Baseline (TypeScript runner):**
+  - We will run `models/tests/api_tests.ts` as the main frontend API test suite.
+  - Current baseline: **73 checks** across auth, drinks/orders, inventory, chatbot, and admin/P2P routes.
+- **Distributed Integration Baseline (Multi-instance orchestration):**
+  - We will run `full_p2p_automated_test.py` as the final system-level gate.
+  - Pass condition: all **16 orchestration steps** succeed.
 
-### 6.2 What We Learned
+### 6.2 High-Risk Areas and Expected Failure Modes
 
-- **Bugs Uncovered:** List key issues found (e.g., "Found a bug where public keys weren't refreshing after a server restart").
-- **Performance Insights:** (e.g., "P2P handshake adds ~200ms latency on first request").
+- **Distributed trust boundary (highest risk):**
+  - Roaming login, refresh proxying, and logout blacklisting are most likely to fail first.
+- **API response-shape drift:**
+  - Some endpoints may return different object/array shapes.
+- **Permission edge cases:**
+  - We will verify role boundaries (including expected `403` responses).
+- **Inventory update semantics:**
+  - PATCH/update behavior may vary by endpoint and needs close checking.
+- **Operational timing issues:**
+  - Peer discovery and handshake timing may expose latency/race issues.
 
-### 6.3 What We Fixed
+### 6.3 How We Will Respond to Issues
 
-- Description of the fixes implemented as a result of the testing phase.
+- **Authentication or P2P failures:**
+  - Isolate whether the issue is token claims, key verification, or proxy routing.
+  - Add a targeted regression test before closing the bug.
+- **Contract/response mismatches:**
+  - Align API and frontend expectations, then update assertions.
+- **Permission regressions:**
+  - Treat as release-blocking and rerun role-based tests.
+- **Inventory/order consistency defects:**
+  - Reproduce with fixed payloads, patch, and rerun backend + frontend suites.
+
+### 6.4 Coverage Targets and Final Demo E2E Rehearsal
+
+- **Coverage targets for final sprint validation:**
+  - Backend target: about **~70%** endpoint/core coverage.
+  - Frontend target: about **~20%** automated API/model coverage (UI unit coverage remains low).
+
+#### Final Presentation: System-Level (End-to-End) Rehearsal Steps
+
+1. **Run the automated orchestration suite**
+   - Action:
+     - Execute `python codepop_backend/integration_tests/full_p2p_automated_test.py` from the project root.
+   - Expected outcome:
+     - All checks pass and the final summary reports no failed steps.
+2. **Validate roaming authentication manually**
+   - Action:
+     - Authenticate on a non-home server with a user whose account belongs to a different server.
+   - Expected outcome:
+     - Proxy login succeeds and role-based access is preserved.
+3. **Validate cross-server business flows**
+   - Action:
+     - Perform profile, drink, and order operations during a visiting-server session.
+   - Expected outcome:
+     - Operations succeed and user data remains consistent across expected routes.
+4. **Validate aggregation and machine proxying**
+   - Action:
+     - Execute super-admin aggregation routes and pseudo-machine status flows.
+   - Expected outcome:
+     - Aggregated metrics return correctly; degraded/offline scenarios do not crash the system.
+5. **Capture final-presentation evidence**
+   - Action:
+     - Capture screenshots/logs during the full rehearsal run.
+   - Expected outcome:
+     - Evidence includes orchestration success, roaming login success, cross-server order proof, and super-admin aggregation proof.
+
+_Screenshots are included in Appendix 7 where available; missing items will be captured during final rehearsal._
 
 ## 7. Appendices (Screenshots & Logs)
 
