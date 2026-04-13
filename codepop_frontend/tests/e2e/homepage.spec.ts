@@ -18,6 +18,8 @@ test.describe('Homepage', () => {
     const body = page.locator('body');
     await expect(body).toBeVisible();
   });
+
+    // Comment out tests that require backend until backend is available
   /*
   test('should open customize modal', async ({ page }) => {
     await page.goto('/');
@@ -32,8 +34,6 @@ test.describe('Homepage', () => {
     await expect(page.locator('[data-testid="customize-modal"]')).toBeVisible();
   });
   */
-
-  // Comment out tests that require backend until backend is available
   /*
   test('should allow category filtering', async ({ page }) => {
     await page.goto('/');
