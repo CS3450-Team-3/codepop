@@ -1831,6 +1831,7 @@ class P2PJoinView(APIView):
         pub_pem = data['public_key']
         region_name = data['region']
         address = data['address']
+        store_name = data.get('store_name', '')
         timestamp_str = data['timestamp']
         network_token = data['network_token']
         sig_b64 = data['signature']
@@ -1879,15 +1880,19 @@ class P2PJoinView(APIView):
         ).exclude(ServerID=node_id).exists()
         is_leader = not already_has_servers
 
+        defaults = {
+            'ServerURL': address,
+            'PublicKey': pub_pem,
+            'Status': 'Active',
+            'IsRegionLeader': is_leader,
+            'Region': region,
+        }
+        if store_name:
+            defaults['StoreName'] = store_name
+
         ServerRegistry.objects.update_or_create(
             ServerID=node_id,
-            defaults={
-                'ServerURL': address,
-                'PublicKey': pub_pem,
-                'Status': 'Active',
-                'IsRegionLeader': is_leader,
-                'Region': region,
-            }
+            defaults=defaults,
         )
 
         # Return the full peer list so the joiner can discover all known nodes
@@ -1898,6 +1903,7 @@ class P2PJoinView(APIView):
                 'public_key': s.PublicKey,
                 'region': s.Region.RegionName if s.Region else None,
                 'is_region_leader': s.IsRegionLeader,
+                'store_name': s.StoreName or '',
             }
             for s in ServerRegistry.objects.filter(Status='Active')
         ]

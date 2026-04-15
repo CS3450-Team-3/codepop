@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { AlertCircle, MapPin, Package, User, Route, Send, Truck, CheckCircle2, Trash2, AlertTriangle, CalendarDays, LogOut } from 'lucide-react';
+import { AlertCircle, MapPin, Menu, Package, User, Route, Send, Truck, CheckCircle2, Trash2, AlertTriangle, CalendarDays, LogOut } from 'lucide-react';
+import Sidebar from '@/components/layout/Sidebar';
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL ?? '').replace(/\/$/, '');
+const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL ?? '/api/proxy').replace(/\/$/, '');
 const apiUrl = (path: string) => `${API_BASE}${path}`;
 const ROUTE_PLANS_STORAGE_KEY = 'codepop-routing-plans-v1';
 const STORE_SCHEDULES_STORAGE_KEY = 'codepop-store-schedules-v1';
@@ -83,6 +84,7 @@ const statusLabel: Record<RouteStatus, string> = {
 
 export default function LogisticsManagerDashboard() {
   const router = useRouter();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [inventoryReport, setInventoryReport] = useState<InventoryReport | null>(null);
   const [stores, setStores] = useState<StoreInventory[]>([]);
   const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
@@ -588,11 +590,20 @@ export default function LogisticsManagerDashboard() {
       {/* Header */}
       <div className="bg-blue-600 text-white p-6">
         <div className="flex items-center gap-3 mb-2">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="flex h-9 w-9 items-center justify-center rounded-xl text-white hover:bg-blue-500 transition-colors"
+            aria-label="Open menu"
+          >
+            <Menu size={22} />
+          </button>
           <Package className="w-8 h-8" />
           <h1 className="text-3xl font-bold">Logistics Manager</h1>
         </div>
         <p className="text-blue-100">Inventory & Supply Chain</p>
       </div>
+
+      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       {error && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded m-6">

@@ -1,6 +1,27 @@
 services:
 
   # ═══════════════════════════════════════════════════════════════════════════
+  # GATEWAY — Single entry point on port 4000
+  # Connects to the bootstrap node (backend-w1) by default.
+  # Users can switch servers via the in-app server switcher (Sidebar menu).
+  # ═══════════════════════════════════════════════════════════════════════════
+  frontend-gateway:
+    build:
+      context: ./codepop_frontend
+    ports:
+      - "4000:4000"
+    environment:
+      BACKEND_URL: "http://backend-w1:9000"
+      WATCHPACK_POLLING: "true"
+    volumes:
+      - ./codepop_frontend:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      backend-w1:
+        condition: service_started
+
+  # ═══════════════════════════════════════════════════════════════════════════
   # US-WEST — Instance 1: CodePop Portland 1  (Bootstrap Node)
   # Backend :9001  Machine :9051  Frontend :4001  Nginx :91
   # ═══════════════════════════════════════════════════════════════════════════
