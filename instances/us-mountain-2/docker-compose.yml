@@ -1,0 +1,101 @@
+name: us-mountain-2
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: codepop_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "psql -U postgres -d codepop_db -c 'SELECT 1' > /dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+
+  backend:
+    build:
+      context: ../../
+      dockerfile: codepop_backend/Dockerfile
+    ports:
+      - "9008:9000"
+    environment:
+      DB_HOST: db
+      DB_NAME: codepop_db
+      DB_USER: postgres
+      DB_PASSWORD: password
+      STRIPE_SECRET_KEY: "${STRIPE_SECRET_KEY:-TODO_get_a_new_secret_stripe_key}"
+      STRIPE_PUBLISHABLE_KEY: "${STRIPE_PUBLISHABLE_KEY:-pk_test_51T5DqLPnaMtT5PTkugtHqM5ew5RSzkCJ0jklGkdSRXw8VnaiIN3AEW5NAYJzmdrYz2cUjQ7i9uvr9N2hpQnj01gE00jCYApVMN}"
+      STRIPE_WEBHOOK_SECRET: "${STRIPE_WEBHOOK_SECRET:-TODO_get_a_webhook_secret}"
+      SERVER_URL: "http://localhost:9008"
+      BOOTSTRAP_NODES: "localhost:9001"
+      MACHINE_HOST: "machine"
+      MACHINE_PORT: "9050"
+      SETUP_ADMIN_USERNAME: "admin"
+      SETUP_ADMIN_PASSWORD: "password123"
+      SETUP_ADMIN_EMAIL: "test@email.com"
+      SETUP_ADMIN_FIRST_NAME: "Test"
+      SETUP_ADMIN_LAST_NAME: "Ing"
+      SETUP_REGION_NAME: "us-mountain"
+      STORE_NAME: "CodePop Denver 2"
+      STORE_ADDRESS: "2000 Larimer St"
+      STORE_CITY: "Denver"
+      STORE_STATE: "CO"
+      STORE_ZIP: "80205"
+      STORE_GEOHASH: "9xj6503"
+    volumes:
+      - ../../codepop_backend:/app
+      - node_data:/data
+    depends_on:
+      db:
+        condition: service_healthy
+      machine:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9000/health/')"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+  machine:
+    build:
+      context: ../../
+      dockerfile: codepop_backend/Dockerfile
+    entrypoint: ["python", "pseudo_machine_server.py", "--port", "9050", "--test-mode"]
+    ports:
+      - "9058:9050"
+    volumes:
+      - ../../codepop_backend:/app
+
+  frontend:
+    build:
+      context: ../../codepop_frontend
+    ports:
+      - "4008:4000"
+    environment:
+      BACKEND_URL: "http://backend:9000"
+      WATCHPACK_POLLING: "true"
+    volumes:
+      - ../../codepop_frontend:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      backend:
+        condition: service_started
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "98:80"
+    volumes:
+      - ../../nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - frontend
+
+volumes:
+  postgres_data:
+  node_data:

@@ -1,0 +1,182 @@
+ Image us-west-1-backend Building 
+ Image us-west-1-machine Building 
+ Image us-west-1-frontend Building 
+#1 [internal] load local bake definitions
+#1 reading from stdin 1.57kB done
+#1 DONE 0.0s
+
+#2 [backend internal] load build definition from Dockerfile
+#2 transferring dockerfile:
+#2 transferring dockerfile: 538B done
+#2 DONE 0.0s
+
+#3 [frontend internal] load build definition from Dockerfile
+#3 transferring dockerfile: 198B done
+#3 DONE 0.1s
+
+#4 [machine internal] load metadata for docker.io/library/python:3.12-slim
+#4 DONE 0.1s
+
+#5 [backend internal] load .dockerignore
+#5 transferring context: 2B done
+#5 DONE 0.0s
+
+#6 [backend 1/9] FROM docker.io/library/python:3.12-slim@sha256:3d5ed973e45820f5ba5e46bd065bd88b3a504ff0724d85980dcd05eab361fcf4
+#6 resolve docker.io/library/python:3.12-slim@sha256:3d5ed973e45820f5ba5e46bd065bd88b3a504ff0724d85980dcd05eab361fcf4 0.0s done
+#6 DONE 0.0s
+
+#7 [backend internal] load build context
+#7 transferring context: 35.72kB done
+#7 transferring context: 35.72kB done
+#7 DONE 0.0s
+
+#8 [machine 3/9] RUN apt-get update && apt-get install -y     libpq-dev gcc     && rm -rf /var/lib/apt/lists/*
+#8 CACHED
+
+#9 [machine 4/9] COPY requirements.txt .
+#9 CACHED
+
+#10 [machine 2/9] WORKDIR /app
+#10 CACHED
+
+#11 [machine 5/9] RUN pip install --no-cache-dir -r requirements.txt
+#11 CACHED
+
+#12 [backend 6/9] COPY codepop_backend/ .
+#12 DONE 0.2s
+
+#13 [machine 7/9] COPY codepop_backend/entrypoint.sh /entrypoint.sh
+#13 DONE 0.1s
+
+#14 [frontend internal] load metadata for docker.io/library/node:20-alpine
+#14 DONE 0.6s
+
+#15 [machine 8/9] RUN chmod +x /entrypoint.sh
+#15 ...
+
+#16 [frontend internal] load .dockerignore
+#16 transferring context: 2B 0.0s done
+#16 DONE 0.1s
+
+#17 [frontend 1/5] FROM docker.io/library/node:20-alpine@sha256:f598378b5240225e6beab68fa9f356db1fb8efe55173e6d4d8153113bb8f333c
+#17 resolve docker.io/library/node:20-alpine@sha256:f598378b5240225e6beab68fa9f356db1fb8efe55173e6d4d8153113bb8f333c 0.1s done
+#17 DONE 0.1s
+
+#18 [frontend internal] load build context
+#18 ...
+
+#15 [backend 8/9] RUN chmod +x /entrypoint.sh
+#15 DONE 0.6s
+
+#18 [frontend internal] load build context
+#18 ...
+
+#19 [machine 9/9] RUN mkdir -p /data
+#19 DONE 0.3s
+
+#18 [frontend internal] load build context
+#18 ...
+
+#20 [machine] exporting to image
+#20 exporting layers 0.5s done
+#20 exporting manifest sha256:54d61ab1f7e753cf0703b3081b0380d76917d8b9129522b4ecf96df52fc7627b 0.1s done
+#20 exporting config sha256:0e691f2e6533bc1ce4f25c22b294a99d550f8e53db075c6a26c1ae3d3aef3f3e 0.1s done
+#20 exporting attestation manifest sha256:ef18b2838dfe3a5345eb500721e8d8a49d443570c96f1b655f81d7f4b10bc541 0.2s done
+#20 exporting manifest list sha256:c35162d19402d257f8a4552cc709cdf16e048cdb07419ef27119051c9464df9e 0.1s done
+#20 naming to docker.io/library/us-west-1-machine:latest done
+#20 unpacking to docker.io/library/us-west-1-machine:latest 0.2s done
+#20 DONE 1.3s
+
+#21 [backend] exporting to image
+#21 exporting layers 0.5s done
+#21 exporting manifest sha256:02a04aaa228f1dcee11d1363d9cc6b82b2ec0148aa97cf56783c7f1f1e6fddde 0.1s done
+#21 exporting config sha256:3f5283cd5229bc2dfe871134b8a1d99ffde1f2a53958309a3a08ba087834503e 0.1s done
+#21 exporting attestation manifest sha256:c65b195fc6614cd7e8c03d39eb9bfe3681a9f8cc556e4e3389c442c4c7462de2 0.2s done
+#21 exporting manifest list sha256:ef29d10aebbca5fb86c882b386898d30ecaeff400ec915050a99ac024422a784 0.1s done
+#21 naming to docker.io/library/us-west-1-backend:latest 0.0s done
+#21 unpacking to docker.io/library/us-west-1-backend:latest 0.2s done
+#21 DONE 1.4s
+
+#18 [frontend internal] load build context
+#18 ...
+
+#22 [backend] resolving provenance for metadata file
+#22 DONE 0.0s
+
+#23 [machine] resolving provenance for metadata file
+#23 DONE 0.0s
+
+#18 [frontend internal] load build context
+#18 transferring context: 2.03MB 3.2s done
+#18 DONE 3.2s
+
+#24 [frontend 2/5] WORKDIR /app
+#24 CACHED
+
+#25 [frontend 3/5] COPY package*.json ./
+#25 CACHED
+
+#26 [frontend 4/5] RUN npm install
+#26 CACHED
+
+#27 [frontend 5/5] COPY . .
+#27 DONE 27.6s
+
+#28 [frontend] exporting to image
+#28 exporting layers
+#28 exporting layers 20.6s done
+#28 exporting manifest sha256:06f90aa7883aef4bd67a8d1aad8a6cdd527c6ce45e446f96783bdf84906d76c9
+#28 exporting manifest sha256:06f90aa7883aef4bd67a8d1aad8a6cdd527c6ce45e446f96783bdf84906d76c9 0.4s done
+#28 exporting config sha256:2e956fcc84236a969248d3842cd186f8dbdaaea9561179eb7e3cc22f6f817779
+#28 exporting config sha256:2e956fcc84236a969248d3842cd186f8dbdaaea9561179eb7e3cc22f6f817779 0.4s done
+#28 exporting attestation manifest sha256:e3a2101b8ed7812dc2d4a3330ee3b8ebcc06dd30a71ccb53ab9ff48d1b21ec35
+#28 exporting attestation manifest sha256:e3a2101b8ed7812dc2d4a3330ee3b8ebcc06dd30a71ccb53ab9ff48d1b21ec35 0.7s done
+#28 exporting manifest list sha256:07ec28fc97972738da9076341a1323478c03e5ad48d5f0ff1cc7bea720078939
+#28 exporting manifest list sha256:07ec28fc97972738da9076341a1323478c03e5ad48d5f0ff1cc7bea720078939 0.5s done
+#28 naming to docker.io/library/us-west-1-frontend:latest
+#28 naming to docker.io/library/us-west-1-frontend:latest 0.1s done
+#28 unpacking to docker.io/library/us-west-1-frontend:latest
+#28 unpacking to docker.io/library/us-west-1-frontend:latest 18.0s done
+#28 DONE 41.2s
+
+#29 [frontend] resolving provenance for metadata file
+#29 DONE 0.0s
+ Image us-west-1-machine Built 
+ Image us-west-1-backend Built 
+ Image us-west-1-frontend Built 
+ Container us-west-1-machine-1 Recreate 
+ Container us-west-1-machine-1 Recreated 
+ Container us-west-1-backend-1 Recreate 
+ Container us-west-1-backend-1 Recreated 
+ Container us-west-1-frontend-1 Recreate 
+ Container us-west-1-frontend-1 Recreated 
+Attaching to backend-1, db-1, frontend-1, machine-1, nginx-1
+ Container us-west-1-machine-1 Starting 
+ Container us-west-1-db-1 Starting 
+ Container us-west-1-machine-1 Started 
+ Container us-west-1-db-1 Started 
+ Container us-west-1-db-1 Waiting 
+db-1  | 
+db-1  | PostgreSQL Database directory appears to contain a database; Skipping initialization
+db-1  | 
+machine-1  | Machine: Starting in TEST MODE (Manual fault injected) on port 9050
+machine-1  | Pseudo machine server started on port 9050 (Test Mode: True)
+db-1       | 2026-04-15 03:40:03.983 UTC [1] LOG:  starting PostgreSQL 16.13 on x86_64-pc-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit
+db-1       | 2026-04-15 03:40:03.983 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+db-1       | 2026-04-15 03:40:03.983 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+db-1       | 2026-04-15 03:40:04.002 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+db-1       | 2026-04-15 03:40:04.028 UTC [29] LOG:  database system was shut down at 2026-04-15 03:38:22 UTC
+db-1       | 2026-04-15 03:40:04.056 UTC [1] LOG:  database system is ready to accept connections
+ Compose Stopping Gracefully Stopping... press Ctrl+C again to force
+ Container us-west-1-nginx-1 Stopping 
+ Container us-west-1-nginx-1 Stopped 
+ Container us-west-1-frontend-1 Stopping 
+ Container us-west-1-frontend-1 Stopped 
+ Container us-west-1-backend-1 Stopping 
+ Container us-west-1-backend-1 Stopped 
+ Container us-west-1-db-1 Stopping 
+ Container us-west-1-machine-1 Stopping 
+ Container us-west-1-db-1 Stopped 
+ Container us-west-1-db-1 Error dependency db failed to start
+ Container us-west-1-machine-1 Stopped 
+

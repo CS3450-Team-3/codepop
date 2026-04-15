@@ -1,0 +1,169 @@
+ Image us-mountain-1-machine Building 
+ Image us-mountain-1-frontend Building 
+ Image us-mountain-1-backend Building 
+#1 [internal] load local bake definitions
+#1 reading from stdin 1.59kB done
+#1 DONE 0.0s
+
+#2 [machine internal] load build definition from Dockerfile
+#2 transferring dockerfile: 538B done
+#2 DONE 0.0s
+
+#3 [frontend internal] load build definition from Dockerfile
+#3 transferring dockerfile: 198B done
+#3 DONE 0.0s
+
+#4 [machine internal] load metadata for docker.io/library/python:3.12-slim
+#4 DONE 0.1s
+
+#5 [backend internal] load .dockerignore
+#5 transferring context: 2B done
+#5 DONE 0.0s
+
+#6 [frontend internal] load metadata for docker.io/library/node:20-alpine
+#6 ...
+
+#7 [backend 1/9] FROM docker.io/library/python:3.12-slim@sha256:3d5ed973e45820f5ba5e46bd065bd88b3a504ff0724d85980dcd05eab361fcf4
+#7 resolve docker.io/library/python:3.12-slim@sha256:3d5ed973e45820f5ba5e46bd065bd88b3a504ff0724d85980dcd05eab361fcf4 0.0s done
+#7 DONE 0.0s
+
+#8 [machine internal] load build context
+#8 transferring context: 7.35kB done
+#8 DONE 0.0s
+
+#9 [machine 7/9] COPY codepop_backend/entrypoint.sh /entrypoint.sh
+#9 CACHED
+
+#10 [machine 8/9] RUN chmod +x /entrypoint.sh
+#10 CACHED
+
+#11 [machine 5/9] RUN pip install --no-cache-dir -r requirements.txt
+#11 CACHED
+
+#12 [machine 6/9] COPY codepop_backend/ .
+#12 CACHED
+
+#13 [machine 2/9] WORKDIR /app
+#13 CACHED
+
+#14 [machine 4/9] COPY requirements.txt .
+#14 CACHED
+
+#15 [machine 3/9] RUN apt-get update && apt-get install -y     libpq-dev gcc     && rm -rf /var/lib/apt/lists/*
+#15 CACHED
+
+#16 [machine 9/9] RUN mkdir -p /data
+#16 CACHED
+
+#17 [frontend 1/5] FROM docker.io/library/node:20-alpine@sha256:f598378b5240225e6beab68fa9f356db1fb8efe55173e6d4d8153113bb8f333c
+#17 resolve docker.io/library/node:20-alpine@sha256:f598378b5240225e6beab68fa9f356db1fb8efe55173e6d4d8153113bb8f333c 0.1s done
+#17 DONE 0.1s
+
+#6 [frontend internal] load metadata for docker.io/library/node:20-alpine
+#6 DONE 0.3s
+
+#18 [frontend internal] load .dockerignore
+#18 transferring context: 2B done
+#18 DONE 0.0s
+
+#19 [machine] exporting to image
+#19 exporting layers done
+#19 exporting manifest sha256:1aaf89d967dacd6a15a2400fed753e8f41297c5755421582def673d6820a609e 0.1s done
+#19 exporting config sha256:2a9f3fbd0cb5f89f764629e9b071b60effc3efa580fdde749431a00b2af017b7 0.1s done
+#19 exporting attestation manifest sha256:89e7039a0460b790e2361abfec6afdb9a821cdf73a1be7343eb75b717096eb10
+#19 exporting attestation manifest sha256:89e7039a0460b790e2361abfec6afdb9a821cdf73a1be7343eb75b717096eb10 0.1s done
+#19 exporting manifest list sha256:c8713b6c69b194562ddb52d2244a698fc53ed4b1175008d2e9c48e20ac4815f7 0.1s done
+#19 naming to docker.io/library/us-mountain-1-machine:latest
+#19 naming to docker.io/library/us-mountain-1-machine:latest 0.0s done
+#19 unpacking to docker.io/library/us-mountain-1-machine:latest 0.0s done
+#19 DONE 0.5s
+
+#20 [backend] exporting to image
+#20 exporting layers done
+#20 exporting manifest sha256:bbe04f5786153d68f6e716f80079ec1730989a0aa708d1eed4cff1dfa2fe9eef 0.1s done
+#20 exporting config sha256:b15ca52fa0d1144b8db4d8bf2e9eaf27be08897ac520b27f9dec99bb02383c16 0.1s done
+#20 exporting attestation manifest sha256:fdba33d784a1159c7c558dae3532f9fe74cfc8d579e0adaec050c624cf2e648f 0.1s done
+#20 exporting manifest list sha256:5a4d5fd46f88460e46a36181e8a5bf6d193e060b275b1e3680d6ec0cec6d26f2 0.1s done
+#20 naming to docker.io/library/us-mountain-1-backend:latest 0.0s done
+#20 unpacking to docker.io/library/us-mountain-1-backend:latest 0.0s done
+#20 DONE 0.5s
+
+#21 [frontend internal] load build context
+#21 ...
+
+#22 [backend] resolving provenance for metadata file
+#22 DONE 0.1s
+
+#21 [frontend internal] load build context
+#21 ...
+
+#23 [machine] resolving provenance for metadata file
+#23 DONE 0.0s
+
+#21 [frontend internal] load build context
+#21 transferring context: 2.03MB 0.6s done
+#21 DONE 1.2s
+
+#24 [frontend 4/5] RUN npm install
+#24 CACHED
+
+#25 [frontend 5/5] COPY . .
+#25 DONE 27.6s
+
+#26 [frontend] exporting to image
+#26 exporting layers 5.7s done
+#26 exporting manifest sha256:4b79b8ce274ab56f9e72c3eb90b0e2d9c0b702a3f922e183b71b5ddc2349c778
+#26 exporting manifest sha256:4b79b8ce274ab56f9e72c3eb90b0e2d9c0b702a3f922e183b71b5ddc2349c778 0.4s done
+#26 exporting config sha256:062d5d488f91b392babffedbd49a0b5b7efcefbd75e7644bf5a562fc67228396
+#26 exporting config sha256:062d5d488f91b392babffedbd49a0b5b7efcefbd75e7644bf5a562fc67228396 0.4s done
+#26 exporting attestation manifest sha256:6d0ed6b05863ca1743b8e792c6c7e1bfbfdae1adc4186d3299b7857665f18ea8
+#26 exporting attestation manifest sha256:6d0ed6b05863ca1743b8e792c6c7e1bfbfdae1adc4186d3299b7857665f18ea8 0.7s done
+#26 exporting manifest list sha256:eb041f0adf5262ec257d14d3bb1a75e4126de99243b58ef244405d9487738c3f
+#26 exporting manifest list sha256:eb041f0adf5262ec257d14d3bb1a75e4126de99243b58ef244405d9487738c3f 0.5s done
+#26 naming to docker.io/library/us-mountain-1-frontend:latest
+#26 naming to docker.io/library/us-mountain-1-frontend:latest 0.1s done
+#26 unpacking to docker.io/library/us-mountain-1-frontend:latest
+#26 unpacking to docker.io/library/us-mountain-1-frontend:latest 17.5s done
+#26 DONE 25.7s
+
+#27 [frontend] resolving provenance for metadata file
+#27 DONE 0.5s
+ Image us-mountain-1-machine Built 
+ Image us-mountain-1-backend Built 
+ Image us-mountain-1-frontend Built 
+ Container us-mountain-1-machine-1 Recreate 
+ Container us-mountain-1-machine-1 Recreated 
+ Container us-mountain-1-backend-1 Recreate 
+ Container us-mountain-1-backend-1 Recreated 
+ Container us-mountain-1-frontend-1 Recreate 
+ Container us-mountain-1-frontend-1 Recreated 
+Attaching to backend-1, db-1, frontend-1, machine-1, nginx-1
+ Container us-mountain-1-db-1 Starting 
+ Container us-mountain-1-machine-1 Starting 
+ Container us-mountain-1-machine-1 Started 
+ Container us-mountain-1-db-1 Started 
+ Container us-mountain-1-db-1 Waiting 
+db-1  | 
+db-1  | PostgreSQL Database directory appears to contain a database; Skipping initialization
+db-1  | 
+db-1  | 2026-04-15 03:40:05.041 UTC [1] LOG:  starting PostgreSQL 16.13 on x86_64-pc-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit
+db-1  | 2026-04-15 03:40:05.041 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+db-1  | 2026-04-15 03:40:05.041 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+machine-1  | Machine: Starting in TEST MODE (Manual fault injected) on port 9050
+machine-1  | Pseudo machine server started on port 9050 (Test Mode: True)
+db-1       | 2026-04-15 03:40:05.056 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+db-1       | 2026-04-15 03:40:05.071 UTC [29] LOG:  database system was shut down at 2026-04-15 03:38:22 UTC
+db-1       | 2026-04-15 03:40:05.083 UTC [1] LOG:  database system is ready to accept connections
+ Compose Stopping Gracefully Stopping... press Ctrl+C again to force
+ Container us-mountain-1-nginx-1 Stopping 
+ Container us-mountain-1-nginx-1 Stopped 
+ Container us-mountain-1-frontend-1 Stopping 
+ Container us-mountain-1-frontend-1 Stopped 
+ Container us-mountain-1-backend-1 Stopping 
+ Container us-mountain-1-backend-1 Stopped 
+ Container us-mountain-1-machine-1 Stopping 
+ Container us-mountain-1-db-1 Stopping 
+ Container us-mountain-1-db-1 Stopped 
+ Container us-mountain-1-db-1 Error dependency db failed to start
+ Container us-mountain-1-machine-1 Stopped 
+
