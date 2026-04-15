@@ -1,7 +1,7 @@
 // app/cart/checkout/page.tsx
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { loadStripe, StripeElementsOptions, Stripe } from '@stripe/stripe-js';
 import {
@@ -14,6 +14,7 @@ import { ArrowLeft, ShieldCheck, Lock, Loader2, AlertCircle } from 'lucide-react
 import { useCart } from '@/app/contextProviders/CartContext';
 import { useAuth } from '@/app/contextProviders/AuthContext';
 import { createOrder } from '@/models/api/order';
+import { createDrink } from '@/models/api/drinks';
 import DrinkColorAvatar from '@/components/drinks/DrinkColorAvatar';
 
 // ── Inner form — must be a child of <Elements> ──────────────────────────────
@@ -98,8 +99,9 @@ type CheckoutState =
 
 export default function CheckoutPage() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const { items, totalPrice, clearCart } = useCart();
+  const initializedRef = useRef(false);
 
   const [checkoutState, setCheckoutState] = useState<CheckoutState>({
     status: 'idle',
@@ -109,15 +111,54 @@ export default function CheckoutPage() {
   const grandTotal = totalPrice + tax;
 
   const initializeCheckout = useCallback(async () => {
+    if (initializedRef.current || loading) return;
+
     if (items.length === 0) {
       router.replace('/cart');
       return;
     }
 
+    initializedRef.current = true;
     setCheckoutState({ status: 'creating' });
 
     try {
-      const drinkIds = items.map((item) => item.drink.DrinkID);
+      const drinkIds: string[] = [];
+
+      for (const item of items) {
+        // Map frontend size labels to backend oz labels
+        const sizeMap: Record<string, string> = {
+          Small: '16oz',
+          Medium: '24oz',
+          Large: '32oz',
+        };
+        const mappedSize = sizeMap[item.size] || '24oz';
+
+        const isCustomized =
+          item.drink.User_Created ||
+          item.selectedSyrups.length > 0 ||
+          item.selectedAddIns.length > 0 ||
+          item.size !== 'Medium';
+
+        if (!isCustomized && item.quantity === 1) {
+          drinkIds.push(item.drink.DrinkID);
+        } else {
+          for (let i = 0; i < item.quantity; i++) {
+            // Strip ID and Favorite to avoid 400 errors
+            const { DrinkID, Favorite, ...restDrink } = item.drink;
+            
+            const copiedDrink = await createDrink({
+              ...restDrink,
+              Size: mappedSize,
+              Ice: item.drink.Ice?.toLowerCase() || 'regular',
+              User_Created: true,
+              Name: isCustomized && !item.drink.Name.includes('Custom')
+                ? `${item.drink.Name} (Custom)`
+                : item.drink.Name,
+            });
+            drinkIds.push(copiedDrink.DrinkID);
+          }
+        }
+      }
 
       const order = await createOrder({
         ...(user ? { UserID: user.id } : {}),
@@ -145,6 +186,7 @@ export default function CheckoutPage() {
         stripe,
       });
     } catch (err) {
+      initializedRef.current = false;
       setCheckoutState({
         status: 'error',
         message:
@@ -153,7 +195,7 @@ export default function CheckoutPage() {
             : 'Failed to initialize checkout. Please try again.',
       });
     }
-  }, [items, user, router]);
+  }, [items, user, loading, router]);
 
   useEffect(() => {
     initializeCheckout();
@@ -260,7 +302,8 @@ export default function CheckoutPage() {
           </div>
 
           {checkoutState.status === 'idle' ||
-          checkoutState.status === 'creating' ? (
+          checkoutState.status === 'creating' ||
+          loading ? (
             <div className="flex flex-col items-center py-8 text-slate-400">
               <Loader2 size={28} className="animate-spin text-violet-500 mb-3" />
               <p className="text-sm">Preparing your order...</p>
@@ -272,7 +315,10 @@ export default function CheckoutPage() {
                 {checkoutState.message}
               </p>
               <button
-                onClick={initializeCheckout}
+                onClick={() => {
+                  initializedRef.current = false;
+                  initializeCheckout();
+                }}
                 className="mt-3 text-xs font-bold text-red-500 underline"
               >
                 Try again
