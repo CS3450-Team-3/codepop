@@ -26,7 +26,6 @@ export default function HelpPage() {
     <div className="min-h-screen bg-slate-50">
       <Header
         onMenuClick={() => setSidebarOpen(true)}
-        onCustomizeClick={() => setModalDrink(customDrinkScaffold)}
       />
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 

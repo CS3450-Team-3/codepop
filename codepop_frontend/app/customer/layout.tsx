@@ -58,7 +58,6 @@ export default function CustomerLayout({
     <>
       <Header
         onMenuClick={() => setSidebarOpen(true)}
-        onCustomizeClick={() => setModalDrink(CUSTOM_DRINK_SCAFFOLD)}
       />
 
       <Sidebar

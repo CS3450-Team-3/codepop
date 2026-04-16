@@ -33,89 +33,9 @@ import { Server as ServerType, MasterListSyncResponse } from '@/models/types/ser
 import { InventoryReportResponse } from '@/models/types/inventory';
 import { Notification } from '@/models/types/notification';
 import Sidebar from '@/components/layout/Sidebar';
-
-// ── Stat card ─────────────────────────────────────────────────────────────────
-function StatCard({
-  icon,
-  label,
-  value,
-  sub,
-  accent = 'violet',
-  warning = false,
-  href,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string | number;
-  sub?: string;
-  accent?: 'violet' | 'green' | 'amber' | 'red' | 'blue';
-  warning?: boolean;
-  href?: string;
-}) {
-  const accentClasses = {
-    violet: 'bg-violet-50 text-violet-600',
-    green: 'bg-green-50 text-green-600',
-    amber: 'bg-amber-50 text-amber-600',
-    red: 'bg-red-50 text-red-600',
-    blue: 'bg-blue-50 text-blue-600',
-  };
-
-  const content = (
-    <div
-      className={`rounded-2xl border bg-white p-4 shadow-sm transition-shadow ${
-        warning ? 'border-amber-200' : 'border-slate-100'
-      } ${href ? 'hover:shadow-md' : ''}`}
-    >
-      <div className="flex items-start justify-between">
-        <div
-          className={`flex h-10 w-10 items-center justify-center rounded-xl ${accentClasses[accent]}`}
-        >
-          {icon}
-        </div>
-        <div className="flex items-center gap-1">
-          {warning && <AlertTriangle size={14} className="text-amber-500" />}
-          {href && <ChevronRight size={14} className="text-slate-300" />}
-        </div>
-      </div>
-      <p className="mt-3 text-2xl font-bold text-slate-900">{value}</p>
-      <p className="text-sm font-medium text-slate-600">{label}</p>
-      {sub && <p className="mt-0.5 text-xs text-slate-400">{sub}</p>}
-    </div>
-  );
-
-  if (href) return <Link href={href}>{content}</Link>;
-  return content;
-}
-
-// ── Section wrapper ───────────────────────────────────────────────────────────
-function Section({
-  title,
-  href,
-  children,
-}: {
-  title: string;
-  href?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section>
-      <div className="mb-2 flex items-center justify-between">
-        <h3 className="text-sm font-bold text-slate-700">{title}</h3>
-        {href && (
-          <Link
-            href={href}
-            className="flex items-center gap-0.5 text-xs font-semibold text-violet-600 hover:underline"
-          >
-            View all <ChevronRight size={13} />
-          </Link>
-        )}
-      </div>
-      <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm divide-y divide-slate-50">
-        {children}
-      </div>
-    </section>
-  );
-}
+import DashboardSection from '@/components/dashboard/DashboardSection';
+import StatCard from '@/components/dashboard/StatCard';
+import Header from '@/components/layout/Header';
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 export default function AdminDashboardPage() {
@@ -209,30 +129,19 @@ export default function AdminDashboardPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Header */}
-      <header className="fixed top-0 z-40 w-full border-b border-slate-100 bg-white/90 backdrop-blur-md">
-        <div className="flex h-14 items-center justify-between px-4">
-          <button
-            onClick={() => setSidebarOpen(true)}
-            className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-600 hover:bg-slate-100 transition-colors"
-          >
-            <Menu size={22} />
-          </button>
-          <h1 className="text-base font-bold text-slate-900">
-            Admin Dashboard
-          </h1>
+      <Header
+        onMenuClick={() => setSidebarOpen(true)}
+        title="Admin Dashboard"
+        rightAction={
           <button
             onClick={load}
             disabled={loading}
             className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-600 hover:bg-slate-100 disabled:opacity-40 transition-colors"
           >
-            <RefreshCw
-              size={18}
-              className={loading ? 'animate-spin' : ''}
-            />
+            <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
           </button>
-        </div>
-      </header>
+        }
+      />
 
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
@@ -387,7 +296,7 @@ export default function AdminDashboardPage() {
             </div>
 
             {/* ── Server network list ── */}
-            <Section title="Server Network" href="/admin/servers">
+            <DashboardSection title="Server Network" href="/admin/servers">
               {servers.length === 0 ? (
                 <p className="px-4 py-6 text-center text-sm text-slate-400">
                   No servers registered
@@ -436,10 +345,10 @@ export default function AdminDashboardPage() {
                   </div>
                 ))
               )}
-            </Section>
+            </DashboardSection>
 
             {/* ── Recent orders ── */}
-            <Section title="Recent Orders">
+            <DashboardSection title="Recent Orders" href="/admin/orders">
               {recentOrders.length === 0 ? (
                 <p className="px-4 py-6 text-center text-sm text-slate-400">
                   No orders yet
@@ -483,10 +392,10 @@ export default function AdminDashboardPage() {
                   </div>
                 ))
               )}
-            </Section>
+            </DashboardSection>
 
             {/* ── Recent transactions ── */}
-            <Section title="Recent Transactions">
+            <DashboardSection title="Recent Transactions" href="/admin/transactions">
               {recentRevenue.length === 0 ? (
                 <p className="px-4 py-6 text-center text-sm text-slate-400">
                   No transactions yet
@@ -524,11 +433,11 @@ export default function AdminDashboardPage() {
                   </div>
                 ))
               )}
-            </Section>
+            </DashboardSection>
 
             {/* ── System notifications ── */}
             {notifications.length > 0 && (
-              <Section title="System Notifications">
+              <DashboardSection title="System Notifications">
                 {notifications.slice(0, 4).map((notif) => (
                   <div key={notif.NotificationID} className="px-4 py-3">
                     <div className="flex items-start justify-between gap-2">
@@ -551,7 +460,7 @@ export default function AdminDashboardPage() {
                     </p>
                   </div>
                 ))}
-              </Section>
+              </DashboardSection>
             )}
           </>
         )}

@@ -1,17 +1,16 @@
-// app/manage/layout.tsx
+// app/logistics/layout.tsx
 'use client';
 
 import { useRequireAuth } from '@/app/hooks/useRequireAuth';
 import { Loader2 } from 'lucide-react';
 
-export default function ManageLayout({
+export default function LogisticLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   const { user, loading } = useRequireAuth({
     allowedRoles: [
-      'store_manager',
       'logistics_manager',
       'admin',
       'super_admin',

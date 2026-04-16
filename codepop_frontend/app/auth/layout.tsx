@@ -12,7 +12,7 @@ import Sidebar from '@/components/layout/Sidebar';
 const ROLE_HOME: Record<string, string> = {
   customer:          '/',
   store_manager:     '/manage/dashboard',
-  logistics_manager: '/logistic',
+  logistics_manager: '/logistics/dashboard',
   admin:             '/admin/dashboard',
   super_admin:       '/admin/dashboard',
 };
@@ -48,7 +48,6 @@ export default function AuthLayout({
     <div className="min-h-screen bg-slate-50">
       <Header
         onMenuClick={() => setSidebarOpen(true)}
-        onCustomizeClick={() => {}}
       />
       <Sidebar
         open={sidebarOpen}
