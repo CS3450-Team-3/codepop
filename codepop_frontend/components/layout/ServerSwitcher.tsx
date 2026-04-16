@@ -47,12 +47,34 @@ export default function ServerSwitcher() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ serverUrl: server.ServerURL }),
       });
-      // Clear auth tokens since they won't be valid on the new server
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
+
+      // Check if the existing token is accepted by the new server.
+      // The backend proxies token refresh to the user's home server, so
+      // tokens issued elsewhere may still be valid here.
+      const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+      let tokenValid = false;
+      if (token) {
+        try {
+          const check = await fetch('/api/proxy/backend/users/me/', {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          tokenValid = check.ok;
+        } catch {
+          tokenValid = false;
+        }
       }
-      window.location.href = '/auth/login';
+
+      if (tokenValid) {
+        // Token works on the new server — no need to log in again.
+        window.location.href = '/';
+      } else {
+        // Token not accepted — clear it and send to login.
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('refresh_token');
+        }
+        window.location.href = '/auth/login';
+      }
     } catch {
       setSwitching(false);
     }

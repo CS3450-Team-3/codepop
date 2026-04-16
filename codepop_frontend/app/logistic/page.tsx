@@ -29,6 +29,7 @@ interface StoreInventory {
   serverId: string;
   storeName: string;
   address: string;
+  region: number | null;
   inventory_items: InventoryItem[];
   critical: InventoryItem[];
   low_stock: InventoryItem[];
@@ -40,7 +41,13 @@ interface ServerRegistryItem {
   ServerURL: string;
   Status: string;
   Region: number | null;
+  RegionName: string | null;
   StoreName?: string;
+}
+
+interface RegionInfo {
+  id: number;
+  name: string;
 }
 
 interface UserProfile {
@@ -89,6 +96,9 @@ export default function LogisticsManagerDashboard() {
   const [stores, setStores] = useState<StoreInventory[]>([]);
   const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
   const [assignedRegion, setAssignedRegion] = useState<number | null>(null);
+  const [userType, setUserType] = useState<string>('');
+  const [allRegions, setAllRegions] = useState<RegionInfo[]>([]);
+  const [selectedRegion, setSelectedRegion] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dashboardView, setDashboardView] = useState<'inventory' | 'routing' | 'scheduling' | 'profile'>('inventory');
@@ -148,6 +158,7 @@ export default function LogisticsManagerDashboard() {
     serverId: string,
     storeName: string,
     address: string,
+    region: number | null,
     data: InventoryReport
   ): StoreInventory => {
     const criticalItems = data.inventory_items.filter((item: InventoryItem) => item.Quantity === 0);
@@ -162,6 +173,7 @@ export default function LogisticsManagerDashboard() {
       serverId,
       storeName,
       address,
+      region,
       inventory_items: data.inventory_items,
       critical: criticalItems,
       low_stock: lowStockItems,
@@ -219,22 +231,41 @@ export default function LogisticsManagerDashboard() {
         const activeServers = servers.filter((server) => server.Status !== 'Inactive');
         let regionServers = activeServers;
         let managerRegion: number | null = null;
+        let currentUserType = '';
 
         const meResponse = await fetch(apiUrl('/backend/users/me/'), { headers });
         if (meResponse.ok) {
           const me: UserProfile = await meResponse.json();
-          const homeServer = activeServers.find((server) => server.ServerID === me.home_server);
-          managerRegion = homeServer?.Region ?? null;
+          currentUserType = me.user_type;
+          setUserType(me.user_type);
 
-          setAssignedRegion(managerRegion);
-
-          if (managerRegion !== null) {
-            regionServers = activeServers.filter((server) => server.Region === managerRegion);
+          if (me.user_type === 'super_admin') {
+            // Super admins can see all regions — load every active server.
+            regionServers = activeServers;
+            const regionMap = new Map<number, string>();
+            activeServers.forEach((s) => {
+              if (s.Region !== null && s.RegionName) regionMap.set(s.Region, s.RegionName);
+            });
+            const regions: RegionInfo[] = Array.from(regionMap.entries())
+              .map(([id, name]) => ({ id, name }))
+              .sort((a, b) => a.name.localeCompare(b.name));
+            setAllRegions(regions);
+            const regionIds = regions.map((r) => r.id);
+            setSelectedRegion((prev) => (prev !== null && regionIds.includes(prev) ? prev : regions[0]?.id ?? null));
+            setAssignedRegion(null);
           } else {
-            setError('No assigned region found for this logistics manager account.');
-            setStores([]);
-            setSelectedStoreId(null);
-            return;
+            const homeServer = activeServers.find((server) => server.ServerID === me.home_server);
+            managerRegion = homeServer?.Region ?? null;
+            setAssignedRegion(managerRegion);
+
+            if (managerRegion !== null) {
+              regionServers = activeServers.filter((server) => server.Region === managerRegion);
+            } else {
+              setError('No assigned region found for this logistics manager account.');
+              setStores([]);
+              setSelectedStoreId(null);
+              return;
+            }
           }
         } else {
           setAssignedRegion(null);
@@ -244,10 +275,30 @@ export default function LogisticsManagerDashboard() {
           return;
         }
 
-        const aggregateResponse = await fetch(apiUrl('/backend/inventory/aggregate/'), { headers });
-        const aggregatePayload = aggregateResponse.ok ? await aggregateResponse.json() : null;
-        const aggregateResults: Record<string, InventoryReport | { error: string }> =
-          aggregatePayload && typeof aggregatePayload.results === 'object' ? aggregatePayload.results : {};
+        // Helper: fetch aggregate results for a given region via the backend,
+        // which makes server-to-server calls on our behalf (Docker-internal URLs
+        // are not reachable from the browser).
+        const fetchAggregateForRegion = async (regionId: number | null): Promise<Record<string, InventoryReport | { error: string }>> => {
+          const url = regionId !== null
+            ? apiUrl(`/backend/inventory/aggregate/?region_id=${regionId}`)
+            : apiUrl('/backend/inventory/aggregate/');
+          const resp = await fetch(url, { headers });
+          if (!resp.ok) return {};
+          const payload = await resp.json();
+          return payload && typeof payload.results === 'object' ? payload.results : {};
+        };
+
+        // Build a map of ServerID -> InventoryReport across all required regions.
+        let aggregateResults: Record<string, InventoryReport | { error: string }> = {};
+
+        if (currentUserType === 'super_admin') {
+          // Fetch all regions in parallel.
+          const regionIds = Array.from(new Set(activeServers.map((s) => s.Region).filter((r): r is number => r !== null)));
+          const allResults = await Promise.all(regionIds.map((rid) => fetchAggregateForRegion(rid)));
+          allResults.forEach((r) => Object.assign(aggregateResults, r));
+        } else {
+          aggregateResults = await fetchAggregateForRegion(managerRegion);
+        }
 
         const serverReports = await Promise.all(
           regionServers.map(async (server) => {
@@ -258,23 +309,11 @@ export default function LogisticsManagerDashboard() {
                   server.ServerID,
                   server.StoreName?.trim() || `Store ${server.ServerID.slice(0, 8)}`,
                   server.ServerURL,
+                  server.Region ?? null,
                   aggregated
                 );
               }
-
-              // Fallback path if aggregate endpoint is unavailable.
-              const baseUrl = server.ServerURL.replace(/\/$/, '');
-              const reportResponse = await fetch(`${baseUrl}/backend/inventory/report/`, { headers });
-              if (!reportResponse.ok) {
-                return null;
-              }
-              const data: InventoryReport = await reportResponse.json();
-              return mapReportToStore(
-                server.ServerID,
-                server.StoreName?.trim() || `Store ${server.ServerID.slice(0, 8)}`,
-                server.ServerURL,
-                data
-              );
+              return null;
             } catch {
               return null;
             }
@@ -283,8 +322,8 @@ export default function LogisticsManagerDashboard() {
 
         loadedStores = serverReports.filter((store): store is StoreInventory => store !== null);
 
-        if (managerRegion !== null && loadedStores.length === 0) {
-          setError('No active stores found in your assigned region.');
+        if (loadedStores.length === 0) {
+          setError('No active stores found. The peer servers may be unreachable.');
           setStores([]);
           setSelectedStoreId(null);
           return;
@@ -349,32 +388,38 @@ export default function LogisticsManagerDashboard() {
     };
   };
 
-  const selectedStore = stores.find((store) => store.serverId === selectedStoreId) || stores[0] || null;
+  // For super_admin: filter stores to the selected region. For other roles: show all loaded stores.
+  const filteredStores = useMemo(() => {
+    if (userType !== 'super_admin' || selectedRegion === null) return stores;
+    return stores.filter((store) => store.region === selectedRegion);
+  }, [stores, userType, selectedRegion]);
+
+  const selectedStore = filteredStores.find((store) => store.serverId === selectedStoreId) || filteredStores[0] || null;
   const overallItems = selectedStore
     ? [...selectedStore.inventory_items].sort((a, b) => a.ItemName.localeCompare(b.ItemName))
     : [];
 
   useEffect(() => {
-    if (stores.length === 0) {
+    if (filteredStores.length === 0) {
       setSourceStoreId('');
       setDestinationStoreId('');
       return;
     }
 
     setSourceStoreId((previous) =>
-      previous && stores.some((store) => store.serverId === previous) ? previous : stores[0].serverId
+      previous && filteredStores.some((store) => store.serverId === previous) ? previous : filteredStores[0].serverId
     );
     setDestinationStoreId((previous) => {
-      if (previous && stores.some((store) => store.serverId === previous)) {
+      if (previous && filteredStores.some((store) => store.serverId === previous)) {
         return previous;
       }
-      return stores[1]?.serverId || stores[0].serverId;
+      return filteredStores[1]?.serverId || filteredStores[0].serverId;
     });
 
     setStoreSchedules((previous) => {
       const nextSchedules: Record<string, StoreSchedule> = { ...previous };
 
-      stores.forEach((store) => {
+      filteredStores.forEach((store) => {
         const existing = nextSchedules[store.serverId];
         const defaults = buildDefaultSchedule(store);
 
@@ -398,15 +443,15 @@ export default function LogisticsManagerDashboard() {
     });
 
     setSelectedScheduleStoreId((previous) => {
-      if (previous && stores.some((store) => store.serverId === previous)) {
+      if (previous && filteredStores.some((store) => store.serverId === previous)) {
         return previous;
       }
-      return stores[0].serverId;
+      return filteredStores[0].serverId;
     });
-  }, [stores]);
+  }, [filteredStores]);
 
-  const sourceStore = stores.find((store) => store.serverId === sourceStoreId) || null;
-  const destinationStore = stores.find((store) => store.serverId === destinationStoreId) || null;
+  const sourceStore = filteredStores.find((store) => store.serverId === sourceStoreId) || null;
+  const destinationStore = filteredStores.find((store) => store.serverId === destinationStoreId) || null;
 
   const sourceItems = useMemo(
     () =>
@@ -504,7 +549,7 @@ export default function LogisticsManagerDashboard() {
   };
 
   const findStoreName = (serverId: string) =>
-    stores.find((store) => store.serverId === serverId)?.storeName || serverId;
+    filteredStores.find((store) => store.serverId === serverId)?.storeName || serverId;
 
   const inTransitCount = plans.filter((plan) => plan.status === 'in_transit').length;
   const criticalCount = plans.filter(
@@ -513,7 +558,7 @@ export default function LogisticsManagerDashboard() {
 
   const updateStoreSchedule = (storeId: string, updater: (current: StoreSchedule) => StoreSchedule) => {
     setStoreSchedules((previous) => {
-      const store = stores.find((candidate) => candidate.serverId === storeId);
+      const store = filteredStores.find((candidate) => candidate.serverId === storeId);
       if (!store) {
         return previous;
       }
@@ -530,7 +575,7 @@ export default function LogisticsManagerDashboard() {
   };
 
   const selectedScheduleStore =
-    stores.find((store) => store.serverId === selectedScheduleStoreId) || stores[0] || null;
+    filteredStores.find((store) => store.serverId === selectedScheduleStoreId) || filteredStores[0] || null;
   const selectedSchedule = selectedScheduleStore
     ? storeSchedules[selectedScheduleStore.serverId] || buildDefaultSchedule(selectedScheduleStore)
     : null;
@@ -558,7 +603,7 @@ export default function LogisticsManagerDashboard() {
     return `In ${days} day(s)`;
   };
 
-  const scheduleRows = stores.map((store) => {
+  const scheduleRows = filteredStores.map((store) => {
     const schedule = storeSchedules[store.serverId] || buildDefaultSchedule(store);
     const plannedUnits = Object.values(schedule.flavorAmounts).reduce((sum, amount) => sum + amount, 0);
     return {
@@ -636,7 +681,7 @@ export default function LogisticsManagerDashboard() {
                     <div className="text-gray-600 text-sm">Low Stock</div>
                   </div>
                   <div className="bg-white rounded-lg p-6 border border-gray-200">
-                    <div className="text-3xl font-bold text-blue-600">{stores.length}</div>
+                    <div className="text-3xl font-bold text-blue-600">{filteredStores.length}</div>
                     <div className="text-gray-600 text-sm">Locations</div>
                   </div>
                 </div>
@@ -663,6 +708,30 @@ export default function LogisticsManagerDashboard() {
                     <h2 className="text-xl font-bold">Store Inventory Status</h2>
                   </div>
 
+                  {userType === 'super_admin' && allRegions.length > 0 && (
+                    <div className="mb-4">
+                      <label htmlFor="region-selector" className="block text-sm font-medium text-gray-700 mb-2">
+                        Select region
+                      </label>
+                      <select
+                        id="region-selector"
+                        value={selectedRegion ?? ''}
+                        onChange={(e) => {
+                          const region = Number(e.target.value);
+                          setSelectedRegion(region);
+                          setSelectedStoreId(null);
+                        }}
+                        className="w-full max-w-md border border-gray-300 rounded-lg px-3 py-2"
+                      >
+                        {allRegions.map((region) => (
+                          <option key={region.id} value={region.id}>
+                            {region.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
                   <div className="mb-5">
                     <label htmlFor="store-selector" className="block text-sm font-medium text-gray-700 mb-2">
                       Select store
@@ -673,7 +742,7 @@ export default function LogisticsManagerDashboard() {
                       onChange={(e) => setSelectedStoreId(e.target.value)}
                       className="w-full max-w-md border border-gray-300 rounded-lg px-3 py-2"
                     >
-                      {stores.map((store) => (
+                      {filteredStores.map((store) => (
                         <option key={store.serverId} value={store.serverId}>
                           {store.storeName}
                         </option>
@@ -845,7 +914,7 @@ export default function LogisticsManagerDashboard() {
                       onChange={(e) => setSourceStoreId(e.target.value)}
                       className="w-full rounded-lg border border-slate-300 px-3 py-2"
                     >
-                      {stores.map((store) => (
+                      {filteredStores.map((store) => (
                         <option key={store.serverId} value={store.serverId}>
                           {store.storeName}
                         </option>
@@ -861,7 +930,7 @@ export default function LogisticsManagerDashboard() {
                       onChange={(e) => setDestinationStoreId(e.target.value)}
                       className="w-full rounded-lg border border-slate-300 px-3 py-2"
                     >
-                      {stores.map((store) => (
+                      {filteredStores.map((store) => (
                         <option key={store.serverId} value={store.serverId}>
                           {store.storeName}
                         </option>
@@ -1046,7 +1115,9 @@ export default function LogisticsManagerDashboard() {
                   </p>
                 </div>
                 <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
-                  Region {assignedRegion ?? 'N/A'}
+                  {userType === 'super_admin'
+                    ? (allRegions.find((r) => r.id === selectedRegion)?.name ?? 'N/A')
+                    : (assignedRegion ?? 'N/A')}
                 </span>
               </div>
 

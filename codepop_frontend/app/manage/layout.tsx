@@ -3,6 +3,7 @@
 import { ReactNode, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../contextProviders/AuthContext';
+import { Loader2 } from 'lucide-react';
 
 export default function ManageLayout({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
@@ -12,31 +13,19 @@ export default function ManageLayout({ children }: { children: ReactNode }) {
   const isAuthorized = !!user && allowedRoles.has(user.user_type || '');
 
   useEffect(() => {
-    if (loading) {
-      return;
-    }
-
+    if (loading) return;
     if (!user || !allowedRoles.has(user.user_type || '')) {
       router.replace('/auth/login');
     }
   }, [loading, user, router]);
 
-  if (loading) {
-    return <div>Loading...</div>;
+  if (loading || !isAuthorized) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+        <Loader2 size={28} className="animate-spin text-violet-500" />
+      </div>
+    );
   }
 
-  if (!isAuthorized) {
-    return null;
-  }
-
-  return (
-    <div className="manage-layout">
-      <header className="bg-gray-800 text-white p-4 flex justify-between items-center">
-        <h1 className="text-xl font-bold">CodePop Manager Portal</h1>
-      </header>
-      <main className="p-8">
-        {children}
-      </main>
-    </div>
-  );
+  return <>{children}</>;
 }

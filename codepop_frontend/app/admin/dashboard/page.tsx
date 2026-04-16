@@ -135,27 +135,22 @@ export default function AdminDashboardPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    try {
-      const [rev, ord, srv, inv, notifs, ml] = await Promise.all([
-        getRevenues(),
-        getOrders(),
-        getServers(),
-        getInventoryReport(),
-        getNotifications(),
-        getMasterList(),
-      ]);
-      setRevenues(rev);
-      setOrders(ord);
-      setServers(srv);
-      setInventoryReport(inv);
-      setNotifications(notifs);
-      setMasterList(ml);
-      setLastRefresh(new Date());
-    } catch {
-      // Sections show individual empty states
-    } finally {
-      setLoading(false);
-    }
+    const [rev, ord, srv, inv, notifs, ml] = await Promise.allSettled([
+      getRevenues(),
+      getOrders(),
+      getServers(),
+      getInventoryReport(),
+      getNotifications(),
+      getMasterList(),
+    ]);
+    if (rev.status === 'fulfilled') setRevenues(rev.value);
+    if (ord.status === 'fulfilled') setOrders(ord.value);
+    if (srv.status === 'fulfilled') setServers(srv.value);
+    if (inv.status === 'fulfilled') setInventoryReport(inv.value);
+    if (notifs.status === 'fulfilled') setNotifications(notifs.value);
+    if (ml.status === 'fulfilled') setMasterList(ml.value);
+    setLastRefresh(new Date());
+    setLoading(false);
   }, []);
 
   useEffect(() => {

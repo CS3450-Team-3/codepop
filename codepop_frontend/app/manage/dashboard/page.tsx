@@ -7,10 +7,12 @@ import {
   ClipboardList,
   DollarSign,
   LogOut,
+  Menu,
   RefreshCw,
   SlidersHorizontal,
   UserRound,
 } from 'lucide-react';
+import Sidebar from '@/components/layout/Sidebar';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL ?? '/api/proxy').replace(/\/$/, '');
 const apiUrl = (path: string) => `${API_BASE}${path}`;
@@ -67,6 +69,7 @@ interface ManagerProfile {
 export default function StoreManagerDashboard() {
   const router = useRouter();
   const storeId = 'Downtown Plaza';
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const [inventoryReport, setInventoryReport] = useState<InventoryReport | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -500,18 +503,29 @@ export default function StoreManagerDashboard() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-white border-b px-6 py-4 flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold">Store Manager Dashboard</h1>
-          <p className="text-sm text-gray-600">{storeName}</p>
+      <div className="bg-white border-b px-4 py-4 flex justify-between items-center">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-600 hover:bg-slate-100 transition-colors"
+            aria-label="Open menu"
+          >
+            <Menu size={22} />
+          </button>
+          <div>
+            <h1 className="text-xl font-bold">Store Manager Dashboard</h1>
+            <p className="text-sm text-gray-600">{storeName}</p>
+          </div>
         </div>
         <button
           onClick={fetchDashboardData}
-          className="bg-white border-2 border-gray-300 text-gray-800 py-3 rounded-lg font-semibold flex items-center justify-center gap-2 hover:bg-gray-50"
+          className="bg-white border-2 border-gray-300 text-gray-800 py-2 px-3 rounded-lg font-semibold flex items-center justify-center gap-2 hover:bg-gray-50"
         >
           <RefreshCw size={18} /> Refresh
         </button>
       </div>
+
+      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <div className="p-6 pb-28 space-y-6">
         {dashboardView === 'report' ? (

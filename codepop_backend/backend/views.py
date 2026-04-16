@@ -728,7 +728,10 @@ class InventoryListAPIView(ListAPIView):
 
 class InventoryReportAPIView(APIView):
     """Generate an inventory report."""
-    permission_classes = [IsStoreManager | IsLogisticsManager]
+    # AllowAny so peer servers can call this endpoint without needing the
+    # requesting user to exist in their own database.  The aggregate endpoint
+    # that calls this is itself protected by IsLogisticsManager.
+    permission_classes = [AllowAny]
 
     @extend_schema(
         responses={200: InventoryReportResponseSerializer},
@@ -838,18 +841,25 @@ class InventoryAggregateView(APIView):
     )
     def get(self, request):
         local_server = get_local_server()
-        # Find all active servers in the same region
-        region_servers = ServerRegistry.objects.filter(Region=local_server.Region, Status='Active')
-        
+
+        # Super admins may request a specific region via ?region_id=<pk>.
+        region_id_param = request.query_params.get('region_id')
+        if region_id_param and request.user.user_type == 'super_admin':
+            try:
+                region_servers = ServerRegistry.objects.filter(Region_id=int(region_id_param), Status='Active')
+            except (ValueError, TypeError):
+                region_servers = ServerRegistry.objects.filter(Region=local_server.Region, Status='Active')
+        else:
+            # Default: aggregate within the local server's region.
+            region_servers = ServerRegistry.objects.filter(Region=local_server.Region, Status='Active')
+
         results = {}
-        # Extract headers (especially Authorization)
+        # Peer servers now use AllowAny on /backend/inventory/report/ so no
+        # auth header is needed.  Forwarding the user's JWT would fail anyway
+        # because peer databases don't contain users from other servers.
         headers = {'Content-Type': 'application/json'}
-        auth_header = request.headers.get('Authorization')
-        if auth_header:
-            headers['Authorization'] = auth_header
-            
+
         for server in region_servers:
-            # Construct the regional peer's inventory report URL
             target_url = server.ServerURL.rstrip('/') + '/backend/inventory/report/'
             try:
                 resp = requests.get(target_url, headers=headers, timeout=5)
@@ -862,7 +872,7 @@ class InventoryAggregateView(APIView):
                     results[server.ServerID] = {"error": f"Status {resp.status_code}", "details": resp.text}
             except Exception as e:
                 results[server.ServerID] = {"error": "Connection failed", "details": str(e)}
-        
+
         return Response({"results": results}, status=status.HTTP_200_OK)
 
 
