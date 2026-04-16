@@ -17,7 +17,6 @@ import {
   LayoutDashboard,
   Shield,
   Home,
-  MessageCircle,
 } from 'lucide-react';
 import { useAuth } from '@/app/contextProviders/AuthContext';
 import ServerSwitcher from './ServerSwitcher';
@@ -59,7 +58,7 @@ function getNavSections(userType?: string): NavSection[] {
     ];
   }
 
-  // ── Store / Logistics Manager ─────────────────────────────
+  // ── Store Manager ─────────────────────────────
   if (userType === 'store_manager') {
     return [
       {
@@ -84,7 +83,7 @@ function getNavSections(userType?: string): NavSection[] {
       {
         items: [
           { label: 'Home',              href: '/',           icon: <Home size={19} /> },
-          { label: 'Dashboard',         href: '/logistic',   icon: <LayoutDashboard size={19} /> },
+          { label: 'Dashboard',         href: '/logistics/dashboard',   icon: <LayoutDashboard size={19} /> },
         ],
       },
     ];
@@ -98,7 +97,7 @@ function getNavSections(userType?: string): NavSection[] {
           { label: 'Home',            href: '/',                icon: <Home size={19} /> },
           { label: 'Dashboard',       href: '/admin/dashboard', icon: <Shield size={19} /> },
           { label: 'Manager',         href: '/manage/dashboard',  icon: <LayoutDashboard size={19} /> },
-          { label: 'Logistics Manager', href: '/logistic', icon: <LayoutDashboard size={19} /> },
+          { label: 'Logistics Manager', href: '/logistics/dashboard', icon: <LayoutDashboard size={19} /> },
         ],
       },
       {
