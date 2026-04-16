@@ -34,6 +34,7 @@ class Command(BaseCommand):
         node_id = (os.environ.get('LOCAL_SERVER_ID') or str(settings.LOCAL_SERVER_ID or '')).strip()
         server_url = os.environ.get('SERVER_URL', '').strip()
         region = (os.environ.get('REGION') or os.environ.get('SETUP_REGION_NAME', 'default')).strip()
+        store_name = os.environ.get('STORE_NAME', '').strip()
 
         if not node_id or not server_url:
             self.stderr.write(self.style.ERROR('LOCAL_SERVER_ID and SERVER_URL must be set.'))
@@ -62,6 +63,7 @@ class Command(BaseCommand):
             'public_key': settings.PUBLIC_KEY,
             'region': region,
             'address': server_url,
+            'store_name': store_name,
             'timestamp': timestamp,
             'network_token': network_token,
             'signature': sig_b64,
@@ -118,6 +120,8 @@ class Command(BaseCommand):
             if pid == local_id:
                 continue
 
+            store_name = peer.get('store_name', '')
+
             region, _ = Region.objects.get_or_create(RegionName=region_name)
             ServerRegistry.objects.update_or_create(
                 ServerID=pid,
@@ -127,6 +131,7 @@ class Command(BaseCommand):
                     'Status': 'Active',
                     'IsRegionLeader': is_leader,
                     'Region': region,
+                    'StoreName': store_name,
                 }
             )
-            self.stdout.write(f'  Registered peer {pid[:12]}... at {purl}')
+            self.stdout.write(f'  Registered peer {pid[:12]}... at {purl} ({store_name or "no name"})')

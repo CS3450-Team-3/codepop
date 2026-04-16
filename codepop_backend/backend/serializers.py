@@ -303,9 +303,14 @@ class RegionSerializer(serializers.ModelSerializer):
 
 
 class ServerRegistrySerializer(serializers.ModelSerializer):
+    RegionName = serializers.SerializerMethodField()
+
     class Meta:
         model = ServerRegistry
-        fields = ['ServerID', 'ServerURL', 'PublicKey', 'Status', 'LastSeen', 'Region', 'IsRegionLeader', 'StoreName', 'StoreGeohash']
+        fields = ['ServerID', 'ServerURL', 'PublicKey', 'Status', 'LastSeen', 'Region', 'RegionName', 'IsRegionLeader', 'StoreName', 'StoreGeohash']
+
+    def get_RegionName(self, obj):
+        return obj.Region.RegionName if obj.Region else None
 
 
 class MasterListSerializer(serializers.ModelSerializer):

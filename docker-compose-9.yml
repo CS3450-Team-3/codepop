@@ -1,0 +1,1118 @@
+services:
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # GATEWAY — Single entry point on port 4000
+  # Connects to the bootstrap node (backend-w1) by default.
+  # Users can switch servers via the in-app server switcher (Sidebar menu).
+  # ═══════════════════════════════════════════════════════════════════════════
+  frontend-gateway:
+    build:
+      context: ./codepop_frontend
+    ports:
+      - "4000:4000"
+    environment:
+      BACKEND_URL: "http://backend-w1:9000"
+      WATCHPACK_POLLING: "true"
+    volumes:
+      - ./codepop_frontend:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      backend-w1:
+        condition: service_started
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # US-WEST — Instance 1: CodePop Portland 1  (Bootstrap Node)
+  # Backend :9001  Machine :9051  Frontend :4001  Nginx :91
+  # ═══════════════════════════════════════════════════════════════════════════
+  db_w1:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: codepop_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    volumes:
+      - postgres_data_w1:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "psql -U postgres -d codepop_db -c 'SELECT 1' > /dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+
+  machine-w1:
+    build:
+      context: .
+      dockerfile: codepop_backend/Dockerfile
+    entrypoint: ["python", "pseudo_machine_server.py", "--port", "9050", "--test-mode"]
+    ports:
+      - "9051:9050"
+    volumes:
+      - ./codepop_backend:/app
+
+  backend-w1:
+    build:
+      context: .
+      dockerfile: codepop_backend/Dockerfile
+    ports:
+      - "9001:9000"
+    environment:
+      DB_HOST: db_w1
+      DB_NAME: codepop_db
+      DB_USER: postgres
+      DB_PASSWORD: password
+      STRIPE_SECRET_KEY: "${STRIPE_SECRET_KEY:-TODO_get_a_new_secret_stripe_key}"
+      STRIPE_PUBLISHABLE_KEY: "${STRIPE_PUBLISHABLE_KEY:-pk_test_51T5DqLPnaMtT5PTkugtHqM5ew5RSzkCJ0jklGkdSRXw8VnaiIN3AEW5NAYJzmdrYz2cUjQ7i9uvr9N2hpQnj01gE00jCYApVMN}"
+      STRIPE_WEBHOOK_SECRET: "${STRIPE_WEBHOOK_SECRET:-TODO_get_a_webhook_secret}"
+      SERVER_URL: "http://backend-w1:9000"
+      MACHINE_HOST: "machine-w1"
+      MACHINE_PORT: "9050"
+      SETUP_ADMIN_USERNAME: "admin"
+      SETUP_ADMIN_PASSWORD: "password123"
+      SETUP_ADMIN_EMAIL: "test@email.com"
+      SETUP_ADMIN_FIRST_NAME: "Test"
+      SETUP_ADMIN_LAST_NAME: "Ing"
+      SETUP_REGION_NAME: "us-west"
+      STORE_NAME: "CodePop Portland 1"
+      STORE_ADDRESS: "100 SW Main St"
+      STORE_CITY: "Portland"
+      STORE_STATE: "OR"
+      STORE_ZIP: "97201"
+      STORE_GEOHASH: "c20g7c"
+    volumes:
+      - ./codepop_backend:/app
+      - node_data_w1:/data
+    depends_on:
+      db_w1:
+        condition: service_healthy
+      machine-w1:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9000/health/')"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+  frontend-w1:
+    build:
+      context: ./codepop_frontend
+    ports:
+      - "4001:4000"
+    environment:
+      BACKEND_URL: "http://backend-w1:9000"
+      WATCHPACK_POLLING: "true"
+    volumes:
+      - ./codepop_frontend:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      backend-w1:
+        condition: service_started
+
+  nginx_w1:
+    image: nginx:alpine
+    ports:
+      - "91:80"
+    configs:
+      - source: nginx_conf_w1
+        target: /etc/nginx/nginx.conf
+    depends_on:
+      - frontend-w1
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # US-WEST — Instance 2: CodePop Portland 2
+  # Backend :9002  Machine :9052  Frontend :4002  Nginx :92
+  # ═══════════════════════════════════════════════════════════════════════════
+  db_w2:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: codepop_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    volumes:
+      - postgres_data_w2:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "psql -U postgres -d codepop_db -c 'SELECT 1' > /dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+
+  machine-w2:
+    build:
+      context: .
+      dockerfile: codepop_backend/Dockerfile
+    entrypoint: ["python", "pseudo_machine_server.py", "--port", "9050", "--test-mode"]
+    ports:
+      - "9052:9050"
+    volumes:
+      - ./codepop_backend:/app
+
+  backend-w2:
+    build:
+      context: .
+      dockerfile: codepop_backend/Dockerfile
+    ports:
+      - "9002:9000"
+    environment:
+      DB_HOST: db_w2
+      DB_NAME: codepop_db
+      DB_USER: postgres
+      DB_PASSWORD: password
+      STRIPE_SECRET_KEY: "${STRIPE_SECRET_KEY:-TODO_get_a_new_secret_stripe_key}"
+      STRIPE_PUBLISHABLE_KEY: "${STRIPE_PUBLISHABLE_KEY:-pk_test_51T5DqLPnaMtT5PTkugtHqM5ew5RSzkCJ0jklGkdSRXw8VnaiIN3AEW5NAYJzmdrYz2cUjQ7i9uvr9N2hpQnj01gE00jCYApVMN}"
+      STRIPE_WEBHOOK_SECRET: "${STRIPE_WEBHOOK_SECRET:-TODO_get_a_webhook_secret}"
+      SERVER_URL: "http://backend-w2:9000"
+      BOOTSTRAP_NODES: "backend-w1:9000"
+      MACHINE_HOST: "machine-w2"
+      MACHINE_PORT: "9050"
+      SETUP_ADMIN_USERNAME: "admin"
+      SETUP_ADMIN_PASSWORD: "password123"
+      SETUP_ADMIN_EMAIL: "test@email.com"
+      SETUP_ADMIN_FIRST_NAME: "Test"
+      SETUP_ADMIN_LAST_NAME: "Ing"
+      SETUP_REGION_NAME: "us-west"
+      STORE_NAME: "CodePop Portland 2"
+      STORE_ADDRESS: "200 NW 23rd Ave"
+      STORE_CITY: "Portland"
+      STORE_STATE: "OR"
+      STORE_ZIP: "97210"
+      STORE_GEOHASH: "c20g5v"
+    volumes:
+      - ./codepop_backend:/app
+      - node_data_w2:/data
+    depends_on:
+      db_w2:
+        condition: service_healthy
+      machine-w2:
+        condition: service_started
+      backend-w1:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9000/health/')"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+  frontend-w2:
+    build:
+      context: ./codepop_frontend
+    ports:
+      - "4002:4000"
+    environment:
+      BACKEND_URL: "http://backend-w2:9000"
+      WATCHPACK_POLLING: "true"
+    volumes:
+      - ./codepop_frontend:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      backend-w2:
+        condition: service_started
+
+  nginx_w2:
+    image: nginx:alpine
+    ports:
+      - "92:80"
+    configs:
+      - source: nginx_conf_w2
+        target: /etc/nginx/nginx.conf
+    depends_on:
+      - frontend-w2
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # US-WEST — Instance 3: CodePop Seattle
+  # Backend :9003  Machine :9053  Frontend :4003  Nginx :93
+  # ═══════════════════════════════════════════════════════════════════════════
+  db_w3:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: codepop_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    volumes:
+      - postgres_data_w3:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "psql -U postgres -d codepop_db -c 'SELECT 1' > /dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+
+  machine-w3:
+    build:
+      context: .
+      dockerfile: codepop_backend/Dockerfile
+    entrypoint: ["python", "pseudo_machine_server.py", "--port", "9050", "--test-mode"]
+    ports:
+      - "9053:9050"
+    volumes:
+      - ./codepop_backend:/app
+
+  backend-w3:
+    build:
+      context: .
+      dockerfile: codepop_backend/Dockerfile
+    ports:
+      - "9003:9000"
+    environment:
+      DB_HOST: db_w3
+      DB_NAME: codepop_db
+      DB_USER: postgres
+      DB_PASSWORD: password
+      STRIPE_SECRET_KEY: "${STRIPE_SECRET_KEY:-TODO_get_a_new_secret_stripe_key}"
+      STRIPE_PUBLISHABLE_KEY: "${STRIPE_PUBLISHABLE_KEY:-pk_test_51T5DqLPnaMtT5PTkugtHqM5ew5RSzkCJ0jklGkdSRXw8VnaiIN3AEW5NAYJzmdrYz2cUjQ7i9uvr9N2hpQnj01gE00jCYApVMN}"
+      STRIPE_WEBHOOK_SECRET: "${STRIPE_WEBHOOK_SECRET:-TODO_get_a_webhook_secret}"
+      SERVER_URL: "http://backend-w3:9000"
+      BOOTSTRAP_NODES: "backend-w1:9000"
+      MACHINE_HOST: "machine-w3"
+      MACHINE_PORT: "9050"
+      SETUP_ADMIN_USERNAME: "admin"
+      SETUP_ADMIN_PASSWORD: "password123"
+      SETUP_ADMIN_EMAIL: "test@email.com"
+      SETUP_ADMIN_FIRST_NAME: "Test"
+      SETUP_ADMIN_LAST_NAME: "Ing"
+      SETUP_REGION_NAME: "us-west"
+      STORE_NAME: "CodePop Seattle"
+      STORE_ADDRESS: "400 Pine St"
+      STORE_CITY: "Seattle"
+      STORE_STATE: "WA"
+      STORE_ZIP: "98101"
+      STORE_GEOHASH: "c23nb8"
+    volumes:
+      - ./codepop_backend:/app
+      - node_data_w3:/data
+    depends_on:
+      db_w3:
+        condition: service_healthy
+      machine-w3:
+        condition: service_started
+      backend-w1:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9000/health/')"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+  frontend-w3:
+    build:
+      context: ./codepop_frontend
+    ports:
+      - "4003:4000"
+    environment:
+      BACKEND_URL: "http://backend-w3:9000"
+      WATCHPACK_POLLING: "true"
+    volumes:
+      - ./codepop_frontend:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      backend-w3:
+        condition: service_started
+
+  nginx_w3:
+    image: nginx:alpine
+    ports:
+      - "93:80"
+    configs:
+      - source: nginx_conf_w3
+        target: /etc/nginx/nginx.conf
+    depends_on:
+      - frontend-w3
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # US-EAST — Instance 1: CodePop New York 1
+  # Backend :9004  Machine :9054  Frontend :4004  Nginx :94
+  # ═══════════════════════════════════════════════════════════════════════════
+  db_e1:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: codepop_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    volumes:
+      - postgres_data_e1:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "psql -U postgres -d codepop_db -c 'SELECT 1' > /dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+
+  machine-e1:
+    build:
+      context: .
+      dockerfile: codepop_backend/Dockerfile
+    entrypoint: ["python", "pseudo_machine_server.py", "--port", "9050", "--test-mode"]
+    ports:
+      - "9054:9050"
+    volumes:
+      - ./codepop_backend:/app
+
+  backend-e1:
+    build:
+      context: .
+      dockerfile: codepop_backend/Dockerfile
+    ports:
+      - "9004:9000"
+    environment:
+      DB_HOST: db_e1
+      DB_NAME: codepop_db
+      DB_USER: postgres
+      DB_PASSWORD: password
+      STRIPE_SECRET_KEY: "${STRIPE_SECRET_KEY:-TODO_get_a_new_secret_stripe_key}"
+      STRIPE_PUBLISHABLE_KEY: "${STRIPE_PUBLISHABLE_KEY:-pk_test_51T5DqLPnaMtT5PTkugtHqM5ew5RSzkCJ0jklGkdSRXw8VnaiIN3AEW5NAYJzmdrYz2cUjQ7i9uvr9N2hpQnj01gE00jCYApVMN}"
+      STRIPE_WEBHOOK_SECRET: "${STRIPE_WEBHOOK_SECRET:-TODO_get_a_webhook_secret}"
+      SERVER_URL: "http://backend-e1:9000"
+      BOOTSTRAP_NODES: "backend-w1:9000"
+      MACHINE_HOST: "machine-e1"
+      MACHINE_PORT: "9050"
+      SETUP_ADMIN_USERNAME: "admin"
+      SETUP_ADMIN_PASSWORD: "password123"
+      SETUP_ADMIN_EMAIL: "test@email.com"
+      SETUP_ADMIN_FIRST_NAME: "Test"
+      SETUP_ADMIN_LAST_NAME: "Ing"
+      SETUP_REGION_NAME: "us-east"
+      STORE_NAME: "CodePop New York 1"
+      STORE_ADDRESS: "1 Wall St"
+      STORE_CITY: "New York"
+      STORE_STATE: "NY"
+      STORE_ZIP: "10005"
+      STORE_GEOHASH: "dr5regy"
+    volumes:
+      - ./codepop_backend:/app
+      - node_data_e1:/data
+    depends_on:
+      db_e1:
+        condition: service_healthy
+      machine-e1:
+        condition: service_started
+      backend-w1:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9000/health/')"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+  frontend-e1:
+    build:
+      context: ./codepop_frontend
+    ports:
+      - "4004:4000"
+    environment:
+      BACKEND_URL: "http://backend-e1:9000"
+      WATCHPACK_POLLING: "true"
+    volumes:
+      - ./codepop_frontend:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      backend-e1:
+        condition: service_started
+
+  nginx_e1:
+    image: nginx:alpine
+    ports:
+      - "94:80"
+    configs:
+      - source: nginx_conf_e1
+        target: /etc/nginx/nginx.conf
+    depends_on:
+      - frontend-e1
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # US-EAST — Instance 2: CodePop New York 2
+  # Backend :9005  Machine :9055  Frontend :4005  Nginx :95
+  # ═══════════════════════════════════════════════════════════════════════════
+  db_e2:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: codepop_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    volumes:
+      - postgres_data_e2:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "psql -U postgres -d codepop_db -c 'SELECT 1' > /dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+
+  machine-e2:
+    build:
+      context: .
+      dockerfile: codepop_backend/Dockerfile
+    entrypoint: ["python", "pseudo_machine_server.py", "--port", "9050", "--test-mode"]
+    ports:
+      - "9055:9050"
+    volumes:
+      - ./codepop_backend:/app
+
+  backend-e2:
+    build:
+      context: .
+      dockerfile: codepop_backend/Dockerfile
+    ports:
+      - "9005:9000"
+    environment:
+      DB_HOST: db_e2
+      DB_NAME: codepop_db
+      DB_USER: postgres
+      DB_PASSWORD: password
+      STRIPE_SECRET_KEY: "${STRIPE_SECRET_KEY:-TODO_get_a_new_secret_stripe_key}"
+      STRIPE_PUBLISHABLE_KEY: "${STRIPE_PUBLISHABLE_KEY:-pk_test_51T5DqLPnaMtT5PTkugtHqM5ew5RSzkCJ0jklGkdSRXw8VnaiIN3AEW5NAYJzmdrYz2cUjQ7i9uvr9N2hpQnj01gE00jCYApVMN}"
+      STRIPE_WEBHOOK_SECRET: "${STRIPE_WEBHOOK_SECRET:-TODO_get_a_webhook_secret}"
+      SERVER_URL: "http://backend-e2:9000"
+      BOOTSTRAP_NODES: "backend-w1:9000"
+      MACHINE_HOST: "machine-e2"
+      MACHINE_PORT: "9050"
+      SETUP_ADMIN_USERNAME: "admin"
+      SETUP_ADMIN_PASSWORD: "password123"
+      SETUP_ADMIN_EMAIL: "test@email.com"
+      SETUP_ADMIN_FIRST_NAME: "Test"
+      SETUP_ADMIN_LAST_NAME: "Ing"
+      SETUP_REGION_NAME: "us-east"
+      STORE_NAME: "CodePop New York 2"
+      STORE_ADDRESS: "350 5th Ave"
+      STORE_CITY: "New York"
+      STORE_STATE: "NY"
+      STORE_ZIP: "10118"
+      STORE_GEOHASH: "dr5regw"
+    volumes:
+      - ./codepop_backend:/app
+      - node_data_e2:/data
+    depends_on:
+      db_e2:
+        condition: service_healthy
+      machine-e2:
+        condition: service_started
+      backend-w1:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9000/health/')"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+  frontend-e2:
+    build:
+      context: ./codepop_frontend
+    ports:
+      - "4005:4000"
+    environment:
+      BACKEND_URL: "http://backend-e2:9000"
+      WATCHPACK_POLLING: "true"
+    volumes:
+      - ./codepop_frontend:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      backend-e2:
+        condition: service_started
+
+  nginx_e2:
+    image: nginx:alpine
+    ports:
+      - "95:80"
+    configs:
+      - source: nginx_conf_e2
+        target: /etc/nginx/nginx.conf
+    depends_on:
+      - frontend-e2
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # US-EAST — Instance 3: CodePop Boston
+  # Backend :9006  Machine :9056  Frontend :4006  Nginx :96
+  # ═══════════════════════════════════════════════════════════════════════════
+  db_e3:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: codepop_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    volumes:
+      - postgres_data_e3:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "psql -U postgres -d codepop_db -c 'SELECT 1' > /dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+
+  machine-e3:
+    build:
+      context: .
+      dockerfile: codepop_backend/Dockerfile
+    entrypoint: ["python", "pseudo_machine_server.py", "--port", "9050", "--test-mode"]
+    ports:
+      - "9056:9050"
+    volumes:
+      - ./codepop_backend:/app
+
+  backend-e3:
+    build:
+      context: .
+      dockerfile: codepop_backend/Dockerfile
+    ports:
+      - "9006:9000"
+    environment:
+      DB_HOST: db_e3
+      DB_NAME: codepop_db
+      DB_USER: postgres
+      DB_PASSWORD: password
+      STRIPE_SECRET_KEY: "${STRIPE_SECRET_KEY:-TODO_get_a_new_secret_stripe_key}"
+      STRIPE_PUBLISHABLE_KEY: "${STRIPE_PUBLISHABLE_KEY:-pk_test_51T5DqLPnaMtT5PTkugtHqM5ew5RSzkCJ0jklGkdSRXw8VnaiIN3AEW5NAYJzmdrYz2cUjQ7i9uvr9N2hpQnj01gE00jCYApVMN}"
+      STRIPE_WEBHOOK_SECRET: "${STRIPE_WEBHOOK_SECRET:-TODO_get_a_webhook_secret}"
+      SERVER_URL: "http://backend-e3:9000"
+      BOOTSTRAP_NODES: "backend-w1:9000"
+      MACHINE_HOST: "machine-e3"
+      MACHINE_PORT: "9050"
+      SETUP_ADMIN_USERNAME: "admin"
+      SETUP_ADMIN_PASSWORD: "password123"
+      SETUP_ADMIN_EMAIL: "test@email.com"
+      SETUP_ADMIN_FIRST_NAME: "Test"
+      SETUP_ADMIN_LAST_NAME: "Ing"
+      SETUP_REGION_NAME: "us-east"
+      STORE_NAME: "CodePop Boston"
+      STORE_ADDRESS: "1 Washington St"
+      STORE_CITY: "Boston"
+      STORE_STATE: "MA"
+      STORE_ZIP: "02108"
+      STORE_GEOHASH: "drt2zy3"
+    volumes:
+      - ./codepop_backend:/app
+      - node_data_e3:/data
+    depends_on:
+      db_e3:
+        condition: service_healthy
+      machine-e3:
+        condition: service_started
+      backend-w1:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9000/health/')"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+  frontend-e3:
+    build:
+      context: ./codepop_frontend
+    ports:
+      - "4006:4000"
+    environment:
+      BACKEND_URL: "http://backend-e3:9000"
+      WATCHPACK_POLLING: "true"
+    volumes:
+      - ./codepop_frontend:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      backend-e3:
+        condition: service_started
+
+  nginx_e3:
+    image: nginx:alpine
+    ports:
+      - "96:80"
+    configs:
+      - source: nginx_conf_e3
+        target: /etc/nginx/nginx.conf
+    depends_on:
+      - frontend-e3
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # US-MOUNTAIN — Instance 1: CodePop Denver 1
+  # Backend :9007  Machine :9057  Frontend :4007  Nginx :97
+  # ═══════════════════════════════════════════════════════════════════════════
+  db_m1:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: codepop_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    volumes:
+      - postgres_data_m1:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "psql -U postgres -d codepop_db -c 'SELECT 1' > /dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+
+  machine-m1:
+    build:
+      context: .
+      dockerfile: codepop_backend/Dockerfile
+    entrypoint: ["python", "pseudo_machine_server.py", "--port", "9050", "--test-mode"]
+    ports:
+      - "9057:9050"
+    volumes:
+      - ./codepop_backend:/app
+
+  backend-m1:
+    build:
+      context: .
+      dockerfile: codepop_backend/Dockerfile
+    ports:
+      - "9007:9000"
+    environment:
+      DB_HOST: db_m1
+      DB_NAME: codepop_db
+      DB_USER: postgres
+      DB_PASSWORD: password
+      STRIPE_SECRET_KEY: "${STRIPE_SECRET_KEY:-TODO_get_a_new_secret_stripe_key}"
+      STRIPE_PUBLISHABLE_KEY: "${STRIPE_PUBLISHABLE_KEY:-pk_test_51T5DqLPnaMtT5PTkugtHqM5ew5RSzkCJ0jklGkdSRXw8VnaiIN3AEW5NAYJzmdrYz2cUjQ7i9uvr9N2hpQnj01gE00jCYApVMN}"
+      STRIPE_WEBHOOK_SECRET: "${STRIPE_WEBHOOK_SECRET:-TODO_get_a_webhook_secret}"
+      SERVER_URL: "http://backend-m1:9000"
+      BOOTSTRAP_NODES: "backend-w1:9000"
+      MACHINE_HOST: "machine-m1"
+      MACHINE_PORT: "9050"
+      SETUP_ADMIN_USERNAME: "admin"
+      SETUP_ADMIN_PASSWORD: "password123"
+      SETUP_ADMIN_EMAIL: "test@email.com"
+      SETUP_ADMIN_FIRST_NAME: "Test"
+      SETUP_ADMIN_LAST_NAME: "Ing"
+      SETUP_REGION_NAME: "us-mountain"
+      STORE_NAME: "CodePop Denver 1"
+      STORE_ADDRESS: "1600 Glenarm Pl"
+      STORE_CITY: "Denver"
+      STORE_STATE: "CO"
+      STORE_ZIP: "80202"
+      STORE_GEOHASH: "9xj64u1"
+    volumes:
+      - ./codepop_backend:/app
+      - node_data_m1:/data
+    depends_on:
+      db_m1:
+        condition: service_healthy
+      machine-m1:
+        condition: service_started
+      backend-w1:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9000/health/')"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+  frontend-m1:
+    build:
+      context: ./codepop_frontend
+    ports:
+      - "4007:4000"
+    environment:
+      BACKEND_URL: "http://backend-m1:9000"
+      WATCHPACK_POLLING: "true"
+    volumes:
+      - ./codepop_frontend:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      backend-m1:
+        condition: service_started
+
+  nginx_m1:
+    image: nginx:alpine
+    ports:
+      - "97:80"
+    configs:
+      - source: nginx_conf_m1
+        target: /etc/nginx/nginx.conf
+    depends_on:
+      - frontend-m1
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # US-MOUNTAIN — Instance 2: CodePop Denver 2
+  # Backend :9008  Machine :9058  Frontend :4008  Nginx :98
+  # ═══════════════════════════════════════════════════════════════════════════
+  db_m2:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: codepop_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    volumes:
+      - postgres_data_m2:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "psql -U postgres -d codepop_db -c 'SELECT 1' > /dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+
+  machine-m2:
+    build:
+      context: .
+      dockerfile: codepop_backend/Dockerfile
+    entrypoint: ["python", "pseudo_machine_server.py", "--port", "9050", "--test-mode"]
+    ports:
+      - "9058:9050"
+    volumes:
+      - ./codepop_backend:/app
+
+  backend-m2:
+    build:
+      context: .
+      dockerfile: codepop_backend/Dockerfile
+    ports:
+      - "9008:9000"
+    environment:
+      DB_HOST: db_m2
+      DB_NAME: codepop_db
+      DB_USER: postgres
+      DB_PASSWORD: password
+      STRIPE_SECRET_KEY: "${STRIPE_SECRET_KEY:-TODO_get_a_new_secret_stripe_key}"
+      STRIPE_PUBLISHABLE_KEY: "${STRIPE_PUBLISHABLE_KEY:-pk_test_51T5DqLPnaMtT5PTkugtHqM5ew5RSzkCJ0jklGkdSRXw8VnaiIN3AEW5NAYJzmdrYz2cUjQ7i9uvr9N2hpQnj01gE00jCYApVMN}"
+      STRIPE_WEBHOOK_SECRET: "${STRIPE_WEBHOOK_SECRET:-TODO_get_a_webhook_secret}"
+      SERVER_URL: "http://backend-m2:9000"
+      BOOTSTRAP_NODES: "backend-w1:9000"
+      MACHINE_HOST: "machine-m2"
+      MACHINE_PORT: "9050"
+      SETUP_ADMIN_USERNAME: "admin"
+      SETUP_ADMIN_PASSWORD: "password123"
+      SETUP_ADMIN_EMAIL: "test@email.com"
+      SETUP_ADMIN_FIRST_NAME: "Test"
+      SETUP_ADMIN_LAST_NAME: "Ing"
+      SETUP_REGION_NAME: "us-mountain"
+      STORE_NAME: "CodePop Denver 2"
+      STORE_ADDRESS: "2000 Larimer St"
+      STORE_CITY: "Denver"
+      STORE_STATE: "CO"
+      STORE_ZIP: "80205"
+      STORE_GEOHASH: "9xj6503"
+    volumes:
+      - ./codepop_backend:/app
+      - node_data_m2:/data
+    depends_on:
+      db_m2:
+        condition: service_healthy
+      machine-m2:
+        condition: service_started
+      backend-w1:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9000/health/')"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+  frontend-m2:
+    build:
+      context: ./codepop_frontend
+    ports:
+      - "4008:4000"
+    environment:
+      BACKEND_URL: "http://backend-m2:9000"
+      WATCHPACK_POLLING: "true"
+    volumes:
+      - ./codepop_frontend:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      backend-m2:
+        condition: service_started
+
+  nginx_m2:
+    image: nginx:alpine
+    ports:
+      - "98:80"
+    configs:
+      - source: nginx_conf_m2
+        target: /etc/nginx/nginx.conf
+    depends_on:
+      - frontend-m2
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # US-MOUNTAIN — Instance 3: CodePop Salt Lake City
+  # Backend :9009  Machine :9059  Frontend :4009  Nginx :99
+  # ═══════════════════════════════════════════════════════════════════════════
+  db_m3:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: codepop_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    volumes:
+      - postgres_data_m3:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "psql -U postgres -d codepop_db -c 'SELECT 1' > /dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+
+  machine-m3:
+    build:
+      context: .
+      dockerfile: codepop_backend/Dockerfile
+    entrypoint: ["python", "pseudo_machine_server.py", "--port", "9050", "--test-mode"]
+    ports:
+      - "9059:9050"
+    volumes:
+      - ./codepop_backend:/app
+
+  backend-m3:
+    build:
+      context: .
+      dockerfile: codepop_backend/Dockerfile
+    ports:
+      - "9009:9000"
+    environment:
+      DB_HOST: db_m3
+      DB_NAME: codepop_db
+      DB_USER: postgres
+      DB_PASSWORD: password
+      STRIPE_SECRET_KEY: "${STRIPE_SECRET_KEY:-TODO_get_a_new_secret_stripe_key}"
+      STRIPE_PUBLISHABLE_KEY: "${STRIPE_PUBLISHABLE_KEY:-pk_test_51T5DqLPnaMtT5PTkugtHqM5ew5RSzkCJ0jklGkdSRXw8VnaiIN3AEW5NAYJzmdrYz2cUjQ7i9uvr9N2hpQnj01gE00jCYApVMN}"
+      STRIPE_WEBHOOK_SECRET: "${STRIPE_WEBHOOK_SECRET:-TODO_get_a_webhook_secret}"
+      SERVER_URL: "http://backend-m3:9000"
+      BOOTSTRAP_NODES: "backend-w1:9000"
+      MACHINE_HOST: "machine-m3"
+      MACHINE_PORT: "9050"
+      SETUP_ADMIN_USERNAME: "admin"
+      SETUP_ADMIN_PASSWORD: "password123"
+      SETUP_ADMIN_EMAIL: "test@email.com"
+      SETUP_ADMIN_FIRST_NAME: "Test"
+      SETUP_ADMIN_LAST_NAME: "Ing"
+      SETUP_REGION_NAME: "us-mountain"
+      STORE_NAME: "CodePop Salt Lake City"
+      STORE_ADDRESS: "200 S Main St"
+      STORE_CITY: "Salt Lake City"
+      STORE_STATE: "UT"
+      STORE_ZIP: "84101"
+      STORE_GEOHASH: "9x1ufkr"
+    volumes:
+      - ./codepop_backend:/app
+      - node_data_m3:/data
+    depends_on:
+      db_m3:
+        condition: service_healthy
+      machine-m3:
+        condition: service_started
+      backend-w1:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9000/health/')"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+  frontend-m3:
+    build:
+      context: ./codepop_frontend
+    ports:
+      - "4009:4000"
+    environment:
+      BACKEND_URL: "http://backend-m3:9000"
+      WATCHPACK_POLLING: "true"
+    volumes:
+      - ./codepop_frontend:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      backend-m3:
+        condition: service_started
+
+  nginx_m3:
+    image: nginx:alpine
+    ports:
+      - "99:80"
+    configs:
+      - source: nginx_conf_m3
+        target: /etc/nginx/nginx.conf
+    depends_on:
+      - frontend-m3
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Per-instance nginx configs (each routes to its own frontend service name)
+# ─────────────────────────────────────────────────────────────────────────────
+configs:
+  nginx_conf_w1:
+    content: |
+      events {}
+      http {
+        server {
+          listen 80;
+          location / {
+            proxy_pass http://frontend-w1:4000;
+            proxy_set_header Host frontend-w1;
+            proxy_set_header X-Real-IP $$remote_addr;
+            proxy_set_header X-Forwarded-For $$proxy_add_x_forwarded_for;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $$http_upgrade;
+            proxy_set_header Connection "upgrade";
+          }
+        }
+      }
+  nginx_conf_w2:
+    content: |
+      events {}
+      http {
+        server {
+          listen 80;
+          location / {
+            proxy_pass http://frontend-w2:4000;
+            proxy_set_header Host frontend-w2;
+            proxy_set_header X-Real-IP $$remote_addr;
+            proxy_set_header X-Forwarded-For $$proxy_add_x_forwarded_for;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $$http_upgrade;
+            proxy_set_header Connection "upgrade";
+          }
+        }
+      }
+  nginx_conf_w3:
+    content: |
+      events {}
+      http {
+        server {
+          listen 80;
+          location / {
+            proxy_pass http://frontend-w3:4000;
+            proxy_set_header Host frontend-w3;
+            proxy_set_header X-Real-IP $$remote_addr;
+            proxy_set_header X-Forwarded-For $$proxy_add_x_forwarded_for;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $$http_upgrade;
+            proxy_set_header Connection "upgrade";
+          }
+        }
+      }
+  nginx_conf_e1:
+    content: |
+      events {}
+      http {
+        server {
+          listen 80;
+          location / {
+            proxy_pass http://frontend-e1:4000;
+            proxy_set_header Host frontend-e1;
+            proxy_set_header X-Real-IP $$remote_addr;
+            proxy_set_header X-Forwarded-For $$proxy_add_x_forwarded_for;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $$http_upgrade;
+            proxy_set_header Connection "upgrade";
+          }
+        }
+      }
+  nginx_conf_e2:
+    content: |
+      events {}
+      http {
+        server {
+          listen 80;
+          location / {
+            proxy_pass http://frontend-e2:4000;
+            proxy_set_header Host frontend-e2;
+            proxy_set_header X-Real-IP $$remote_addr;
+            proxy_set_header X-Forwarded-For $$proxy_add_x_forwarded_for;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $$http_upgrade;
+            proxy_set_header Connection "upgrade";
+          }
+        }
+      }
+  nginx_conf_e3:
+    content: |
+      events {}
+      http {
+        server {
+          listen 80;
+          location / {
+            proxy_pass http://frontend-e3:4000;
+            proxy_set_header Host frontend-e3;
+            proxy_set_header X-Real-IP $$remote_addr;
+            proxy_set_header X-Forwarded-For $$proxy_add_x_forwarded_for;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $$http_upgrade;
+            proxy_set_header Connection "upgrade";
+          }
+        }
+      }
+  nginx_conf_m1:
+    content: |
+      events {}
+      http {
+        server {
+          listen 80;
+          location / {
+            proxy_pass http://frontend-m1:4000;
+            proxy_set_header Host frontend-m1;
+            proxy_set_header X-Real-IP $$remote_addr;
+            proxy_set_header X-Forwarded-For $$proxy_add_x_forwarded_for;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $$http_upgrade;
+            proxy_set_header Connection "upgrade";
+          }
+        }
+      }
+  nginx_conf_m2:
+    content: |
+      events {}
+      http {
+        server {
+          listen 80;
+          location / {
+            proxy_pass http://frontend-m2:4000;
+            proxy_set_header Host frontend-m2;
+            proxy_set_header X-Real-IP $$remote_addr;
+            proxy_set_header X-Forwarded-For $$proxy_add_x_forwarded_for;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $$http_upgrade;
+            proxy_set_header Connection "upgrade";
+          }
+        }
+      }
+  nginx_conf_m3:
+    content: |
+      events {}
+      http {
+        server {
+          listen 80;
+          location / {
+            proxy_pass http://frontend-m3:4000;
+            proxy_set_header Host frontend-m3;
+            proxy_set_header X-Real-IP $$remote_addr;
+            proxy_set_header X-Forwarded-For $$proxy_add_x_forwarded_for;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $$http_upgrade;
+            proxy_set_header Connection "upgrade";
+          }
+        }
+      }
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Named volumes — one postgres + one node_data per instance
+# ─────────────────────────────────────────────────────────────────────────────
+volumes:
+  postgres_data_w1:
+  node_data_w1:
+  postgres_data_w2:
+  node_data_w2:
+  postgres_data_w3:
+  node_data_w3:
+  postgres_data_e1:
+  node_data_e1:
+  postgres_data_e2:
+  node_data_e2:
+  postgres_data_e3:
+  node_data_e3:
+  postgres_data_m1:
+  node_data_m1:
+  postgres_data_m2:
+  node_data_m2:
+  postgres_data_m3:
+  node_data_m3:

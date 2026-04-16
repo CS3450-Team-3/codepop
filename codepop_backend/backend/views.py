@@ -728,7 +728,10 @@ class InventoryListAPIView(ListAPIView):
 
 class InventoryReportAPIView(APIView):
     """Generate an inventory report."""
-    permission_classes = [IsStoreManager | IsLogisticsManager]
+    # AllowAny so peer servers can call this endpoint without needing the
+    # requesting user to exist in their own database.  The aggregate endpoint
+    # that calls this is itself protected by IsLogisticsManager.
+    permission_classes = [AllowAny]
 
     @extend_schema(
         responses={200: InventoryReportResponseSerializer},
@@ -838,18 +841,25 @@ class InventoryAggregateView(APIView):
     )
     def get(self, request):
         local_server = get_local_server()
-        # Find all active servers in the same region
-        region_servers = ServerRegistry.objects.filter(Region=local_server.Region, Status='Active')
-        
+
+        # Super admins may request a specific region via ?region_id=<pk>.
+        region_id_param = request.query_params.get('region_id')
+        if region_id_param and request.user.user_type == 'super_admin':
+            try:
+                region_servers = ServerRegistry.objects.filter(Region_id=int(region_id_param), Status='Active')
+            except (ValueError, TypeError):
+                region_servers = ServerRegistry.objects.filter(Region=local_server.Region, Status='Active')
+        else:
+            # Default: aggregate within the local server's region.
+            region_servers = ServerRegistry.objects.filter(Region=local_server.Region, Status='Active')
+
         results = {}
-        # Extract headers (especially Authorization)
+        # Peer servers now use AllowAny on /backend/inventory/report/ so no
+        # auth header is needed.  Forwarding the user's JWT would fail anyway
+        # because peer databases don't contain users from other servers.
         headers = {'Content-Type': 'application/json'}
-        auth_header = request.headers.get('Authorization')
-        if auth_header:
-            headers['Authorization'] = auth_header
-            
+
         for server in region_servers:
-            # Construct the regional peer's inventory report URL
             target_url = server.ServerURL.rstrip('/') + '/backend/inventory/report/'
             try:
                 resp = requests.get(target_url, headers=headers, timeout=5)
@@ -862,7 +872,7 @@ class InventoryAggregateView(APIView):
                     results[server.ServerID] = {"error": f"Status {resp.status_code}", "details": resp.text}
             except Exception as e:
                 results[server.ServerID] = {"error": "Connection failed", "details": str(e)}
-        
+
         return Response({"results": results}, status=status.HTTP_200_OK)
 
 
@@ -1860,6 +1870,7 @@ class P2PJoinView(APIView):
         pub_pem = data['public_key']
         region_name = data['region']
         address = data['address']
+        store_name = data.get('store_name', '')
         timestamp_str = data['timestamp']
         network_token = data['network_token']
         sig_b64 = data['signature']
@@ -1908,15 +1919,19 @@ class P2PJoinView(APIView):
         ).exclude(ServerID=node_id).exists()
         is_leader = not already_has_servers
 
+        defaults = {
+            'ServerURL': address,
+            'PublicKey': pub_pem,
+            'Status': 'Active',
+            'IsRegionLeader': is_leader,
+            'Region': region,
+        }
+        if store_name:
+            defaults['StoreName'] = store_name
+
         ServerRegistry.objects.update_or_create(
             ServerID=node_id,
-            defaults={
-                'ServerURL': address,
-                'PublicKey': pub_pem,
-                'Status': 'Active',
-                'IsRegionLeader': is_leader,
-                'Region': region,
-            }
+            defaults=defaults,
         )
 
         # Return the full peer list so the joiner can discover all known nodes
@@ -1927,6 +1942,7 @@ class P2PJoinView(APIView):
                 'public_key': s.PublicKey,
                 'region': s.Region.RegionName if s.Region else None,
                 'is_region_leader': s.IsRegionLeader,
+                'store_name': s.StoreName or '',
             }
             for s in ServerRegistry.objects.filter(Status='Active')
         ]

@@ -19,6 +19,7 @@ import {
   Home,
 } from 'lucide-react';
 import { useAuth } from '@/app/contextProviders/AuthContext';
+import ServerSwitcher from './ServerSwitcher';
 
 interface SidebarProps {
   open: boolean;
@@ -237,7 +238,8 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
                 </div>
               ))}
 
-              <div className="border-t border-slate-100 pt-3">
+              <div className="border-t border-slate-100 pt-3 space-y-2">
+                <ServerSwitcher />
                 <button
                   onClick={handleLogout}
                   className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-red-500 hover:bg-red-50 transition-colors"

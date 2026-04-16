@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_BASE_URL = "/backend/";
+const API_BASE_URL = "/api/proxy/backend/";
 
 let accessToken: string | null = null;
 
@@ -61,7 +61,7 @@ api.interceptors.response.use(
 
       try {
         const { data } = await axios.post(
-          `${API_BASE_URL}auth/refresh/`,
+          `/api/proxy/backend/auth/refresh/`,
           {},
           { withCredentials: true }
         );
