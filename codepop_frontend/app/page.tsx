@@ -153,7 +153,6 @@ export default function HomePage() {
     <div className="min-h-screen app-bg relative">
       <Header
         onMenuClick={() => setSidebarOpen(true)}
-        onCustomizeClick={openCustomDrink}
       />
 
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
