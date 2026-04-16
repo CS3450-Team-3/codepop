@@ -11,6 +11,8 @@ codepop_virtual_enviroment
 .idea
 node_modules
 
+# ingore docker file
+docker-compose.yml
 # ignore direnv
 .envrc
 
