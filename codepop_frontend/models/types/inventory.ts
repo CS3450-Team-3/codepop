@@ -14,11 +14,14 @@ export interface PatchedInventory {
   ItemType?: ItemType;
   Quantity?: number;
   ThresholdLevel?: number;
+  reset?: boolean | number;
+  restock_amount?: number;
 }
 
 export interface InventoryReportItem {
   InventoryID: number;
   ItemName: string;
+  ItemType: ItemType;
   Quantity: number;
   ThresholdLevel: number;
 }
