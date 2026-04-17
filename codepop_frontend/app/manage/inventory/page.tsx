@@ -85,23 +85,6 @@ function UpdateModal({ item, mode, onClose, onSuccess }: UpdateModalProps) {
     }
   };
 
-  const handleQuickRestock = async () => {
-    setSaving(true);
-    setError(null);
-    try {
-      // Use the 'reset' field in PATCH to quickly restock to threshold
-      const updated = await patchInventoryItem(item.InventoryID, {
-        reset: true,
-      });
-      onSuccess(updated);
-      onClose();
-    } catch {
-      setError('Failed to restock. Please try again.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
   return (
     <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 backdrop-blur-sm sm:items-center"
@@ -223,15 +206,6 @@ function UpdateModal({ item, mode, onClose, onSuccess }: UpdateModalProps) {
                 from current stock
               </p>
             </div>
-
-            <button
-              onClick={handleQuickRestock}
-              disabled={saving}
-              className="flex w-full items-center justify-center gap-2 rounded-xl border border-green-200 bg-green-50 py-2 text-xs font-bold text-green-700 hover:bg-green-100 transition-colors disabled:opacity-50"
-            >
-              <RotateCcw size={14} />
-              Quick Restock to Threshold ({item.ThresholdLevel})
-            </button>
           </div>
         )}
 
