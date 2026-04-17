@@ -797,6 +797,27 @@ class InventoryUpdateAPIView(RetrieveUpdateAPIView):
 
             # Return the updated item details in the response
             return Response(self.get_serializer(item).data, status=status.HTTP_200_OK)
+        item = self.get_object()  # Retrieve the specific item based on ID
+
+        if request.user.user_type == 'logistics_manager':
+            local_server = get_local_server()
+            if request.user.home_server.Region_id != local_server.Region_id:
+                return Response(
+                    {"error": "Cannot update inventory outside your assigned region."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+        reset_quantity = request.data.get('reset')  # Check if the request is for a reset
+        used_quantity = request.data.get('used_quantity')  # Used quantity for orders
+
+        # Handle inventory reset
+        if reset_quantity:
+            # Reset the quantity to the threshold level (or a specific value)
+            item.Quantity = item.ThresholdLevel  # Or you could use a custom value
+            item.save()
+
+            # Return the updated item details in the response
+            return Response(self.get_serializer(item).data, status=status.HTTP_200_OK)
         item = self.get_object()
 
         # 1. Handle specialized update commands
@@ -894,7 +915,11 @@ class InventoryAggregateView(APIView):
             except (ValueError, TypeError):
                 region_servers = ServerRegistry.objects.filter(Region=local_server.Region, Status='Active')
         elif request.user.user_type == 'super_admin':
+        elif request.user.user_type == 'super_admin':
             region_servers = ServerRegistry.objects.filter(Region=local_server.Region, Status='Active')
+        else:
+            # Logistics managers always see their home region, regardless of which server they hit.
+            region_servers = ServerRegistry.objects.filter(Region=request.user.home_server.Region, Status='Active')
         else:
             # Logistics managers always see their home region, regardless of which server they hit.
             region_servers = ServerRegistry.objects.filter(Region=request.user.home_server.Region, Status='Active')
@@ -916,15 +941,71 @@ class InventoryAggregateView(APIView):
                         data['store_name'] = server.StoreName or ''
                         data['store_city'] = server.StoreCity or ''
                         data['store_state'] = server.StoreState or ''
+                        data['store_name'] = server.StoreName or ''
+                        data['store_city'] = server.StoreCity or ''
+                        data['store_state'] = server.StoreState or ''
                     results[server.ServerID] = data
                 else:
+                    results[server.ServerID] = {"error": f"Status {resp.status_code}", "details": resp.text,
+                                                 "store_name": server.StoreName or '', "store_city": server.StoreCity or '', "store_state": server.StoreState or ''}
                     results[server.ServerID] = {"error": f"Status {resp.status_code}", "details": resp.text,
                                                  "store_name": server.StoreName or '', "store_city": server.StoreCity or '', "store_state": server.StoreState or ''}
             except Exception as e:
                 results[server.ServerID] = {"error": "Connection failed", "details": str(e),
                                              "store_name": server.StoreName or '', "store_city": server.StoreCity or '', "store_state": server.StoreState or ''}
+                results[server.ServerID] = {"error": "Connection failed", "details": str(e),
+                                             "store_name": server.StoreName or '', "store_city": server.StoreCity or '', "store_state": server.StoreState or ''}
 
         return Response({"results": results}, status=status.HTTP_200_OK)
+
+
+class PeerInventoryUpdateView(APIView):
+    """
+    Proxy a threshold/quantity PATCH to a peer server on behalf of a logistics manager.
+    The user's JWT is forwarded so the peer can authenticate the request.
+    """
+    permission_classes = [IsLogisticsManager]
+
+    def patch(self, request, server_id, item_id):
+        try:
+            target_server = ServerRegistry.objects.get(ServerID=server_id)
+        except ServerRegistry.DoesNotExist:
+            return Response({"error": "Server not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        auth_header = request.headers.get('Authorization', '')
+        headers = {
+            'Content-Type': 'application/json',
+            'Authorization': auth_header,
+        }
+        target_url = target_server.ServerURL.rstrip('/') + f'/backend/inventory/{item_id}/'
+        try:
+            resp = requests.patch(target_url, json=request.data, headers=headers, timeout=5)
+            return Response(resp.json(), status=resp.status_code)
+        except Exception as e:
+            return Response({"error": "Peer unreachable", "details": str(e)}, status=status.HTTP_502_BAD_GATEWAY)
+
+
+class TransferRequestView(APIView):
+    """Create and list inventory transfer requests between stores in a region."""
+    permission_classes = [IsLogisticsManager]
+
+    def get(self, request):
+        local_server = get_local_server()
+        user_region = request.user.home_server.Region if request.user.user_type != 'super_admin' else local_server.Region
+        region_server_ids = ServerRegistry.objects.filter(Region=user_region).values_list('ServerID', flat=True)
+        qs = TransferRequest.objects.filter(
+            models.Q(FromServer_id__in=region_server_ids) | models.Q(ToServer_id__in=region_server_ids)
+        ).order_by('-CreatedAt')
+        from .serializers import TransferRequestSerializer
+        return Response(TransferRequestSerializer(qs, many=True).data)
+
+    def post(self, request):
+        from .serializers import TransferRequestSerializer
+        serializer = TransferRequestSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save(RequestedBy=request.user)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class PeerInventoryUpdateView(APIView):

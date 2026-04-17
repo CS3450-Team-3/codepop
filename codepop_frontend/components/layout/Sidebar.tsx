@@ -98,7 +98,6 @@ function getNavSections(userType?: string): NavSection[] {
         items: [
           { label: 'Dashboard', href: '/logistics/dashboard', icon: <LayoutDashboard size={19} /> },
           { label: 'Inventory', href: '/logistics/inventory', icon: <Package size={19} /> },
-          locationsItem,
         ],
       },
       moreSection
