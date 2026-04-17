@@ -936,6 +936,28 @@ services:
     depends_on:
       - frontend-m3
 
+  # ═══════════════════════════════════════════════════════════════════════════
+  # WEBHOOK FANOUT — Receives Stripe CLI events and fans out to all 9 backends
+  # Host port :9100 → /webhook/stripe/ → all backend-*/backend/webhooks/stripe/
+  # ═══════════════════════════════════════════════════════════════════════════
+  nginx-webhooks:
+    image: nginx:alpine
+    ports:
+      - "9100:80"
+    configs:
+      - source: nginx_conf_webhooks
+        target: /etc/nginx/nginx.conf
+    depends_on:
+      - backend-w1
+      - backend-w2
+      - backend-w3
+      - backend-e1
+      - backend-e2
+      - backend-e3
+      - backend-m1
+      - backend-m2
+      - backend-m3
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Per-instance nginx configs (each routes to its own frontend service name)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1091,6 +1113,36 @@ configs:
             proxy_set_header Upgrade $$http_upgrade;
             proxy_set_header Connection "upgrade";
           }
+        }
+      }
+  nginx_conf_webhooks:
+    content: |
+      events {}
+      http {
+        server {
+          listen 80;
+          location /webhook/stripe/ {
+            mirror /mirror_w2;
+            mirror /mirror_w3;
+            mirror /mirror_e1;
+            mirror /mirror_e2;
+            mirror /mirror_e3;
+            mirror /mirror_m1;
+            mirror /mirror_m2;
+            mirror /mirror_m3;
+            proxy_pass http://backend-w1:9000/backend/webhooks/stripe/;
+            proxy_set_header Host backend-w1;
+            proxy_set_header X-Real-IP $$remote_addr;
+            proxy_pass_request_body on;
+          }
+          location = /mirror_w2 { internal; proxy_pass http://backend-w2:9000/backend/webhooks/stripe/; }
+          location = /mirror_w3 { internal; proxy_pass http://backend-w3:9000/backend/webhooks/stripe/; }
+          location = /mirror_e1 { internal; proxy_pass http://backend-e1:9000/backend/webhooks/stripe/; }
+          location = /mirror_e2 { internal; proxy_pass http://backend-e2:9000/backend/webhooks/stripe/; }
+          location = /mirror_e3 { internal; proxy_pass http://backend-e3:9000/backend/webhooks/stripe/; }
+          location = /mirror_m1 { internal; proxy_pass http://backend-m1:9000/backend/webhooks/stripe/; }
+          location = /mirror_m2 { internal; proxy_pass http://backend-m2:9000/backend/webhooks/stripe/; }
+          location = /mirror_m3 { internal; proxy_pass http://backend-m3:9000/backend/webhooks/stripe/; }
         }
       }
 
