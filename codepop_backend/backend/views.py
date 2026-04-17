@@ -915,11 +915,7 @@ class InventoryAggregateView(APIView):
             except (ValueError, TypeError):
                 region_servers = ServerRegistry.objects.filter(Region=local_server.Region, Status='Active')
         elif request.user.user_type == 'super_admin':
-        elif request.user.user_type == 'super_admin':
             region_servers = ServerRegistry.objects.filter(Region=local_server.Region, Status='Active')
-        else:
-            # Logistics managers always see their home region, regardless of which server they hit.
-            region_servers = ServerRegistry.objects.filter(Region=request.user.home_server.Region, Status='Active')
         else:
             # Logistics managers always see their home region, regardless of which server they hit.
             region_servers = ServerRegistry.objects.filter(Region=request.user.home_server.Region, Status='Active')
