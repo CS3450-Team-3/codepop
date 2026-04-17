@@ -78,7 +78,7 @@ class GetUserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = get_user_model()
-        fields = ('id', 'username', 'password', 'first_name', 'last_name', 'is_staff', 'is_superuser', 'user_type')
+        fields = ('id', 'username', 'password', 'first_name', 'last_name', 'email', 'is_staff', 'is_superuser', 'user_type')
         write_only_fields = ('password')
         read_only_fields = ('is_staff', 'is_superuser', 'is_active',)
 
@@ -126,7 +126,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = get_user_model()
         fields = ('id', 'username', 'first_name', 'last_name', 'email', 'user_type', 'home_server')
-        read_only_fields = ('id', 'username') # Username usually shouldn't be changeable easily if it's used as unique identifier, but the requirement says "Fetch their full profile (Username, First Name, Last Name, Email)". Let's allow updating first_name, last_name, email.
+        read_only_fields = ('id', 'username', 'user_type', 'home_server') # Users shouldn't change their type or home server
 
 
 class PreferenceSerializer(serializers.ModelSerializer):

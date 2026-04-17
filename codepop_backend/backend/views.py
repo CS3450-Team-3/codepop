@@ -1756,26 +1756,28 @@ class UserOperations(viewsets.ModelViewSet):
             # Support both { edits: { ... } } and direct { ... } payloads
             edits = data.get('edits', data)
 
-            username = edits.get("username")
-            first_name = edits.get("firstName") or edits.get("first_name")
-            last_name = edits.get("lastName") or edits.get("last_name")
-            password = edits.get("password")
+            # Update fields if present in payload and not marked as "unchanged"
+            if "username" in edits and edits["username"] not in [None, "unchanged", ""]:
+                user.username = edits["username"]
+
+            if "first_name" in edits and edits["first_name"] != "unchanged":
+                user.first_name = edits["first_name"]
+            elif "firstName" in edits and edits["firstName"] != "unchanged":
+                user.first_name = edits["firstName"]
+
+            if "last_name" in edits and edits["last_name"] != "unchanged":
+                user.last_name = edits["last_name"]
+            elif "lastName" in edits and edits["lastName"] != "unchanged":
+                user.last_name = edits["lastName"]
+
+            if "email" in edits and edits["email"] != "unchanged":
+                user.email = edits["email"]
+
+            if "password" in edits and edits["password"] not in [None, "unchanged", ""]:
+                user.set_password(edits["password"])
+
             role = edits.get("role") or edits.get("user_type")
-
-            if (user.username != username and username != "unchanged" and username):
-                user.username = username
-
-            if (user.first_name != first_name and first_name != "unchanged" and first_name):
-                user.first_name = first_name
-
-            if (user.last_name != last_name and last_name != "unchanged" and last_name):
-                user.last_name = last_name
-
-            if (user.password != password and password != "unchanged" and password):
-                user.set_password(password)
-                print("Password updated")
-
-            if (role != "unchanged" and role):
+            if role and role != "unchanged":
                 # Security: Only super_admin can assign the super_admin role
                 if role == 'super_admin' and request.user.user_type != 'super_admin':
                     return Response({"error": "Only super admins can assign the super admin role."}, status=status.HTTP_403_FORBIDDEN)
@@ -1792,7 +1794,8 @@ class UserOperations(viewsets.ModelViewSet):
                     user.is_superuser = False
 
             user.save()
-            return Response({"message":"User edited successfully"}, status=status.HTTP_200_OK)
+            serializer = self.serializer_class(user)
+            return Response(serializer.data, status=status.HTTP_200_OK)
         except User.DoesNotExist:
             return Response(
                 {"error": "User not found", "details": {"user_id": user_id}}, 
