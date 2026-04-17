@@ -47,7 +47,7 @@ export default function LogisticsDashboard() {
   const criticalStores = successfulStores.filter(([, v]) => (v.out_of_stock ?? 0) > 0);
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen app-bg">
       <header className="fixed top-0 z-40 w-full border-b border-slate-100 bg-white/90 backdrop-blur-md">
         <div className="flex h-14 items-center justify-between px-4">
           <button
