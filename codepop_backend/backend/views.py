@@ -1870,7 +1870,12 @@ class P2PJoinView(APIView):
         pub_pem = data['public_key']
         region_name = data['region']
         address = data['address']
-        store_name = data.get('store_name', '')
+        store_name    = data.get('store_name', '')
+        store_address = data.get('store_address', '')
+        store_city    = data.get('store_city', '')
+        store_state   = data.get('store_state', '')
+        store_zip     = data.get('store_zip', '')
+        store_geohash = data.get('store_geohash', '')
         timestamp_str = data['timestamp']
         network_token = data['network_token']
         sig_b64 = data['signature']
@@ -1928,6 +1933,16 @@ class P2PJoinView(APIView):
         }
         if store_name:
             defaults['StoreName'] = store_name
+        if store_address:
+            defaults['StoreAddress'] = store_address
+        if store_city:
+            defaults['StoreCity'] = store_city
+        if store_state:
+            defaults['StoreState'] = store_state
+        if store_zip:
+            defaults['StoreZip'] = store_zip
+        if store_geohash:
+            defaults['StoreGeohash'] = store_geohash
 
         ServerRegistry.objects.update_or_create(
             ServerID=node_id,
@@ -1942,7 +1957,12 @@ class P2PJoinView(APIView):
                 'public_key': s.PublicKey,
                 'region': s.Region.RegionName if s.Region else None,
                 'is_region_leader': s.IsRegionLeader,
-                'store_name': s.StoreName or '',
+                'store_name':    s.StoreName or '',
+                'store_address': s.StoreAddress or '',
+                'store_city':    s.StoreCity or '',
+                'store_state':   s.StoreState or '',
+                'store_zip':     s.StoreZip or '',
+                'store_geohash': s.StoreGeohash or '',
             }
             for s in ServerRegistry.objects.filter(Status='Active')
         ]

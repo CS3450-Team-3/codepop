@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Menu, MapPin, Navigation, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
 import Sidebar from '@/components/layout/Sidebar';
-import api from '@/models/api/api';
+import { getServers, discoverServer, selectServer } from '@/models/api/server';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -18,12 +18,6 @@ interface StoreServer {
   StoreZip: string;
   StoreGeohash: string;
   IsRegionLeader: boolean;
-}
-
-interface ProxyInstance {
-  name: string;
-  backend_port: number;
-  frontend_port: number;
 }
 
 // ── Geo helpers ───────────────────────────────────────────────────────────────
@@ -62,22 +56,12 @@ function haversine(lat1: number, lon1: number, lat2: number, lon2: number): numb
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-function portFromUrl(url: string): number | null {
-  try {
-    const port = parseInt(new URL(url).port, 10);
-    return isNaN(port) ? null : port;
-  } catch {
-    return null;
-  }
-}
-
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function LocationsPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [stores, setStores] = useState<StoreServer[]>([]);
   const [currentServerId, setCurrentServerId] = useState<string | null>(null);
-  const [instances, setInstances] = useState<ProxyInstance[]>([]);
   const [userCoords, setUserCoords] = useState<[number, number] | null>(null);
   const [zipInput, setZipInput] = useState('');
   const [zipError, setZipError] = useState('');
@@ -89,16 +73,23 @@ export default function LocationsPage() {
     const saved = localStorage.getItem('codepop_user_coords');
     if (saved) {
       try { setUserCoords(JSON.parse(saved)); } catch { /* ignore corrupt data */ }
+    } else if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const coords: [number, number] = [pos.coords.latitude, pos.coords.longitude];
+          setUserCoords(coords);
+          localStorage.setItem('codepop_user_coords', JSON.stringify(coords));
+        },
+        () => {},
+      );
     }
 
     Promise.all([
-      api.get('servers/').then(r => r.data as StoreServer[]).catch(() => [] as StoreServer[]),
-      api.get('p2p/discover/').then(r => r.data).catch(() => null),
-      fetch('/__proxy/instances').then(r => (r.ok ? r.json() : [])).catch(() => []),
-    ]).then(([serverList, discovery, instanceList]) => {
+      getServers().then(r => r as unknown as StoreServer[]).catch(() => [] as StoreServer[]),
+      discoverServer().catch(() => null),
+    ]).then(([serverList, discovery]) => {
       setStores(serverList);
-      if (discovery?.ServerID) setCurrentServerId(discovery.ServerID);
-      setInstances(instanceList);
+      if (discovery && 'ServerID' in discovery) setCurrentServerId(discovery.ServerID as string);
       setLoading(false);
     });
   }, []);
@@ -132,16 +123,33 @@ export default function LocationsPage() {
     }
   };
 
-  const connectToStore = (store: StoreServer) => {
-    const port = portFromUrl(store.ServerURL);
-    const instance = port ? instances.find(inst => inst.backend_port === port) : null;
+  const connectToStore = async (store: StoreServer) => {
     setSwitching(store.ServerID);
-    if (instance) {
-      document.cookie = `codepop_instance=${instance.name}; path=/; SameSite=Lax`;
-      window.location.href = '/';
-    } else {
-      // Proxy not running (e.g. GCP) — fall back to manual selector
-      window.location.href = '/__proxy_selector__';
+    try {
+      await selectServer(store.ServerURL);
+      const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+      if (!token) {
+        window.location.href = '/';
+        return;
+      }
+      let tokenValid = false;
+      try {
+        const check = await fetch('/api/proxy/backend/users/me/', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        tokenValid = check.ok;
+      } catch {
+        tokenValid = false;
+      }
+      if (tokenValid) {
+        window.location.href = '/';
+      } else {
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        window.location.href = '/auth/login';
+      }
+    } catch {
+      setSwitching(null);
     }
   };
 
@@ -237,49 +245,32 @@ export default function LocationsPage() {
                       : 'border-slate-100'
                   }`}
                 >
-                  <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center justify-between gap-3">
                     <div className="flex-1 min-w-0">
-
-                      {/* Name + badges */}
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="font-semibold text-slate-900 text-sm">
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold text-slate-900 text-sm truncate">
                           {store.StoreName || 'Unnamed Store'}
                         </p>
                         {isCurrent && (
-                          <span className="flex items-center gap-1 rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-bold text-violet-600">
+                          <span className="shrink-0 flex items-center gap-1 rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-bold text-violet-600">
                             <CheckCircle2 size={10} />
                             Current
                           </span>
                         )}
-                        {store.IsRegionLeader && (
-                          <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-600">
-                            Region Leader
-                          </span>
-                        )}
                       </div>
-
-                      {/* Address */}
                       {addressLine && (
-                        <p className="mt-1 flex items-start gap-1 text-xs text-slate-500">
+                        <p className="mt-0.5 flex items-start gap-1 text-xs text-slate-500">
                           <MapPin size={11} className="mt-0.5 shrink-0 text-slate-400" />
                           {addressLine}
                         </p>
                       )}
-
-                      {/* Distance + status */}
-                      <div className="mt-2 flex items-center gap-3 flex-wrap">
-                        {distance && (
-                          <span className="text-xs font-semibold text-violet-600">
-                            {distance} away
-                          </span>
-                        )}
-                        <span className={`text-xs ${store.Status === 'Active' ? 'text-green-600' : 'text-slate-400'}`}>
-                          {store.Status ?? 'Unknown'}
-                        </span>
-                      </div>
+                      {distance && (
+                        <p className="mt-1 text-xs font-semibold text-violet-600">
+                          {distance} away
+                        </p>
+                      )}
                     </div>
 
-                    {/* Connect button — hidden for current store */}
                     {!isCurrent && (
                       <button
                         onClick={() => connectToStore(store)}

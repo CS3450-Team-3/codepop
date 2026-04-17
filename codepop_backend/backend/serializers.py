@@ -307,7 +307,7 @@ class ServerRegistrySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ServerRegistry
-        fields = ['ServerID', 'ServerURL', 'PublicKey', 'Status', 'LastSeen', 'Region', 'RegionName', 'IsRegionLeader', 'StoreName', 'StoreGeohash']
+        fields = ['ServerID', 'ServerURL', 'PublicKey', 'Status', 'LastSeen', 'Region', 'RegionName', 'IsRegionLeader', 'StoreName', 'StoreAddress', 'StoreCity', 'StoreState', 'StoreZip', 'StoreGeohash']
 
     def get_RegionName(self, obj):
         return obj.Region.RegionName if obj.Region else None
