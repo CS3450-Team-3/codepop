@@ -1176,7 +1176,12 @@ class OrderOperations(viewsets.ModelViewSet):
         
         serializer = self.get_serializer(order, data=request.data, partial=True)
         if serializer.is_valid():
-            serializer.save()
+            order = serializer.save()
+            # If the order is now Paid or Completed, ensure a Revenue record exists.
+            # CRITICAL: Only record revenue if this is the originating server (fulfilled locally).
+            # If OriginatingServer is present, it means it's a sync from another store.
+            if (order.PaymentStatus == 'Paid' or order.OrderStatus == 'Completed') and not order.OriginatingServer:
+                Revenue.objects.get_or_create(OrderID=order)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['post'], permission_classes=[AllowAny])
@@ -1204,6 +1209,9 @@ class OrderOperations(viewsets.ModelViewSet):
                 o = Order.objects.get(pk=order_id)
                 o.OrderStatus = 'Completed'
                 o.save()
+                # Ensure revenue is recorded only if fulfilled locally
+                if not o.OriginatingServer:
+                    Revenue.objects.get_or_create(OrderID=o)
                 print(f"Demo: Order {order_id} marked as Completed after arrival delay.")
             except Order.DoesNotExist:
                 pass
@@ -1276,6 +1284,11 @@ class OrderOperations(viewsets.ModelViewSet):
         if drinks:
             order.add_drinks(drinks)
 
+        # If the order is created as Paid or Completed, ensure Revenue record exists.
+        # CRITICAL: Only record revenue if this is NOT a sync from another server.
+        if (order.PaymentStatus == 'Paid' or order.OrderStatus == 'Completed') and not originating_server_id:
+            Revenue.objects.get_or_create(OrderID=order)
+
         # Sync back to home server if we are a visiting server
         sync_order_to_home_server(order, request)
 
@@ -1288,7 +1301,7 @@ class OrderOperations(viewsets.ModelViewSet):
             return Response(response_data, status=status.HTTP_201_CREATED)
 
         try:
-            amount_val = calculate_order_total(order)
+            amount_val = order.calculate_total()
             # Add tax (8%) to match frontend calculation
             amount_val = amount_val * 1.08
             amount = round(amount_val * 100) # cents
@@ -1398,41 +1411,10 @@ class UserOrdersLookup(ListCreateAPIView):
         # Sync back to home server if we are a visiting server
         sync_order_to_home_server(order, self.request)
 
-# Constants for pricing. Aligned with frontend CustomizeModal.tsx
-PRICING = {
-    'upcharges': {
-        'small': 0.00,
-        'medium': 0.50,
-        'large': 1.00,
-        '16oz': 0.00,
-        '24oz': 0.50,
-        '32oz': 1.00,
-        'default': 0.00
-    },
-    'syrup_price_per_pump': 0.50,
-    'addin_price_per_item': 0.00  # Frontend says Add-Ins are free
-}
+# Pricing logic moved to models.py
 
-def calculate_order_total(order):
-    total = 0.0
-    for drink in order.Drinks.all():
-        # Use the drink's base price from the database
-        base_price = drink.Price if drink.Price is not None else 0.0
-
-        # Determine size upcharge
-        size_str = str(drink.Size).lower().strip()
-        size_upcharge = PRICING['upcharges'].get(size_str, PRICING['upcharges']['default'])
-
-        # Calculate syrup cost ($0.50 each)
-        syrups_cost = len(drink.SyrupsUsed) * PRICING['syrup_price_per_pump'] if drink.SyrupsUsed else 0.0
-
-        # Calculate add-ins cost (Free in frontend)
-        addins_cost = len(drink.AddIns) * PRICING['addin_price_per_item'] if drink.AddIns else 0.0
-
-        drink_total = base_price + size_upcharge + syrups_cost + addins_cost
-        total += drink_total
-    return total
 @method_decorator(csrf_exempt, name='dispatch')
+
 class StripePaymentIntentView(View):
     
     def post(self, request, *args, **kwargs):
@@ -1468,7 +1450,7 @@ class StripePaymentIntentView(View):
                                 pass
 
                     # Override the frontend's amount to ensure correctness
-                    amount_val = calculate_order_total(order)
+                    amount_val = order.calculate_total()
                     # Add tax (8%) to match frontend calculation
                     amount_val = amount_val * 1.08
                 except Order.DoesNotExist:
@@ -2396,7 +2378,7 @@ class StripeWebhookView(View):
                 order = Order.objects.get(StripeID=payment_intent['id'])
                 
                 # Validation: Recalculate the order total and compare it with the Stripe amount (in cents)
-                backend_total = calculate_order_total(order)
+                backend_total = order.calculate_total()
                 stripe_amount = payment_intent.get('amount')
 
                 if round(backend_total * 1.08 * 100) == stripe_amount:

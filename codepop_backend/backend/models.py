@@ -173,6 +173,21 @@ class Notification(models.Model):
     def __str__(self):
         return f"Notification for {self.UserID.username}: {self.Message[:50]}"
 
+# Pricing constants aligned with frontend
+PRICING = {
+    'upcharges': {
+        'small': 0.00,
+        'medium': 0.50,
+        'large': 1.00,
+        '16oz': 0.00,
+        '24oz': 0.50,
+        '32oz': 1.00,
+        'default': 0.00
+    },
+    'syrup_price_per_pump': 0.50,
+    'addin_price_per_item': 0.00
+}
+
 class Order(models.Model):
     ORDER_STATUS_CHOICES = [
         ('Pending', 'Pending'),
@@ -199,6 +214,26 @@ class Order(models.Model):
     LockerCombo = models.BigIntegerField(null=True, blank=True)
     StripeID = models.CharField(max_length=255, unique=True, null=True, blank=True)
     Synced = models.BooleanField(default=False)
+
+    def calculate_total(self):
+        """Calculate the total price for the order including upcharges and extras."""
+        total = 0.0
+        for drink in self.Drinks.all():
+            base_price = drink.Price if drink.Price is not None else 0.0
+            
+            # Size upcharge
+            size_str = str(drink.Size).lower().strip()
+            # Use local PRICING if possible or just hardcode if needed, but PRICING is defined above.
+            size_upcharge = PRICING['upcharges'].get(size_str, PRICING['upcharges']['default'])
+
+            # Syrup cost
+            syrups_cost = len(drink.SyrupsUsed) * PRICING['syrup_price_per_pump'] if drink.SyrupsUsed else 0.0
+
+            # Add-ins cost
+            addins_cost = len(drink.AddIns) * PRICING['addin_price_per_item'] if drink.AddIns else 0.0
+
+            total += (base_price + size_upcharge + syrups_cost + addins_cost)
+        return total
 
     def add_drinks(self, drink_ids):
         for drink_id in drink_ids:
@@ -251,9 +286,9 @@ class TransferRequest(models.Model):
         return f"Transfer {self.RequestID}: {self.ItemName} x{self.Quantity} from {self.FromServer_id} → {self.ToServer_id}"
 
     def calculate_total_amount(self):
-        """Calculate the total revenue for the order by summing the price of each drink."""
+        """Calculate the total revenue for the order including upcharges and extras."""
         try:
-            total = sum(drink.Price for drink in self.OrderID.Drinks.all())
+            total = self.OrderID.calculate_total()
             self.TotalAmount = total
             return total
         except Exception:
