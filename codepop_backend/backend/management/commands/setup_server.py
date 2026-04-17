@@ -173,12 +173,17 @@ class Command(BaseCommand):
                     },
                 )
 
-            # First active server in a region becomes its leader.
-            existing_in_region = ServerRegistry.objects.filter(
-                Region=region,
-                Status='Active',
-            ).exclude(ServerID=server_id).exists()
-            is_leader = not existing_in_region
+            # A server that joins via SETUP_PEER_URL is never the leader — the
+            # peer's region already has one. Only a server that creates a brand
+            # new region (no peer URL, no other active servers known) is the leader.
+            if region_mode == 'join':
+                is_leader = False
+            else:
+                existing_in_region = ServerRegistry.objects.filter(
+                    Region=region,
+                    Status='Active',
+                ).exclude(ServerID=server_id).exists()
+                is_leader = not existing_in_region
 
             local_server, _ = ServerRegistry.objects.update_or_create(
                 ServerID=server_id,

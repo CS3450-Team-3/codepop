@@ -28,6 +28,7 @@ from .documentation_serializers import (
     MasterListSyncRequestSerializer, MasterListSyncResponseSerializer
 )
 import logging
+import threading
 import stripe
 from django.conf import settings
 
@@ -1969,6 +1970,8 @@ class MasterListSyncView(APIView):
         description="Receive a list of users from a peer server and update the local MasterList registry."
     )
     def post(self, request):
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
         items = request.data.get("items", [])
         known_server_ids = set(ServerRegistry.objects.values_list("ServerID", flat=True))
         skipped = 0
@@ -1988,6 +1991,27 @@ class MasterListSyncView(APIView):
                     "HomeServerID_id": home_id,
                 },
             )
+            try:
+                user, created = User.objects.get_or_create(
+                    id=item["UserID"],
+                    defaults={
+                        "username": item["Username"],
+                        "home_server_id": home_id,
+                        "user_type": "customer",
+                    },
+                )
+                if created:
+                    user.set_unusable_password()
+                    user.save(update_fields=["password"])
+                elif user.username != item["Username"]:
+                    user.username = item["Username"]
+                    user.home_server_id = home_id
+                    user.save(update_fields=["username", "home_server_id"])
+            except Exception as exc:
+                logger.warning(
+                    "MasterListSync: could not create stub CustomUser for %s (%s): %s — skipping.",
+                    item.get("Username"), item.get("UserID"), exc,
+                )
         return Response({"status": "ok", "skipped": skipped}, status=status.HTTP_200_OK)
 
 class TriggerSyncView(APIView):
@@ -2004,6 +2028,7 @@ class TriggerSyncView(APIView):
     permission_classes = [IsPeerServer]
 
     def post(self, request):
+        _ = request.body  # consume body so Django's keep-alive loop doesn't misread {} as next request line
         local_server = get_local_server()
         if not local_server.IsRegionLeader:
             try:
@@ -2011,11 +2036,9 @@ class TriggerSyncView(APIView):
                 return Response({"status": "forwarded to region leader"}, status=status.HTTP_202_ACCEPTED)
             except Exception as exc:
                 return Response({"error": str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
-        try:
-            sync_masterlist(local_server)
-            return Response({"status": "sync completed"}, status=status.HTTP_200_OK)
-        except Exception as exc:
-            return Response({"error": str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        thread = threading.Thread(target=sync_masterlist, args=(local_server,), daemon=True)
+        thread.start()
+        return Response({"status": "sync started"}, status=status.HTTP_202_ACCEPTED)
 
 
 class MasterListBroadcastView(APIView):
