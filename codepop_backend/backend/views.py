@@ -27,8 +27,11 @@ from .documentation_serializers import (
     EmailAPIResponseSerializer, InventoryReportResponseSerializer, 
     MasterListSyncRequestSerializer, MasterListSyncResponseSerializer
 )
+import logging
 import stripe
 from django.conf import settings
+
+logger = logging.getLogger(__name__)
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views import View
@@ -41,7 +44,7 @@ from drf_spectacular.utils import extend_schema
 from drf_spectacular.types import OpenApiTypes
 from django.utils.dateparse import parse_datetime
 from .drinkAI import generate_soda
-from .sync import get_local_server, masterlist_push_fn
+from .sync import get_local_server, masterlist_push_fn, trigger_sync_on_leader, sync_masterlist
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
@@ -395,10 +398,27 @@ class CreateUserAPIView(CreateAPIView):
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
         headers = self.get_success_headers(serializer.data)
-        
+
         user = serializer.instance
+
+        # Assign home_server to this node and register in MasterList so the
+        # user is discoverable across the P2P network from the moment they sign up.
+        try:
+            local_server = get_local_server()
+            user.home_server = local_server
+            user.save(update_fields=['home_server'])
+            MasterList.objects.update_or_create(
+                UserID=user.id,
+                defaults={
+                    "Username": user.username,
+                    "HomeServerID": local_server,
+                },
+            )
+        except Exception as exc:
+            logger.warning("Could not register new user %s in MasterList: %s", user.username, exc)
+
         token_data = get_tokens_for_user(user)
-        
+
         response = Response(
             {**serializer.data, **token_data},
             status=status.HTTP_201_CREATED,
@@ -1884,14 +1904,14 @@ class UserOperations(viewsets.ModelViewSet):
             user.save()
 
             # ── Sync MasterList ──────────────────────────────────────────────
-            # Always update local MasterList
-            MasterList.objects.update_or_create(
-                UserID=user.id,
-                defaults={
-                    "Username": user.username,
-                    "HomeServerID": user.home_server,
-                },
-            )
+            if user.home_server:
+                MasterList.objects.update_or_create(
+                    UserID=user.id,
+                    defaults={
+                        "Username": user.username,
+                        "HomeServerID": user.home_server,
+                    },
+                )
 
             # If the user was moved, broadcast this change to the P2P network immediately
             if movement_occurred:
@@ -1956,15 +1976,87 @@ class MasterListSyncView(APIView):
     )
     def post(self, request):
         items = request.data.get("items", [])
+        known_server_ids = set(ServerRegistry.objects.values_list("ServerID", flat=True))
+        skipped = 0
         for item in items:
+            home_id = str(item.get("HomeServerID", ""))
+            if home_id not in known_server_ids:
+                logger.warning(
+                    "MasterListSync: skipping UserID %s — HomeServerID %s not in local registry.",
+                    item.get("UserID"), home_id,
+                )
+                skipped += 1
+                continue
             MasterList.objects.update_or_create(
                 UserID=item["UserID"],
                 defaults={
                     "Username": item["Username"],
-                    "HomeServerID_id": item["HomeServerID"],
+                    "HomeServerID_id": home_id,
                 },
             )
-        return Response({"status": "ok"}, status=status.HTTP_200_OK)
+        return Response({"status": "ok", "skipped": skipped}, status=status.HTTP_200_OK)
+
+class TriggerSyncView(APIView):
+    """
+    P2P endpoint to trigger a full MasterList sync on this server.
+
+    If this server is a region leader, it runs the full three-phase sync
+    (including cross-region exchange and Phase 3b broadcast to other regions'
+    peers). If this server is not a region leader, it forwards the trigger to
+    its region leader.
+
+    POST /backend/p2p/trigger-sync/
+    """
+    permission_classes = [IsPeerServer]
+
+    def post(self, request):
+        local_server = get_local_server()
+        if not local_server.IsRegionLeader:
+            try:
+                trigger_sync_on_leader(local_server)
+                return Response({"status": "forwarded to region leader"}, status=status.HTTP_202_ACCEPTED)
+            except Exception as exc:
+                return Response({"error": str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        try:
+            sync_masterlist(local_server)
+            return Response({"status": "sync completed"}, status=status.HTTP_200_OK)
+        except Exception as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class MasterListBroadcastView(APIView):
+    """
+    P2P endpoint called by the coordinating region leader during Phase 3b.
+
+    This server receives the final merged MasterList, writes it to its local DB,
+    then pushes it to all of its own regional peers so every store in the region
+    is up to date after a cross-region sync.
+
+    POST /backend/p2p/broadcast-masterlist/
+    """
+    permission_classes = [IsPeerServer]
+
+    def post(self, request):
+        from .sync import _get_regional_peers
+        items = request.data.get("items", [])
+        data = {"items": items}
+        local_server = get_local_server()
+
+        # Write merged data to this server's local DB.
+        masterlist_push_fn(local_server, data)
+
+        # Push to all active peers in this region.
+        for peer in _get_regional_peers(local_server):
+            try:
+                masterlist_push_fn(peer, data)
+            except Exception as exc:
+                logger.warning(
+                    "Broadcast: failed to push to regional peer %s (%s): %s — skipping.",
+                    peer.ServerID, peer.ServerURL, exc,
+                )
+
+        return Response({"status": "broadcast complete"}, status=status.HTTP_200_OK)
+
 
 class PublicDiscoveryView(APIView):
     """
