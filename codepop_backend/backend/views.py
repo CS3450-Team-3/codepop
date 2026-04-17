@@ -45,7 +45,7 @@ from drf_spectacular.utils import extend_schema
 from drf_spectacular.types import OpenApiTypes
 from django.utils.dateparse import parse_datetime
 from .drinkAI import generate_soda
-from .sync import get_local_server, masterlist_push_fn, trigger_sync_on_leader, sync_masterlist
+from .sync import get_local_server, masterlist_push_fn, trigger_sync_on_leader, sync_masterlist, http_get
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
@@ -1801,9 +1801,23 @@ class RevenueAggregateView(APIView):
         
         return Response({"results": results}, status=status.HTTP_200_OK)
 
+class RevenuesPeerView(APIView):
+    """
+    Inter-server endpoint so peer servers can pull all local revenues.
+    Uses server-token auth (IsPeerServer) instead of user JWT.
+    """
+    permission_classes = [IsPeerServer]
+
+    def get(self, request):
+        revenues = Revenue.objects.all()
+        serializer = RevenueSerializer(revenues, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
 class GlobalRevenueAggregateView(APIView):
     """
     Aggregation endpoint for super admins to see revenue across all stores and all regions.
+    Uses server-token auth for remote calls so the super admin's JWT isn't required on peer servers.
     """
     permission_classes = [IsSuperUser]
 
@@ -1812,52 +1826,35 @@ class GlobalRevenueAggregateView(APIView):
         description="Aggregate revenue data from all active stores globally."
     )
     def get(self, request):
+        local_server = get_local_server()
         active_servers = ServerRegistry.objects.filter(Status='Active')
-        
         results = {}
-        headers = {'Content-Type': 'application/json'}
-        auth_header = request.headers.get('Authorization')
-        if auth_header:
-            headers['Authorization'] = auth_header
-            
+
         for server in active_servers:
-            # Construct the store's revenue list URL
-            target_url = server.ServerURL.rstrip('/') + '/backend/revenues/'
+            region_name = server.Region.RegionName if server.Region else "Unassigned"
+            if region_name not in results:
+                results[region_name] = {}
+
+            store_meta = {
+                "ServerID": server.ServerID,
+                "StoreName": server.StoreName or f"Store {server.ServerID}",
+                "StoreAddress": f"{server.StoreAddress}, {server.StoreCity}, {server.StoreState}",
+            }
+
             try:
-                # Group by Region for easier frontend processing
-                region_name = server.Region.RegionName if server.Region else "Unassigned"
-                if region_name not in results:
-                    results[region_name] = {}
-                
-                resp = requests.get(target_url, headers=headers, timeout=5)
-                if resp.status_code == 200:
-                    data = resp.json()
-                    # Add metadata about the server
-                    store_info = {
-                        "ServerID": server.ServerID,
-                        "StoreName": server.StoreName or f"Store {server.ServerID}",
-                        "StoreAddress": f"{server.StoreAddress}, {server.StoreCity}, {server.StoreState}",
-                        "Revenues": data
-                    }
-                    results[region_name][server.ServerID] = store_info
+                if str(server.ServerID) == str(local_server.ServerID):
+                    revenues = Revenue.objects.all()
+                    data = RevenueSerializer(revenues, many=True).data
                 else:
-                    results[region_name][server.ServerID] = {
-                        "ServerID": server.ServerID,
-                        "StoreName": server.StoreName or f"Store {server.ServerID}",
-                        "error": f"Status {resp.status_code}", 
-                        "details": resp.text
-                    }
+                    data = http_get(server, '/backend/revenues/peer/', local_server)
+
+                results[region_name][server.ServerID] = {**store_meta, "Revenues": data}
             except Exception as e:
-                region_name = server.Region.RegionName if server.Region else "Unassigned"
-                if region_name not in results:
-                    results[region_name] = {}
                 results[region_name][server.ServerID] = {
-                    "ServerID": server.ServerID,
-                    "StoreName": server.StoreName or f"Store {server.ServerID}",
-                    "error": "Connection failed", 
-                    "details": str(e)
+                    **store_meta,
+                    "Revenues": {"error": "Connection failed", "details": str(e)},
                 }
-        
+
         return Response({"results": results}, status=status.HTTP_200_OK)
     
 class UserOperations(viewsets.ModelViewSet):

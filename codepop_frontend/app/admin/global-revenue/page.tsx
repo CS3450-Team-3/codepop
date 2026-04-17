@@ -37,7 +37,10 @@ const GlobalRevenuePage = () => {
   };
 
   const calculateStoreStats = (store: StoreRevenueInfo) => {
-    if ('error' in store.Revenues) return { total: 0, count: 0, error: store.Revenues.error };
+    if (!store.Revenues || !Array.isArray(store.Revenues)) {
+      const errObj = store.Revenues as { error: string } | undefined;
+      return { total: 0, count: 0, error: errObj?.error ?? 'No data available' };
+    }
     const revenues = store.Revenues as Revenue[];
     const total = revenues.reduce((acc, rev) => acc + (rev.Refunded ? 0 : (rev.TotalAmount || 0)), 0);
     return { total, count: revenues.length, error: null };
@@ -159,7 +162,6 @@ const GlobalRevenuePage = () => {
                                 </div>
                                 <div>
                                   <h3 className="font-bold text-slate-900">{store.StoreName}</h3>
-                                  <p className="text-xs text-slate-500">{store.ServerID}</p>
                                 </div>
                               </div>
                               {stats.error ? (
