@@ -160,8 +160,8 @@ def _get_other_region_representatives(local_server: ServerRegistry) -> list[Serv
 
     For regions that have a designated leader, the leader is returned.
     For regions with no active leader, any active server in that region is
-    returned so that leaderless regions are still included in cross-region
-    sync and broadcast.
+    returned so that leaderless regions are still included in the Phase 2
+    data exchange.
     """
     from .models import Region
     targets = []
@@ -173,6 +173,13 @@ def _get_other_region_representatives(local_server: ServerRegistry) -> list[Serv
         if rep:
             targets.append(rep)
     return targets
+
+
+def _get_all_other_region_servers(local_server: ServerRegistry) -> list[ServerRegistry]:
+    """Return every Active server not in local_server's own region."""
+    return list(
+        ServerRegistry.objects.filter(Status="Active").exclude(Region=local_server.Region)
+    )
 
 
 # ── Merge ─────────────────────────────────────────────────────────────────────
@@ -196,7 +203,6 @@ def sync_region(
     fetch_fn: Callable[[ServerRegistry], dict],
     push_fn: Callable[[ServerRegistry, dict], None],
     local_server: ServerRegistry,
-    broadcast_fn: Callable[[ServerRegistry, dict], None] | None = None,
 ) -> None:
     """
     Run a three-phase regional sync from the region leader.
@@ -217,11 +223,11 @@ def sync_region(
         The fully merged dataset is distributed to every regional peer and
         written to the leader's local DB.
 
-    Phase 3b – Cross-region broadcast (optional):
-        If broadcast_fn is provided, each other region leader is asked to
-        write the fully merged data to its own DB and push to its own peers.
-        This ensures all regions' peer servers are up to date, not just the
-        initiating leader's region.
+    Phase 3b – Direct cross-region push:
+        The fully merged dataset is pushed directly to every active server in
+        every other region. This avoids cascading HTTP calls (and their
+        timeouts) by having the initiating leader write to each remote server
+        individually instead of asking a remote representative to re-broadcast.
 
     Callable contracts:
         fetch_fn(server: ServerRegistry) -> dict
@@ -238,8 +244,6 @@ def sync_region(
         fetch_fn:     Callable to retrieve data from a server.
         push_fn:      Callable to push data to a server.
         local_server: This server's own ServerRegistry row. Must be the leader.
-        broadcast_fn: Optional callable to instruct a remote region leader to
-                      write and broadcast data to its own regional peers.
 
     Raises:
         ValueError: If local_server.IsRegionLeader is False.
@@ -280,11 +284,11 @@ def sync_region(
     logger.info("Sync Phase 2: exchanging with other region representatives.")
     for rep in _get_other_region_representatives(local_server):
         try:
+            rep_data = fetch_fn(rep)
+            logger.info("Phase 2: received data from %s (%s).", rep.ServerID, rep.ServerURL)
+            merged = _merge_data_chunks([merged, rep_data])
             push_fn(rep, merged)
             logger.info("Phase 2: pushed merged data to %s (%s).", rep.ServerID, rep.ServerURL)
-            rep_data = fetch_fn(rep)
-            merged = _merge_data_chunks([merged, rep_data])
-            logger.info("Phase 2: received data from %s (%s).", rep.ServerID, rep.ServerURL)
         except Exception as exc:
             logger.warning(
                 "Phase 2: exchange with %s (%s) failed: %s — skipping.",
@@ -310,21 +314,17 @@ def sync_region(
     except Exception as exc:
         logger.error("Phase 3: failed to write merged data locally: %s", exc)
 
-    # ── Phase 3b: Tell one representative per other region to broadcast ──────────
-    if broadcast_fn:
-        logger.info("Sync Phase 3b: requesting other region representatives to broadcast merged data.")
-        for leader in _get_other_region_representatives(local_server):
-            try:
-                broadcast_fn(leader, merged)
-                logger.info(
-                    "Phase 3b: sent broadcast request to leader %s (%s).",
-                    leader.ServerID, leader.ServerURL,
-                )
-            except Exception as exc:
-                logger.warning(
-                    "Phase 3b: broadcast to leader %s (%s) failed: %s — skipping.",
-                    leader.ServerID, leader.ServerURL, exc,
-                )
+    # ── Phase 3b: Push merged data directly to every server in other regions ─────
+    logger.info("Sync Phase 3b: pushing merged data directly to all other-region servers.")
+    for server in _get_all_other_region_servers(local_server):
+        try:
+            push_fn(server, merged)
+            logger.info("Phase 3b: pushed to %s (%s).", server.ServerID, server.ServerURL)
+        except Exception as exc:
+            logger.warning(
+                "Phase 3b: failed to push to %s (%s): %s — skipping.",
+                server.ServerID, server.ServerURL, exc,
+            )
 
     logger.info("Sync complete for region leader %s.", local_server.ServerID)
 
@@ -360,8 +360,10 @@ def masterlist_push_fn(server: ServerRegistry, data: dict) -> None:
     Local server: upserts each item by UserID.
     Remote server: performs an HTTP POST to the sync endpoint.
     """
+    from django.contrib.auth import get_user_model
     from .models import MasterList
 
+    User = get_user_model()
     local = get_local_server()
     if server.ServerID == local.ServerID:
         known_server_ids = set(
@@ -382,17 +384,36 @@ def masterlist_push_fn(server: ServerRegistry, data: dict) -> None:
                     "HomeServerID_id": home_id,
                 },
             )
+            # Ensure a stub CustomUser exists so the user appears in dashboards
+            # on every server, not just their home server.
+            try:
+                user, created = User.objects.get_or_create(
+                    id=item["UserID"],
+                    defaults={
+                        "username": item["Username"],
+                        "home_server_id": home_id,
+                        "user_type": "customer",
+                    },
+                )
+                if created:
+                    user.set_unusable_password()
+                    user.save(update_fields=["password"])
+                    logger.info(
+                        "masterlist_push: created stub CustomUser for %s (home=%s).",
+                        item["Username"], home_id,
+                    )
+                elif user.username != item["Username"]:
+                    # Keep username in sync if it changed on the home server.
+                    user.username = item["Username"]
+                    user.home_server_id = home_id
+                    user.save(update_fields=["username", "home_server_id"])
+            except Exception as exc:
+                logger.warning(
+                    "masterlist_push: could not create stub CustomUser for %s (%s): %s — skipping.",
+                    item.get("Username"), item.get("UserID"), exc,
+                )
     else:
         http_post(server, MASTERLIST_SYNC_PATH, data, local)
-
-
-def masterlist_broadcast_fn(server: ServerRegistry, data: dict) -> None:
-    """
-    Ask a remote region leader to write the merged MasterList to its DB and
-    push it to all of its regional peers (Phase 3b of cross-region sync).
-    """
-    local = get_local_server()
-    http_post(server, MASTERLIST_BROADCAST_PATH, data, local)
 
 
 def sync_masterlist(local_server: ServerRegistry | None = None) -> None:
@@ -405,5 +426,4 @@ def sync_masterlist(local_server: ServerRegistry | None = None) -> None:
     """
     if local_server is None:
         local_server = get_local_server()
-    sync_region(masterlist_fetch_fn, masterlist_push_fn, local_server,
-                broadcast_fn=masterlist_broadcast_fn)
+    sync_region(masterlist_fetch_fn, masterlist_push_fn, local_server)
