@@ -94,9 +94,11 @@ export default function ManagerDashboardPage() {
     )
     .slice(0, 4);
 
-  const lowStockItems = (inventoryReport?.inventory_items ?? [])
-    .filter((i) => i.Quantity <= i.ThresholdLevel)
-    .slice(0, 3);
+  const allLowStock = (inventoryReport?.inventory_items ?? []).filter(
+    (i) => i.Quantity <= i.ThresholdLevel
+  );
+  const outOfStockItems = allLowStock.filter((i) => i.Quantity === 0);
+  const lowStockItems = allLowStock.filter((i) => i.Quantity > 0);
 
   return (
     <div className="min-h-screen app-bg relative">
@@ -152,27 +154,72 @@ export default function ManagerDashboardPage() {
           </div>
         ) : (
           <>
-            {/* ── Low stock banner ── */}
-            {lowStockItems.length > 0 && (
+            {/* ── Inventory Alerts ── */}
+            {(outOfStockItems.length > 0 || lowStockItems.length > 0) && (
               <Link href="/manage/inventory">
-                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <AlertTriangle size={16} className="text-amber-600" />
-                    <p className="text-sm font-bold text-amber-800">
-                      {lowStockItems.length} item
-                      {lowStockItems.length !== 1 ? 's' : ''} low on stock
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {lowStockItems.map((item) => (
-                      <span
-                        key={item.InventoryID}
-                        className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-700"
-                      >
-                        {item.ItemName} ({item.Quantity} left)
-                      </span>
-                    ))}
-                  </div>
+                <div
+                  className={`rounded-2xl border p-4 mb-3 transition-colors ${
+                    outOfStockItems.length > 0
+                      ? 'border-red-200 bg-red-50 shadow-sm'
+                      : 'border-amber-200 bg-amber-50 shadow-sm'
+                  }`}
+                >
+                  {outOfStockItems.length > 0 && (
+                    <div className={lowStockItems.length > 0 ? 'mb-4' : ''}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <AlertTriangle size={16} className="text-red-600" />
+                        <p className="text-sm font-bold text-red-800">
+                          {outOfStockItems.length} item
+                          {outOfStockItems.length !== 1 ? 's' : ''} out of stock
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {outOfStockItems.slice(0, 5).map((item) => (
+                          <span
+                            key={item.InventoryID}
+                            className="rounded-full bg-red-100 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-700 border border-red-200"
+                          >
+                            {item.ItemName}
+                          </span>
+                        ))}
+                        {outOfStockItems.length > 5 && (
+                          <span className="text-xs font-semibold text-red-500 self-center ml-1">
+                            +{outOfStockItems.length - 5} more
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {lowStockItems.length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <AlertTriangle
+                          size={16}
+                          className="text-amber-600"
+                        />
+                        <p className="text-sm font-bold text-amber-800">
+                          {lowStockItems.length} item
+                          {lowStockItems.length !== 1 ? 's' : ''} low on stock
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {lowStockItems.slice(0, 5).map((item) => (
+                          <span
+                            key={item.InventoryID}
+                            className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700 border border-amber-200"
+                          >
+                            {item.ItemName} ({item.Quantity} left)
+                          </span>
+                        ))}
+                        {lowStockItems.length > 5 && (
+                          <span className="text-xs font-semibold text-amber-500 self-center ml-1">
+                            +{lowStockItems.length - 5} more
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </Link>
             )}

@@ -20,6 +20,7 @@ class EmailAPIResponseSerializer(serializers.Serializer):
 class InventoryReportItemSerializer(serializers.Serializer):
     InventoryID = serializers.IntegerField()
     ItemName = serializers.CharField()
+    ItemType = serializers.CharField()
     Quantity = serializers.IntegerField()
     ThresholdLevel = serializers.IntegerField()
 
