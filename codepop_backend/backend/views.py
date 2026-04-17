@@ -760,16 +760,9 @@ class InventoryReportAPIView(APIView):
     )
     def get(self, request):
         inventory = Inventory.objects.all()
+        serializer = InventorySerializer(inventory, many=True)
         report_data = {
-            'inventory_items': [
-                {
-                    'InventoryID': item.InventoryID,
-                    'ItemName': item.ItemName,
-                    'Quantity': item.Quantity,
-                    'ThresholdLevel': item.ThresholdLevel,
-                }
-                for item in inventory
-            ],
+            'inventory_items': serializer.data,
             'total_items': inventory.count(),
             'out_of_stock': inventory.filter(Quantity=0).count(),
             'below_threshold': inventory.filter(Quantity__lte=models.F('ThresholdLevel')).count(),
@@ -785,7 +778,7 @@ class InventoryUpdateAPIView(RetrieveUpdateAPIView):
     def patch(self, request, *args, **kwargs):
         item = self.get_object()  # Retrieve the specific item based on ID
 
-        if request.user.user_type == 'logistics_manager':
+        if request.user.user_type == 'logistics_manager' or request.user.user_type == 'store_manager':
             local_server = get_local_server()
             if request.user.home_server.Region_id != local_server.Region_id:
                 return Response(
@@ -804,54 +797,76 @@ class InventoryUpdateAPIView(RetrieveUpdateAPIView):
 
             # Return the updated item details in the response
             return Response(self.get_serializer(item).data, status=status.HTTP_200_OK)
+        item = self.get_object()
 
-        # If it's a normal patch update with specific fields (like Quantity or ThresholdLevel)
-        if used_quantity is None:
-            # Check if any standard inventory fields are in the request
+        # 1. Handle specialized update commands
+        reset_quantity = request.data.get('reset')
+        used_quantity = request.data.get('used_quantity')
+        restock_amount = request.data.get('restock_amount')
+
+        updated = False
+
+        # Reset to threshold (or specific value if reset is a number)
+        if reset_quantity is not None and reset_quantity is not False:
+            try:
+                if isinstance(reset_quantity, (int, float)):
+                    item.Quantity = int(reset_quantity)
+                elif isinstance(reset_quantity, str) and reset_quantity.isdigit():
+                    item.Quantity = int(reset_quantity)
+                else:
+                    item.Quantity = item.ThresholdLevel
+            except (ValueError, TypeError):
+                item.Quantity = item.ThresholdLevel
+            updated = True
+
+        # Subtract used quantity (for orders)
+        elif used_quantity is not None:
+            try:
+                qty = int(used_quantity)
+                if qty <= 0:
+                    return Response({"error": "used_quantity must be positive"}, status=status.HTTP_400_BAD_REQUEST)
+                if item.Quantity < qty:
+                    return Response({"error": "Insufficient stock"}, status=status.HTTP_400_BAD_REQUEST)
+                item.Quantity -= qty
+                updated = True
+            except (ValueError, TypeError):
+                return Response({"error": "Invalid used_quantity format"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Add restock amount (additive update)
+        elif restock_amount is not None:
+            try:
+                qty = int(restock_amount)
+                if qty < 0:
+                    return Response({"error": "restock_amount cannot be negative"}, status=status.HTTP_400_BAD_REQUEST)
+                item.Quantity += qty
+                updated = True
+            except (ValueError, TypeError):
+                return Response({"error": "Invalid restock_amount format"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if updated:
+            item.save()
+            # Proceed to return data with warnings below
+        else:
+            # 2. Handle standard field updates (ItemName, ItemType, Quantity, ThresholdLevel)
             inventory_fields = ['ItemName', 'ItemType', 'Quantity', 'ThresholdLevel']
             if any(field in request.data for field in inventory_fields):
-                # Use standard partial update logic
                 serializer = self.get_serializer(item, data=request.data, partial=True)
                 serializer.is_valid(raise_exception=True)
-                serializer.save()
-                return Response(serializer.data, status=status.HTTP_200_OK)
+                item = serializer.save()
+            else:
+                return Response(
+                    {"error": "No valid update fields provided"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
-            # If no recognized fields, return the same error as before to maintain compatibility
-            return Response(
-                {"error": "Invalid used quantity", "details": {"used_quantity": "Value must be greater than zero"}},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Handle normal used quantity update (for orders)
-        if int(used_quantity) <= 0:
-            return Response(
-                {"error": "Invalid used quantity", "details": {"used_quantity": "Value must be greater than zero"}},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        # Check if the item is already out of stock
-        if item.Quantity == 0:
-            return Response(
-                {"error": "Out of stock", "details": {"item": f"'{item.ItemName}' is already out of stock."}}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Check if the order quantity exceeds available stock
-        if item.Quantity < int(used_quantity):
-            return Response(
-                {"error": "Insufficient stock", "details": {"item": f"Not enough stock available for '{item.ItemName}'."}}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Subtract the used quantity from the current stock
-        item.Quantity -= int(used_quantity)
-        item.save()
-
-        # Generate a warning if stock falls below the threshold level
+        # 3. Generate warnings and return response
         warning = None
         if item.Quantity <= item.ThresholdLevel:
-            warning = f"'{item.ItemName}' stock is below the threshold level."
+            warning = f"'{item.ItemName}' stock is at or below the threshold level ({item.ThresholdLevel})."
+        
+        if item.Quantity == 0:
+            warning = f"'{item.ItemName}' is OUT OF STOCK!"
 
-        # Prepare the response data
         response_data = self.get_serializer(item).data
         if warning:
             response_data['warning'] = warning
