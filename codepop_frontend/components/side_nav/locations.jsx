@@ -29,7 +29,7 @@ export default function Locations() {
 
   // Fetch all servers once on mount
   useEffect(() => {
-    fetch("/api/servers")
+    fetch("/api/proxy/backend/servers/")
       .then((r) => (r.ok ? r.json() : []))
       .catch(() => [])
       .then((data) => {
