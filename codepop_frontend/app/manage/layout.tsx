@@ -12,7 +12,6 @@ export default function ManageLayout({
   const { user, loading } = useRequireAuth({
     allowedRoles: [
       'store_manager',
-      'logistics_manager',
       'admin',
       'super_admin',
     ],

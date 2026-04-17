@@ -46,82 +46,78 @@ const locationsItem: NavItem = {
   icon: <MapPin size={19} />,
 };
 
+const mainSection: NavSection = {
+  items: [
+    { label: 'Home', href: '/', icon: <Home size={19} /> },
+    { label: 'My Orders', href: '/customer/orders', icon: <ShoppingBag size={19} /> },
+    { label: 'My Profile', href: '/customer/profile', icon: <User size={19} /> },
+    locationsItem,
+  ],
+};
+
+const moreSection: NavSection = {
+  title: 'More',
+  items: [
+    { label: 'Help & Support', href: '/help',    icon: <HelpCircle size={19} /> },
+    { label: 'Share with Friends', href: '/share', icon: <Share2 size={19} /> },
+    { label: 'Leaderboard', href: '/leaderboard', icon: <Trophy size={19} /> },
+  ],
+};
+
+
 function getNavSections(userType?: string): NavSection[] {
   // ── Customer ──────────────────────────────────────────────
   if (!userType || userType === 'customer') {
     return [
-      {
-        items: [
-          { label: 'Home',       href: '/',                 icon: <Home size={19} /> },
-          { label: 'My Orders',  href: '/customer/orders',  icon: <ShoppingBag size={19} /> },
-          { label: 'My Profile', href: '/customer/profile', icon: <User size={19} /> },
-          locationsItem,
-        ],
-      },
-      {
-        title: 'More',
-        items: [
-          { label: 'Help & Support', href: '/help',    icon: <HelpCircle size={19} /> },
-          { label: 'Share with Friends', href: '/share', icon: <Share2 size={19} /> },
-          { label: 'Leaderboard', href: '/leaderboard', icon: <Trophy size={19} /> },
-        ],
-      },
+      mainSection,
+      moreSection,
     ];
   }
 
   // ── Store Manager ─────────────────────────────
   if (userType === 'store_manager') {
     return [
-      {
-        items: [
-          { label: 'Home',      href: '/',                 icon: <Home size={19} /> },
-          { label: 'Dashboard', href: '/manage/dashboard', icon: <LayoutDashboard size={19} /> },
-          locationsItem,
-        ],
-      },
+      mainSection,
       {
         title: 'Management',
         items: [
+          { label: 'Dashboard', href: '/manage/dashboard', icon: <LayoutDashboard size={19} /> },
           { label: 'Orders',    href: '/manage/orders',    icon: <ShoppingBag size={19} /> },
           { label: 'Inventory', href: '/manage/inventory', icon: <MapPin size={19} /> },
-          { label: 'Settings',  href: '/manage/settings',  icon: <Settings size={19} /> },
         ],
       },
+      moreSection
     ];
   }
 
   if (userType === 'logistics_manager') {
     return [
+      mainSection,
       {
         items: [
-          { label: 'Home',      href: '/',                    icon: <Home size={19} /> },
           { label: 'Dashboard', href: '/logistics/dashboard', icon: <LayoutDashboard size={19} /> },
-          locationsItem,
         ],
       },
+      moreSection
     ];
   }
 
   // ── Admin / Super Admin ───────────────────────────────────
   if (userType === 'admin' || userType === 'super_admin') {
     return [
-      {
-        items: [
-          { label: 'Home',               href: '/',                    icon: <Home size={19} /> },
-          { label: 'Dashboard',          href: '/admin/dashboard',     icon: <Shield size={19} /> },
-          { label: 'Manager',            href: '/manage/dashboard',    icon: <LayoutDashboard size={19} /> },
-          { label: 'Logistics Manager',  href: '/logistics/dashboard', icon: <LayoutDashboard size={19} /> },
-          locationsItem,
-        ],
-      },
+      mainSection,
       {
         title: 'Administration',
         items: [
+          { label: 'Admin Dashboard',          href: '/admin/dashboard',     icon: <Shield size={19} /> },
+          { label: 'Store Manager',            href: '/manage/dashboard',    icon: <LayoutDashboard size={19} /> },
+          { label: 'Logistics Manager',  href: '/logistics/dashboard', icon: <LayoutDashboard size={19} /> },
           { label: 'User Management', href: '/admin/users',   icon: <User size={19} /> },
           { label: 'Servers',         href: '/admin/servers', icon: <LayoutDashboard size={19} /> },
           { label: 'Settings',        href: '/admin/settings', icon: <Settings size={19} /> },
         ],
       },
+      moreSection
     ];
   }
 
