@@ -73,7 +73,7 @@ export default function AdminDashboardPage() {
     if (inv.status === 'fulfilled') setInventoryReport(inv.value);
     if (notifs.status === 'fulfilled') setNotifications(notifs.value);
     if (ml.status === 'fulfilled') setMasterList(ml.value);
-      setUsers(usr);
+    if (usr.status === 'fulfilled') setUsers(usr.value);
     setLastRefresh(new Date());
     setLoading(false);
   }, []);
@@ -280,8 +280,8 @@ export default function AdminDashboardPage() {
                 <StatCard
                   icon={<Users size={20} />}
                   label="Network Users"
-                  value={users.length}
-                  sub={masterList?.items ? `${masterList.items.length} in network` : "master list sync"}
+                  value={masterList?.items?.length ?? 0}
+                  sub={`${users.length} local users`}
                   accent="blue"
                   href="/admin/users"
                 />
