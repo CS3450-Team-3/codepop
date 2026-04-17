@@ -4,6 +4,15 @@ import { useState, useEffect } from 'react';
 import { Menu, MapPin, Navigation, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
 import Sidebar from '@/components/layout/Sidebar';
 import { getServers, discoverServer, selectServer } from '@/models/api/server';
+import { useAuth } from '@/app/contextProviders/AuthContext';
+
+const ROLE_HOME: Record<string, string> = {
+  customer:          '/',
+  store_manager:     '/manage/dashboard',
+  logistics_manager: '/manage/dashboard',
+  admin:             '/admin/dashboard',
+  super_admin:       '/admin/dashboard',
+};
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -59,6 +68,7 @@ function haversine(lat1: number, lon1: number, lat2: number, lon2: number): numb
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function LocationsPage() {
+  const { user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [stores, setStores] = useState<StoreServer[]>([]);
   const [currentServerId, setCurrentServerId] = useState<string | null>(null);
@@ -125,11 +135,12 @@ export default function LocationsPage() {
 
   const connectToStore = async (store: StoreServer) => {
     setSwitching(store.ServerID);
+    const dashboard = ROLE_HOME[user?.user_type ?? ''] ?? '/';
     try {
       await selectServer(store.ServerURL);
       const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
       if (!token) {
-        window.location.href = '/';
+        window.location.href = dashboard;
         return;
       }
       let tokenValid = false;
@@ -142,8 +153,20 @@ export default function LocationsPage() {
         tokenValid = false;
       }
       if (tokenValid) {
-        window.location.href = '/';
+        window.location.href = dashboard;
       } else {
+        try {
+          const refresh = await fetch('/api/proxy/backend/auth/refresh/', {
+            method: 'POST',
+            credentials: 'include',
+          });
+          if (refresh.ok) {
+            const data = await refresh.json();
+            if (data.access) localStorage.setItem('access_token', data.access);
+            window.location.href = dashboard;
+            return;
+          }
+        } catch { /* fall through */ }
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
         window.location.href = '/auth/login';

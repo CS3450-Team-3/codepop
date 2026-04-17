@@ -41,6 +41,16 @@ export default function ServerSwitcher() {
     if (switching) return;
     setSwitching(true);
     setOpen(false);
+    const returnTo = (() => {
+      if (typeof window === 'undefined') return '/';
+      try {
+        const ref = new URL(document.referrer);
+        if (ref.origin === window.location.origin && ref.pathname !== window.location.pathname) {
+          return ref.pathname + ref.search + ref.hash;
+        }
+      } catch {}
+      return '/';
+    })();
     try {
       await fetch('/api/select-server', {
         method: 'POST',
@@ -66,9 +76,27 @@ export default function ServerSwitcher() {
 
       if (tokenValid) {
         // Token works on the new server — no need to log in again.
-        window.location.href = '/';
+        window.location.href = returnTo;
       } else {
-        // Token not accepted — clear it and send to login.
+        // Access token not accepted — try refreshing via the HttpOnly cookie,
+        // which the backend proxies to the user's home server transparently.
+        try {
+          const refresh = await fetch('/api/proxy/backend/auth/refresh/', {
+            method: 'POST',
+            credentials: 'include',
+          });
+          if (refresh.ok) {
+            const data = await refresh.json();
+            if (data.access && typeof window !== 'undefined') {
+              localStorage.setItem('access_token', data.access);
+            }
+            window.location.href = returnTo;
+            return;
+          }
+        } catch {
+          // fall through to logout
+        }
+        // Refresh also failed — clear tokens and send to login.
         if (typeof window !== 'undefined') {
           localStorage.removeItem('access_token');
           localStorage.removeItem('refresh_token');

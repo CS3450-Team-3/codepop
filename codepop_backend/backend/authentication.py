@@ -72,13 +72,17 @@ class P2PJWTAuthentication(authentication.BaseAuthentication):
                 home_server = ServerRegistry.objects.filter(pk=home_server_id).first()
 
             if user:
-                # Update existing user to match remote identity
-                user.id = user_id
-                user.username = username
-                user.user_type = user_type
-                if home_server:
-                    user.home_server = home_server
-                user.save()
+                if str(user.id) == str(user_id):
+                    # Exact UUID match — sync remote state normally
+                    user.username = username
+                    user.user_type = user_type
+                    if home_server:
+                        user.home_server = home_server
+                    user.save()
+                # else: username collision with a locally-created account (e.g. a
+                # per-server super admin). Don't overwrite the local PK — just use
+                # the found user. P2P signature verification already validated the
+                # token, so trusting the username match is safe.
             else:
                 # Create new shadow user
                 user = CustomUser.objects.create(

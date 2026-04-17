@@ -17,12 +17,31 @@ import {
   Globe,
   Key,
 } from 'lucide-react';
-import { getServers, discoverServer } from '@/models/api/server';
+import { getServers, discoverServer, selectServer } from '@/models/api/server';
 import { Server as ServerType } from '@/models/types/server';
 import Sidebar from '@/components/layout/Sidebar';
+import { useAuth } from '@/app/contextProviders/AuthContext';
+
+const ROLE_HOME: Record<string, string> = {
+  customer:          '/',
+  store_manager:     '/manage/dashboard',
+  logistics_manager: '/manage/dashboard',
+  admin:             '/admin/dashboard',
+  super_admin:       '/admin/dashboard',
+};
 
 // ── Server card ───────────────────────────────────────────────────────────────
-function ServerCard({ server }: { server: ServerType }) {
+function ServerCard({
+  server,
+  isCurrent,
+  switching,
+  onConnect,
+}: {
+  server: ServerType;
+  isCurrent: boolean;
+  switching: boolean;
+  onConnect: (server: ServerType) => void;
+}) {
   const [expanded, setExpanded] = useState(false);
   const isActive = server.Status === 'Active';
 
@@ -78,20 +97,26 @@ function ServerCard({ server }: { server: ServerType }) {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          <span
-            className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${
-              isActive
-                ? 'bg-green-50 text-green-700'
-                : 'bg-red-50 text-red-600'
-            }`}
-          >
-            {isActive ? (
+          {isCurrent ? (
+            <span className="flex items-center gap-1 rounded-full bg-violet-100 px-2.5 py-1 text-xs font-semibold text-violet-700">
               <CheckCircle size={10} />
-            ) : (
+              Current
+            </span>
+          ) : isActive ? (
+            <button
+              onClick={(e) => { e.stopPropagation(); onConnect(server); }}
+              disabled={switching}
+              className="flex items-center gap-1 rounded-full bg-violet-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-violet-700 disabled:opacity-50 transition-colors"
+            >
+              {switching && <Loader2 size={10} className="animate-spin" />}
+              Connect
+            </button>
+          ) : (
+            <span className="flex items-center gap-1 rounded-full bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-600">
               <XCircle size={10} />
-            )}
-            {server.Status ?? 'Unknown'}
-          </span>
+              {server.Status ?? 'Offline'}
+            </span>
+          )}
           {expanded ? (
             <ChevronUp size={15} className="text-slate-400" />
           ) : (
@@ -212,18 +237,25 @@ function ThisServerCard() {
 type StatusFilter = 'all' | 'active' | 'inactive';
 
 export default function AdminServersPage() {
+  const { user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [servers, setServers] = useState<ServerType[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [currentServerId, setCurrentServerId] = useState<string | null>(null);
+  const [switchingId, setSwitchingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await getServers();
+      const [data, discovery] = await Promise.all([
+        getServers(),
+        discoverServer().catch(() => null),
+      ]);
       setServers(data);
+      if (discovery && 'ServerID' in discovery) setCurrentServerId(discovery.ServerID as string);
     } catch {
       setError('Could not load servers. Please try again.');
     } finally {
@@ -234,6 +266,46 @@ export default function AdminServersPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const connectToServer = async (server: ServerType) => {
+    if (switchingId) return;
+    setSwitchingId(server.ServerID);
+    const dashboard = ROLE_HOME[user?.user_type ?? ''] ?? '/';
+    try {
+      await selectServer(server.ServerURL);
+      const token = localStorage.getItem('access_token');
+      let tokenValid = false;
+      if (token) {
+        try {
+          const check = await fetch('/api/proxy/backend/users/me/', {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          tokenValid = check.ok;
+        } catch { /* fall through */ }
+      }
+      if (tokenValid) {
+        window.location.href = dashboard;
+      } else {
+        try {
+          const refresh = await fetch('/api/proxy/backend/auth/refresh/', {
+            method: 'POST',
+            credentials: 'include',
+          });
+          if (refresh.ok) {
+            const data = await refresh.json();
+            if (data.access) localStorage.setItem('access_token', data.access);
+            window.location.href = dashboard;
+            return;
+          }
+        } catch { /* fall through */ }
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        window.location.href = '/auth/login';
+      }
+    } catch {
+      setSwitchingId(null);
+    }
+  };
 
   const activeCount = servers.filter((s) => s.Status === 'Active').length;
   const inactiveCount = servers.filter((s) => s.Status !== 'Active').length;
@@ -384,7 +456,13 @@ export default function AdminServersPage() {
         ) : (
           <div className="space-y-3">
             {filtered.map((server) => (
-              <ServerCard key={server.ServerID} server={server} />
+              <ServerCard
+                key={server.ServerID}
+                server={server}
+                isCurrent={server.ServerID === currentServerId}
+                switching={switchingId === server.ServerID}
+                onConnect={connectToServer}
+              />
             ))}
           </div>
         )}
