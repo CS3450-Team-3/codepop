@@ -34,7 +34,12 @@ class Command(BaseCommand):
         node_id = (os.environ.get('LOCAL_SERVER_ID') or str(settings.LOCAL_SERVER_ID or '')).strip()
         server_url = os.environ.get('SERVER_URL', '').strip()
         region = (os.environ.get('REGION') or os.environ.get('SETUP_REGION_NAME', 'default')).strip()
-        store_name = os.environ.get('STORE_NAME', '').strip()
+        store_name    = os.environ.get('STORE_NAME', '').strip()
+        store_address = os.environ.get('STORE_ADDRESS', '').strip()
+        store_city    = os.environ.get('STORE_CITY', '').strip()
+        store_state   = os.environ.get('STORE_STATE', '').strip()
+        store_zip     = os.environ.get('STORE_ZIP', '').strip()
+        store_geohash = os.environ.get('STORE_GEOHASH', '').strip()
 
         if not node_id or not server_url:
             self.stderr.write(self.style.ERROR('LOCAL_SERVER_ID and SERVER_URL must be set.'))
@@ -63,7 +68,12 @@ class Command(BaseCommand):
             'public_key': settings.PUBLIC_KEY,
             'region': region,
             'address': server_url,
-            'store_name': store_name,
+            'store_name':    store_name,
+            'store_address': store_address,
+            'store_city':    store_city,
+            'store_state':   store_state,
+            'store_zip':     store_zip,
+            'store_geohash': store_geohash,
             'timestamp': timestamp,
             'network_token': network_token,
             'signature': sig_b64,
@@ -120,18 +130,28 @@ class Command(BaseCommand):
             if pid == local_id:
                 continue
 
-            store_name = peer.get('store_name', '')
+            store_name    = peer.get('store_name', '')
+            store_address = peer.get('store_address', '')
+            store_city    = peer.get('store_city', '')
+            store_state   = peer.get('store_state', '')
+            store_zip     = peer.get('store_zip', '')
+            store_geohash = peer.get('store_geohash', '')
 
             region, _ = Region.objects.get_or_create(RegionName=region_name)
             ServerRegistry.objects.update_or_create(
                 ServerID=pid,
                 defaults={
-                    'ServerURL': purl,
-                    'PublicKey': pkey,
-                    'Status': 'Active',
+                    'ServerURL':      purl,
+                    'PublicKey':      pkey,
+                    'Status':         'Active',
                     'IsRegionLeader': is_leader,
-                    'Region': region,
-                    'StoreName': store_name,
+                    'Region':         region,
+                    'StoreName':      store_name,
+                    'StoreAddress':   store_address,
+                    'StoreCity':      store_city,
+                    'StoreState':     store_state,
+                    'StoreZip':       store_zip,
+                    'StoreGeohash':   store_geohash,
                 }
             )
             self.stdout.write(f'  Registered peer {pid[:12]}... at {purl} ({store_name or "no name"})')

@@ -17,7 +17,7 @@ import {
   Globe,
   Key,
 } from 'lucide-react';
-import { getServers, getServer, discoverServer } from '@/models/api/admin';
+import { getServers, discoverServer } from '@/models/api/server';
 import { Server as ServerType } from '@/models/types/server';
 import Sidebar from '@/components/layout/Sidebar';
 

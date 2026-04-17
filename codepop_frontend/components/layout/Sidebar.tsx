@@ -19,7 +19,6 @@ import {
   Home,
 } from 'lucide-react';
 import { useAuth } from '@/app/contextProviders/AuthContext';
-import ServerSwitcher from './ServerSwitcher';
 
 interface SidebarProps {
   open: boolean;
@@ -37,6 +36,12 @@ interface NavSection {
   items: NavItem[];
 }
 
+const locationsItem: NavItem = {
+  label: 'Locations',
+  href: '/locations',
+  icon: <MapPin size={19} />,
+};
+
 function getNavSections(userType?: string): NavSection[] {
   // ── Customer ──────────────────────────────────────────────
   if (!userType || userType === 'customer') {
@@ -46,6 +51,7 @@ function getNavSections(userType?: string): NavSection[] {
           { label: 'Home',       href: '/',                 icon: <Home size={19} /> },
           { label: 'My Orders',  href: '/customer/orders',  icon: <ShoppingBag size={19} /> },
           { label: 'My Profile', href: '/customer/profile', icon: <User size={19} /> },
+          locationsItem,
         ],
       },
       {
@@ -63,16 +69,17 @@ function getNavSections(userType?: string): NavSection[] {
     return [
       {
         items: [
-          { label: 'Home',              href: '/',                  icon: <Home size={19} /> },
-          { label: 'Dashboard',         href: '/manage/dashboard',  icon: <LayoutDashboard size={19} /> },
+          { label: 'Home',      href: '/',                 icon: <Home size={19} /> },
+          { label: 'Dashboard', href: '/manage/dashboard', icon: <LayoutDashboard size={19} /> },
+          locationsItem,
         ],
       },
       {
         title: 'Management',
         items: [
-          { label: 'Orders',     href: '/manage/orders',     icon: <ShoppingBag size={19} /> },
-          { label: 'Inventory',  href: '/manage/inventory',  icon: <MapPin size={19} /> },
-          { label: 'Settings',   href: '/manage/settings',   icon: <Settings size={19} /> },
+          { label: 'Orders',    href: '/manage/orders',    icon: <ShoppingBag size={19} /> },
+          { label: 'Inventory', href: '/manage/inventory', icon: <MapPin size={19} /> },
+          { label: 'Settings',  href: '/manage/settings',  icon: <Settings size={19} /> },
         ],
       },
     ];
@@ -82,8 +89,9 @@ function getNavSections(userType?: string): NavSection[] {
     return [
       {
         items: [
-          { label: 'Home',              href: '/',           icon: <Home size={19} /> },
-          { label: 'Dashboard',         href: '/logistics/dashboard',   icon: <LayoutDashboard size={19} /> },
+          { label: 'Home',      href: '/',                    icon: <Home size={19} /> },
+          { label: 'Dashboard', href: '/logistics/dashboard', icon: <LayoutDashboard size={19} /> },
+          locationsItem,
         ],
       },
     ];
@@ -94,17 +102,18 @@ function getNavSections(userType?: string): NavSection[] {
     return [
       {
         items: [
-          { label: 'Home',            href: '/',                icon: <Home size={19} /> },
-          { label: 'Dashboard',       href: '/admin/dashboard', icon: <Shield size={19} /> },
-          { label: 'Manager',         href: '/manage/dashboard',  icon: <LayoutDashboard size={19} /> },
-          { label: 'Logistics Manager', href: '/logistics/dashboard', icon: <LayoutDashboard size={19} /> },
+          { label: 'Home',               href: '/',                    icon: <Home size={19} /> },
+          { label: 'Dashboard',          href: '/admin/dashboard',     icon: <Shield size={19} /> },
+          { label: 'Manager',            href: '/manage/dashboard',    icon: <LayoutDashboard size={19} /> },
+          { label: 'Logistics Manager',  href: '/logistics/dashboard', icon: <LayoutDashboard size={19} /> },
+          locationsItem,
         ],
       },
       {
         title: 'Administration',
         items: [
-          { label: 'User Management', href: '/admin/users',    icon: <User size={19} /> },
-          { label: 'Servers',         href: '/admin/servers',  icon: <LayoutDashboard size={19} /> },
+          { label: 'User Management', href: '/admin/users',   icon: <User size={19} /> },
+          { label: 'Servers',         href: '/admin/servers', icon: <LayoutDashboard size={19} /> },
           { label: 'Settings',        href: '/admin/settings', icon: <Settings size={19} /> },
         ],
       },
@@ -238,8 +247,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
                 </div>
               ))}
 
-              <div className="border-t border-slate-100 pt-3 space-y-2">
-                <ServerSwitcher />
+              <div className="border-t border-slate-100 pt-3">
                 <button
                   onClick={handleLogout}
                   className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-red-500 hover:bg-red-50 transition-colors"
@@ -256,6 +264,13 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
                 <NavLink
                   item={{ label: 'Home', href: '/', icon: <Home size={19} /> }}
                   isActive={pathname === '/'}
+                  onClose={onClose}
+                />
+              </li>
+              <li>
+                <NavLink
+                  item={locationsItem}
+                  isActive={pathname === '/locations'}
                   onClose={onClose}
                 />
               </li>

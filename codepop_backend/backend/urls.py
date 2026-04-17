@@ -10,7 +10,7 @@ from .views import NotificationOperations, UserNotificationLookup
 from .views import OrderOperations, UserOrdersLookup
 from .views import RevenueViewSet, RevenueAggregateView
 from .views import UserOperations
-from .views import MasterListSyncView, PublicDiscoveryView, P2PJoinView, MenuView, UserProfileView, ServerRegistryAPIView, GeneralGenerateAIDrink, UserGenerateAIDrink, emailAPI, MachineStatusView, MachineRunTestView, MachineStatusAggregateView, LeaderboardView
+from .views import MasterListSyncView, PublicDiscoveryView, P2PJoinView, P2PPeerUpdateView, MenuView, UserProfileView, ServerRegistryAPIView, GeneralGenerateAIDrink, UserGenerateAIDrink, emailAPI, MachineStatusView, MachineRunTestView, MachineStatusAggregateView, LeaderboardView
 from .customerAI import Chatbot
 
 #this ensures that the url calls the right function from the views for each type of request
@@ -252,6 +252,7 @@ urlpatterns = [
     path('sync/masterlist/', MasterListSyncView.as_view(), name='sync_masterlist'),
     path('p2p/discover/', PublicDiscoveryView.as_view(), name='p2p_discovery'),
     path('p2p/join/', P2PJoinView.as_view(), name='p2p_join'),
+    path('p2p/update-peer/', P2PPeerUpdateView.as_view(), name='p2p_update_peer'),
 
     # Menu API
     path('menu/', MenuView.as_view(), name='menu_list'),
