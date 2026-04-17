@@ -108,8 +108,8 @@ export default function OrderConfirmationPage() {
 
     // Fetch servers to find store info
     if (!store) {
-      fetch("/api/servers")
-        .then(res => res.ok ? res.json() : [])
+      api.get("servers/")
+        .then(res => res.data)
         .then((servers: ServerWithGeohash[]) => {
           if (!mounted) return;
           
