@@ -61,12 +61,10 @@ function UpdateModal({ item, mode, onClose, onSuccess }: UpdateModalProps) {
       let updated: Inventory;
 
       if (mode === 'usage') {
-        // PATCH with the fields the backend accepts
+        // PATCH with Quantity (absolute)
+        // Alternative: could use { used_quantity: amount }
         updated = await patchInventoryItem(item.InventoryID, {
-          ItemName: item.ItemName,
-          ItemType: item.ItemType,
           Quantity: Math.max(0, item.Quantity - amount),
-          ThresholdLevel: item.ThresholdLevel,
         });
       } else {
         // Full PUT to set absolute quantity
@@ -78,21 +76,27 @@ function UpdateModal({ item, mode, onClose, onSuccess }: UpdateModalProps) {
         });
       }
 
-      if (updated.Quantity <= updated.ThresholdLevel) {
-        setWarning(
-          `Stock is now at or below the threshold of ${updated.ThresholdLevel}.`
-        );
-        // Show warning briefly then close
-        setTimeout(() => {
-          onSuccess(updated);
-          onClose();
-        }, 1500);
-      } else {
-        onSuccess(updated);
-        onClose();
-      }
+      onSuccess(updated);
+      onClose();
     } catch {
       setError('Failed to update inventory. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleQuickRestock = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      // Use the 'reset' field in PATCH to quickly restock to threshold
+      const updated = await patchInventoryItem(item.InventoryID, {
+        reset: true,
+      });
+      onSuccess(updated);
+      onClose();
+    } catch {
+      setError('Failed to restock. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -176,49 +180,61 @@ function UpdateModal({ item, mode, onClose, onSuccess }: UpdateModalProps) {
             </p>
           </div>
         ) : (
-          <div className="mb-4">
-            <label className="mb-2 block text-sm font-semibold text-slate-700">
-              Set New Quantity
-            </label>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setNewTotal((n) => Math.max(0, n - 1))}
-                className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors"
-              >
-                <Minus size={16} />
-              </button>
-              <input
-                type="number"
-                min={0}
-                value={newTotal}
-                onChange={(e) =>
-                  setNewTotal(Math.max(0, parseInt(e.target.value) || 0))
-                }
-                className="w-20 rounded-xl border border-slate-200 px-3 py-2 text-center text-sm font-bold text-slate-900 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-100"
-              />
-              <button
-                onClick={() => setNewTotal((n) => n + 1)}
-                className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors"
-              >
-                <Plus size={16} />
-              </button>
+          <div className="mb-4 space-y-4">
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-slate-700">
+                Set New Quantity
+              </label>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setNewTotal((n) => Math.max(0, n - 1))}
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  <Minus size={16} />
+                </button>
+                <input
+                  type="number"
+                  min={0}
+                  value={newTotal}
+                  onChange={(e) =>
+                    setNewTotal(Math.max(0, parseInt(e.target.value) || 0))
+                  }
+                  className="w-20 rounded-xl border border-slate-200 px-3 py-2 text-center text-sm font-bold text-slate-900 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-100"
+                />
+                <button
+                  onClick={() => setNewTotal((n) => n + 1)}
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  <Plus size={16} />
+                </button>
+              </div>
+              <p className="mt-2 text-xs text-slate-400">
+                Change of{' '}
+                <span
+                  className={`font-bold ${
+                    newTotal - item.Quantity >= 0
+                      ? 'text-green-600'
+                      : 'text-red-600'
+                  }`}
+                >
+                  {newTotal - item.Quantity >= 0 ? '+' : ''}
+                  {newTotal - item.Quantity}
+                </span>{' '}
+                from current stock
+              </p>
             </div>
-            <p className="mt-2 text-xs text-slate-400">
-              Change of{' '}
-              <span
-                className={`font-bold ${
-                  newTotal - item.Quantity >= 0
-                    ? 'text-green-600'
-                    : 'text-red-600'
-                }`}
-              >
-                {newTotal - item.Quantity >= 0 ? '+' : ''}
-                {newTotal - item.Quantity}
-              </span>{' '}
-              from current stock
-            </p>
+
+            <button
+              onClick={handleQuickRestock}
+              disabled={saving}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-green-200 bg-green-50 py-2 text-xs font-bold text-green-700 hover:bg-green-100 transition-colors disabled:opacity-50"
+            >
+              <RotateCcw size={14} />
+              Quick Restock to Threshold ({item.ThresholdLevel})
+            </button>
           </div>
         )}
+
 
         {/* Warning */}
         {warning && (

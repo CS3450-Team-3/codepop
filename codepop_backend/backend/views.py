@@ -761,16 +761,9 @@ class InventoryReportAPIView(APIView):
     )
     def get(self, request):
         inventory = Inventory.objects.all()
+        serializer = InventorySerializer(inventory, many=True)
         report_data = {
-            'inventory_items': [
-                {
-                    'InventoryID': item.InventoryID,
-                    'ItemName': item.ItemName,
-                    'Quantity': item.Quantity,
-                    'ThresholdLevel': item.ThresholdLevel,
-                }
-                for item in inventory
-            ],
+            'inventory_items': serializer.data,
             'total_items': inventory.count(),
             'out_of_stock': inventory.filter(Quantity=0).count(),
             'below_threshold': inventory.filter(Quantity__lte=models.F('ThresholdLevel')).count(),
@@ -784,9 +777,9 @@ class InventoryUpdateAPIView(RetrieveUpdateAPIView):
     permission_classes = [IsStoreManager | IsLogisticsManager]
 
     def patch(self, request, *args, **kwargs):
-        item = self.get_object()  # Retrieve the specific item based on ID
+        item = self.get_object()
 
-        if request.user.user_type == 'logistics_manager':
+        if request.user.user_type == 'logistics_manager' or request.user.user_type == 'store_manager':
             local_server = get_local_server()
             if request.user.home_server.Region_id != local_server.Region_id:
                 return Response(
@@ -794,65 +787,74 @@ class InventoryUpdateAPIView(RetrieveUpdateAPIView):
                     status=status.HTTP_403_FORBIDDEN,
                 )
 
-        reset_quantity = request.data.get('reset')  # Check if the request is for a reset
-        used_quantity = request.data.get('used_quantity')  # Used quantity for orders
+        # 1. Handle specialized update commands
+        reset_quantity = request.data.get('reset')
+        used_quantity = request.data.get('used_quantity')
+        restock_amount = request.data.get('restock_amount')
 
-        # Handle inventory reset
-        if reset_quantity:
-            # Reset the quantity to the threshold level (or a specific value)
-            item.Quantity = item.ThresholdLevel  # Or you could use a custom value
+        updated = False
+
+        # Reset to threshold (or specific value if reset is a number)
+        if reset_quantity is not None and reset_quantity is not False:
+            try:
+                if isinstance(reset_quantity, (int, float)):
+                    item.Quantity = int(reset_quantity)
+                elif isinstance(reset_quantity, str) and reset_quantity.isdigit():
+                    item.Quantity = int(reset_quantity)
+                else:
+                    item.Quantity = item.ThresholdLevel
+            except (ValueError, TypeError):
+                item.Quantity = item.ThresholdLevel
+            updated = True
+
+        # Subtract used quantity (for orders)
+        elif used_quantity is not None:
+            try:
+                qty = int(used_quantity)
+                if qty <= 0:
+                    return Response({"error": "used_quantity must be positive"}, status=status.HTTP_400_BAD_REQUEST)
+                if item.Quantity < qty:
+                    return Response({"error": "Insufficient stock"}, status=status.HTTP_400_BAD_REQUEST)
+                item.Quantity -= qty
+                updated = True
+            except (ValueError, TypeError):
+                return Response({"error": "Invalid used_quantity format"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Add restock amount (additive update)
+        elif restock_amount is not None:
+            try:
+                qty = int(restock_amount)
+                if qty < 0:
+                    return Response({"error": "restock_amount cannot be negative"}, status=status.HTTP_400_BAD_REQUEST)
+                item.Quantity += qty
+                updated = True
+            except (ValueError, TypeError):
+                return Response({"error": "Invalid restock_amount format"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if updated:
             item.save()
-
-            # Return the updated item details in the response
-            return Response(self.get_serializer(item).data, status=status.HTTP_200_OK)
-
-        # If it's a normal patch update with specific fields (like Quantity or ThresholdLevel)
-        if used_quantity is None:
-            # Check if any standard inventory fields are in the request
+            # Proceed to return data with warnings below
+        else:
+            # 2. Handle standard field updates (ItemName, ItemType, Quantity, ThresholdLevel)
             inventory_fields = ['ItemName', 'ItemType', 'Quantity', 'ThresholdLevel']
             if any(field in request.data for field in inventory_fields):
-                # Use standard partial update logic
                 serializer = self.get_serializer(item, data=request.data, partial=True)
                 serializer.is_valid(raise_exception=True)
-                serializer.save()
-                return Response(serializer.data, status=status.HTTP_200_OK)
+                item = serializer.save()
+            else:
+                return Response(
+                    {"error": "No valid update fields provided"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
-            # If no recognized fields, return the same error as before to maintain compatibility
-            return Response(
-                {"error": "Invalid used quantity", "details": {"used_quantity": "Value must be greater than zero"}},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Handle normal used quantity update (for orders)
-        if int(used_quantity) <= 0:
-            return Response(
-                {"error": "Invalid used quantity", "details": {"used_quantity": "Value must be greater than zero"}},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        # Check if the item is already out of stock
-        if item.Quantity == 0:
-            return Response(
-                {"error": "Out of stock", "details": {"item": f"'{item.ItemName}' is already out of stock."}}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Check if the order quantity exceeds available stock
-        if item.Quantity < int(used_quantity):
-            return Response(
-                {"error": "Insufficient stock", "details": {"item": f"Not enough stock available for '{item.ItemName}'."}}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Subtract the used quantity from the current stock
-        item.Quantity -= int(used_quantity)
-        item.save()
-
-        # Generate a warning if stock falls below the threshold level
+        # 3. Generate warnings and return response
         warning = None
         if item.Quantity <= item.ThresholdLevel:
-            warning = f"'{item.ItemName}' stock is below the threshold level."
+            warning = f"'{item.ItemName}' stock is at or below the threshold level ({item.ThresholdLevel})."
+        
+        if item.Quantity == 0:
+            warning = f"'{item.ItemName}' is OUT OF STOCK!"
 
-        # Prepare the response data
         response_data = self.get_serializer(item).data
         if warning:
             response_data['warning'] = warning
@@ -904,11 +906,21 @@ class InventoryAggregateView(APIView):
                         data['store_state'] = server.StoreState or ''
                     results[server.ServerID] = data
                 else:
-                    results[server.ServerID] = {"error": f"Status {resp.status_code}", "details": resp.text,
-                                                 "store_name": server.StoreName or '', "store_city": server.StoreCity or '', "store_state": server.StoreState or ''}
+                    results[server.ServerID] = {
+                        "error": f"Status {resp.status_code}",
+                        "details": resp.text,
+                        "store_name": server.StoreName or '',
+                        "store_city": server.StoreCity or '',
+                        "store_state": server.StoreState or ''
+                    }
             except Exception as e:
-                results[server.ServerID] = {"error": "Connection failed", "details": str(e),
-                                             "store_name": server.StoreName or '', "store_city": server.StoreCity or '', "store_state": server.StoreState or ''}
+                results[server.ServerID] = {
+                    "error": "Connection failed",
+                    "details": str(e),
+                    "store_name": server.StoreName or '',
+                    "store_city": server.StoreCity or '',
+                    "store_state": server.StoreState or ''
+                }
 
         return Response({"results": results}, status=status.HTTP_200_OK)
 
@@ -1177,7 +1189,12 @@ class OrderOperations(viewsets.ModelViewSet):
         
         serializer = self.get_serializer(order, data=request.data, partial=True)
         if serializer.is_valid():
-            serializer.save()
+            order = serializer.save()
+            # If the order is now Paid or Completed, ensure a Revenue record exists.
+            # CRITICAL: Only record revenue if this is the originating server (fulfilled locally).
+            # If OriginatingServer is present, it means it's a sync from another store.
+            if (order.PaymentStatus == 'Paid' or order.OrderStatus == 'Completed') and not order.OriginatingServer:
+                Revenue.objects.get_or_create(OrderID=order)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['post'], permission_classes=[AllowAny])
@@ -1205,6 +1222,9 @@ class OrderOperations(viewsets.ModelViewSet):
                 o = Order.objects.get(pk=order_id)
                 o.OrderStatus = 'Completed'
                 o.save()
+                # Ensure revenue is recorded only if fulfilled locally
+                if not o.OriginatingServer:
+                    Revenue.objects.get_or_create(OrderID=o)
                 print(f"Demo: Order {order_id} marked as Completed after arrival delay.")
             except Order.DoesNotExist:
                 pass
@@ -1277,6 +1297,11 @@ class OrderOperations(viewsets.ModelViewSet):
         if drinks:
             order.add_drinks(drinks)
 
+        # If the order is created as Paid or Completed, ensure Revenue record exists.
+        # CRITICAL: Only record revenue if this is NOT a sync from another server.
+        if (order.PaymentStatus == 'Paid' or order.OrderStatus == 'Completed') and not originating_server_id:
+            Revenue.objects.get_or_create(OrderID=order)
+
         # Sync back to home server if we are a visiting server
         sync_order_to_home_server(order, request)
 
@@ -1289,7 +1314,7 @@ class OrderOperations(viewsets.ModelViewSet):
             return Response(response_data, status=status.HTTP_201_CREATED)
 
         try:
-            amount_val = calculate_order_total(order)
+            amount_val = order.calculate_total()
             # Add tax (8%) to match frontend calculation
             amount_val = amount_val * 1.08
             amount = round(amount_val * 100) # cents
@@ -1399,41 +1424,10 @@ class UserOrdersLookup(ListCreateAPIView):
         # Sync back to home server if we are a visiting server
         sync_order_to_home_server(order, self.request)
 
-# Constants for pricing. Aligned with frontend CustomizeModal.tsx
-PRICING = {
-    'upcharges': {
-        'small': 0.00,
-        'medium': 0.50,
-        'large': 1.00,
-        '16oz': 0.00,
-        '24oz': 0.50,
-        '32oz': 1.00,
-        'default': 0.00
-    },
-    'syrup_price_per_pump': 0.50,
-    'addin_price_per_item': 0.00  # Frontend says Add-Ins are free
-}
+# Pricing logic moved to models.py
 
-def calculate_order_total(order):
-    total = 0.0
-    for drink in order.Drinks.all():
-        # Use the drink's base price from the database
-        base_price = drink.Price if drink.Price is not None else 0.0
-
-        # Determine size upcharge
-        size_str = str(drink.Size).lower().strip()
-        size_upcharge = PRICING['upcharges'].get(size_str, PRICING['upcharges']['default'])
-
-        # Calculate syrup cost ($0.50 each)
-        syrups_cost = len(drink.SyrupsUsed) * PRICING['syrup_price_per_pump'] if drink.SyrupsUsed else 0.0
-
-        # Calculate add-ins cost (Free in frontend)
-        addins_cost = len(drink.AddIns) * PRICING['addin_price_per_item'] if drink.AddIns else 0.0
-
-        drink_total = base_price + size_upcharge + syrups_cost + addins_cost
-        total += drink_total
-    return total
 @method_decorator(csrf_exempt, name='dispatch')
+
 class StripePaymentIntentView(View):
     
     def post(self, request, *args, **kwargs):
@@ -1469,7 +1463,7 @@ class StripePaymentIntentView(View):
                                 pass
 
                     # Override the frontend's amount to ensure correctness
-                    amount_val = calculate_order_total(order)
+                    amount_val = order.calculate_total()
                     # Add tax (8%) to match frontend calculation
                     amount_val = amount_val * 1.08
                 except Order.DoesNotExist:
@@ -2419,14 +2413,14 @@ class StripeWebhookView(View):
                 order = Order.objects.get(StripeID=payment_intent['id'])
                 
                 # Validation: Recalculate the order total and compare it with the Stripe amount (in cents)
-                backend_total = calculate_order_total(order)
+                backend_total = order.calculate_total()
                 stripe_amount = payment_intent.get('amount')
 
                 if round(backend_total * 1.08 * 100) == stripe_amount:
                     order.PaymentStatus = 'Paid'
                     order.save()
-                    # Explicitly set the TotalAmount during revenue creation to ensure accuracy
-                    Revenue.objects.create(OrderID=order, TotalAmount=backend_total)
+                    # Idempotently ensure the Revenue record exists
+                    Revenue.objects.get_or_create(OrderID=order, defaults={'TotalAmount': backend_total})
                 else:
                     # Log the discrepancy and flag the order as failed
                     order.PaymentStatus = 'Failed'
@@ -2455,6 +2449,25 @@ class StripeWebhookView(View):
                     )
             except Order.DoesNotExist:
                 print(f"Order with StripeID {payment_intent['id']} not found.")
+
+        elif event['type'] == 'payment_intent.processing':
+            payment_intent = event['data']['object']
+            try:
+                order = Order.objects.get(StripeID=payment_intent['id'])
+                order.PaymentStatus = 'Pending' # Or 'Processing'
+                order.save()
+            except Order.DoesNotExist:
+                pass
+
+        elif event['type'] == 'payment_intent.canceled':
+            payment_intent = event['data']['object']
+            try:
+                order = Order.objects.get(StripeID=payment_intent['id'])
+                order.PaymentStatus = 'Failed'
+                order.OrderStatus = 'Cancelled'
+                order.save()
+            except Order.DoesNotExist:
+                pass
 
         elif event['type'] == 'charge.refunded':
             charge = event['data']['object']
