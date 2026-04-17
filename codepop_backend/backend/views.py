@@ -1949,6 +1949,20 @@ class P2PJoinView(APIView):
             defaults=defaults,
         )
 
+        # Propagate the new/updated peer's store info to all other active servers
+        _propagate_peer(
+            {
+                'node_id':       node_id,
+                'store_name':    store_name,
+                'store_address': store_address,
+                'store_city':    store_city,
+                'store_state':   store_state,
+                'store_zip':     store_zip,
+                'store_geohash': store_geohash,
+            },
+            exclude_url=address,
+        )
+
         # Return the full peer list so the joiner can discover all known nodes
         peers = [
             {
@@ -1967,6 +1981,69 @@ class P2PJoinView(APIView):
             for s in ServerRegistry.objects.filter(Status='Active')
         ]
         return Response({'peers': peers}, status=status.HTTP_200_OK)
+
+
+def _propagate_peer(peer_data: dict, exclude_url: str) -> None:
+    """Fan-out a new peer's info to all other active servers (background thread)."""
+    import threading
+    token = settings.NETWORK_TOKEN
+
+    def _send():
+        targets = list(
+            ServerRegistry.objects.filter(Status='Active')
+            .exclude(ServerURL=exclude_url)
+            .values_list('ServerURL', flat=True)
+        )
+        for url in targets:
+            try:
+                requests.post(
+                    url.rstrip('/') + '/backend/p2p/update-peer/',
+                    json={**peer_data, 'network_token': token},
+                    timeout=5,
+                )
+            except Exception:
+                pass
+
+    threading.Thread(target=_send, daemon=True).start()
+
+
+class P2PPeerUpdateView(APIView):
+    """
+    Internal server-to-server endpoint to upsert a peer's store metadata.
+    Authenticated by NETWORK_TOKEN only (no user auth needed).
+
+    POST /backend/p2p/update-peer/
+    """
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        data = request.data
+        if data.get('network_token') != settings.NETWORK_TOKEN:
+            return Response({'error': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
+
+        node_id = data.get('node_id')
+        if not node_id:
+            return Response({'error': 'node_id required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            entry = ServerRegistry.objects.get(ServerID=node_id)
+        except ServerRegistry.DoesNotExist:
+            return Response({'error': 'Unknown peer'}, status=status.HTTP_404_NOT_FOUND)
+
+        for field, key in [
+            ('StoreName', 'store_name'),
+            ('StoreAddress', 'store_address'),
+            ('StoreCity', 'store_city'),
+            ('StoreState', 'store_state'),
+            ('StoreZip', 'store_zip'),
+            ('StoreGeohash', 'store_geohash'),
+        ]:
+            val = data.get(key, '')
+            if val:
+                setattr(entry, field, val)
+        entry.save()
+        return Response({'ok': True})
 
 
 class MenuView(APIView):
