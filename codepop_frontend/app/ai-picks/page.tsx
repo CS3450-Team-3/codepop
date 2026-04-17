@@ -95,7 +95,7 @@ export default function AIPicksPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen app-bg relative">
       {/* Header */}
       <header className="fixed top-0 z-40 w-full border-b border-slate-100 bg-white/90 backdrop-blur-md">
         <div className="flex h-14 items-center justify-between px-4">

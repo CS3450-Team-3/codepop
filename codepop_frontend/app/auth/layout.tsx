@@ -35,7 +35,7 @@ export default function AuthLayout({
   // flashing briefly before the redirect fires
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+      <div className="flex min-h-screen items-center justify-center app-bg relative">
         <Loader2 size={28} className="animate-spin text-violet-500" />
       </div>
     );
@@ -45,7 +45,7 @@ export default function AuthLayout({
   if (user) return null;
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen app-bg relative">
       <Header
         onMenuClick={() => setSidebarOpen(true)}
       />

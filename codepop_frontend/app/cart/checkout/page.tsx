@@ -227,7 +227,7 @@ export default function CheckoutPage() {
     checkoutState.status === 'ready' ? checkoutState.stripe : null;
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen app-bg relative">
       <header className="fixed top-0 z-40 w-full border-b border-slate-100 bg-white/90 backdrop-blur-md">
         <div className="flex h-14 items-center px-4">
           <button

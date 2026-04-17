@@ -432,7 +432,7 @@ export default function ManageInventoryPage() {
   });
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen app-bg relative">
       <header className="fixed top-0 z-40 w-full border-b border-slate-100 bg-white/90 backdrop-blur-md">
         <div className="flex h-14 items-center justify-between px-4">
           <button
@@ -474,7 +474,7 @@ export default function ManageInventoryPage() {
 
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <main className="mx-auto max-w-2xl px-4 pb-10 pt-28 space-y-4">
+      <main className="relative z-10 mx-auto max-w-2xl px-4 pb-10 pt-28 space-y-4">
         {/* Summary cards */}
         {report && (
           <div className="grid grid-cols-3 gap-2">

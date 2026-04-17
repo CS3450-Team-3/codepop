@@ -123,7 +123,7 @@ export default function AdminDashboardPage() {
     .slice(0, 4);
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen app-bg relative">
       <Header
         onMenuClick={() => setSidebarOpen(true)}
         title="Admin Dashboard"

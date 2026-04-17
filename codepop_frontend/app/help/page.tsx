@@ -146,7 +146,7 @@ export default function HelpPage() {
   const showSuggestions = messages.length <= 1 && !sending;
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen app-bg relative">
       <Header
         onMenuClick={() => setSidebarOpen(true)}
         title="Help & Support"

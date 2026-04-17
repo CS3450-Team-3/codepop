@@ -99,7 +99,7 @@ export default function ManagerDashboardPage() {
     .slice(0, 3);
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen app-bg relative">
       {/* Header */}
       <header className="fixed top-0 z-40 w-full border-b border-slate-100 bg-white/90 backdrop-blur-md">
         <div className="flex h-14 items-center justify-between px-4">
@@ -127,7 +127,7 @@ export default function ManagerDashboardPage() {
 
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <main className="mx-auto max-w-2xl px-4 pb-10 pt-20 space-y-6">
+      <main className="relative z-10 mx-auto max-w-2xl px-4 pb-10 pt-20 space-y-6">
         {/* Greeting */}
         <div>
           <h2 className="text-lg font-bold text-slate-900">
