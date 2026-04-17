@@ -35,11 +35,31 @@ interface NavItem {
   label: string;
   href: string;
   icon: React.ReactNode;
+  /**
+   * How to determine if this link is "active" based on the current pathname.
+   * - 'exact': matches only when pathname === href
+   * - 'startsWith' (default): matches pathname === href OR pathname starts with href + '/'
+   * - function: custom matcher for complex cases
+   */
+  match?: 'exact' | 'startsWith' | ((pathname: string) => boolean);
 }
 
 interface NavSection {
   title?: string;
   items: NavItem[];
+}
+
+function isItemActive(item: NavItem, pathname: string): boolean {
+  // Home is always an exact match — otherwise '/' would match every route
+  if (item.href === '/') return pathname === '/';
+
+  const match = item.match ?? 'startsWith';
+
+  if (typeof match === 'function') return match(pathname);
+  if (match === 'exact') return pathname === item.href;
+
+  // 'startsWith' — match the exact path or any nested sub-route
+  return pathname === item.href || pathname.startsWith(`${item.href}/`);
 }
 
 const locationsItem: NavItem = {
@@ -60,20 +80,16 @@ const mainSection: NavSection = {
 const moreSection: NavSection = {
   title: 'More',
   items: [
-    { label: 'Help & Support', href: '/help',    icon: <HelpCircle size={19} /> },
+    { label: 'Help & Support', href: '/help', icon: <HelpCircle size={19} /> },
     { label: 'Share with Friends', href: '/share', icon: <Share2 size={19} /> },
     { label: 'Leaderboard', href: '/leaderboard', icon: <Trophy size={19} /> },
   ],
 };
 
-
 function getNavSections(userType?: string): NavSection[] {
   // ── Customer ──────────────────────────────────────────────
   if (!userType || userType === 'customer') {
-    return [
-      mainSection,
-      moreSection,
-    ];
+    return [mainSection, moreSection];
   }
 
   // ── Store Manager ─────────────────────────────
@@ -88,7 +104,7 @@ function getNavSections(userType?: string): NavSection[] {
           { label: 'Inventory', href: '/manage/inventory', icon: <MapPin size={19} /> },
         ],
       },
-      moreSection
+      moreSection,
     ];
   }
 
@@ -101,24 +117,28 @@ function getNavSections(userType?: string): NavSection[] {
           { label: 'Inventory', href: '/logistics/inventory', icon: <Package size={19} /> },
         ],
       },
-      moreSection
+      moreSection,
     ];
   }
 
   // ── Admin / Super Admin ───────────────────────────────────
   if (userType === 'admin' || userType === 'super_admin') {
-    const adminItems = [
-      { label: 'Admin Dashboard',          href: '/admin/dashboard',     icon: <Shield size={19} /> },
-      { label: 'Store Manager',            href: '/manage/dashboard',    icon: <LayoutDashboard size={19} /> },
-      { label: 'Logistics Manager',  href: '/logistics/dashboard', icon: <LayoutDashboard size={19} /> },
-      { label: 'Inventory', href: '/logistics/inventory', icon: <Package size={19} /> },
-      { label: 'User Management', href: '/admin/users',   icon: <User size={19} /> },
-      { label: 'Servers',         href: '/admin/servers', icon: <LayoutDashboard size={19} /> },
-      { label: 'Settings',        href: '/admin/settings', icon: <Settings size={19} /> },
+    const adminItems: NavItem[] = [
+      { label: 'Admin Dashboard',   href: '/admin/dashboard',     icon: <Shield size={19} /> },
+      { label: 'Store Manager',     href: '/manage/dashboard',    icon: <LayoutDashboard size={19} /> },
+      { label: 'Logistics Manager', href: '/logistics/dashboard', icon: <LayoutDashboard size={19} /> },
+      { label: 'Inventory',         href: '/logistics/inventory', icon: <Package size={19} /> },
+      { label: 'User Management',   href: '/admin/users',         icon: <User size={19} /> },
+      { label: 'Servers',           href: '/admin/servers',       icon: <LayoutDashboard size={19} /> },
+      { label: 'Settings',          href: '/admin/settings',      icon: <Settings size={19} /> },
     ];
 
     if (userType === 'super_admin') {
-      adminItems.splice(1, 0, { label: 'Global Revenue', href: '/admin/global-revenue', icon: <DollarSign size={19} /> });
+      adminItems.splice(1, 0, {
+        label: 'Global Revenue',
+        href: '/admin/global-revenue',
+        icon: <DollarSign size={19} />,
+      });
     }
 
     return [
@@ -127,7 +147,7 @@ function getNavSections(userType?: string): NavSection[] {
         title: 'Administration',
         items: adminItems,
       },
-      moreSection
+      moreSection,
     ];
   }
 
@@ -147,6 +167,7 @@ function NavLink({
     <Link
       href={item.href}
       onClick={onClose}
+      aria-current={isActive ? 'page' : undefined}
       className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
         isActive
           ? 'bg-violet-50 text-violet-700'
@@ -193,6 +214,23 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
     logistics_manager: 'Logistics Manager',
     admin:             'Admin',
     super_admin:       'Super Admin',
+  };
+
+  // ── Guest nav items (declared here so isItemActive can use them) ──
+  const guestHomeItem: NavItem = {
+    label: 'Home',
+    href: '/',
+    icon: <Home size={19} />,
+  };
+  const guestSignInItem: NavItem = {
+    label: 'Sign In',
+    href: '/auth/login',
+    icon: <LogIn size={19} />,
+  };
+  const guestRegisterItem: NavItem = {
+    label: 'Create Account',
+    href: '/auth/register',
+    icon: <UserPlus size={19} />,
   };
 
   return (
@@ -251,7 +289,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
                       <li key={item.href}>
                         <NavLink
                           item={item}
-                          isActive={pathname === item.href}
+                          isActive={isItemActive(item, pathname)}
                           onClose={onClose}
                         />
                       </li>
@@ -275,29 +313,29 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
             <ul className="space-y-0.5">
               <li>
                 <NavLink
-                  item={{ label: 'Home', href: '/', icon: <Home size={19} /> }}
-                  isActive={pathname === '/'}
+                  item={guestHomeItem}
+                  isActive={isItemActive(guestHomeItem, pathname)}
                   onClose={onClose}
                 />
               </li>
               <li>
                 <NavLink
                   item={locationsItem}
-                  isActive={pathname === '/locations'}
+                  isActive={isItemActive(locationsItem, pathname)}
                   onClose={onClose}
                 />
               </li>
               <li>
                 <NavLink
-                  item={{ label: 'Sign In', href: '/auth/login', icon: <LogIn size={19} /> }}
-                  isActive={pathname === '/auth/login'}
+                  item={guestSignInItem}
+                  isActive={isItemActive(guestSignInItem, pathname)}
                   onClose={onClose}
                 />
               </li>
               <li>
                 <NavLink
-                  item={{ label: 'Create Account', href: '/auth/register', icon: <UserPlus size={19} /> }}
-                  isActive={pathname === '/auth/register'}
+                  item={guestRegisterItem}
+                  isActive={isItemActive(guestRegisterItem, pathname)}
                   onClose={onClose}
                 />
               </li>
@@ -315,7 +353,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
               for 10% off
             </p>
             <button
-              onClick={() => setSocialModalOpen(true)}  // ← wired up
+              onClick={() => setSocialModalOpen(true)}
               className="mt-3 w-full rounded-xl border border-slate-200 bg-white py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors"
             >
               Learn More
@@ -323,6 +361,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
           </div>
         )}
       </aside>
+
       <SocialDrinkingModal
         open={socialModalOpen}
         onClose={() => setSocialModalOpen(false)}
