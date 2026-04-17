@@ -7,6 +7,7 @@ import DrinkColorAvatar from './DrinkColorAvatar';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/app/contextProviders/AuthContext';
 import { favoriteDrink, unfavoriteDrink } from '@/models/api/drinks';
+import { calculateDrinkPrice } from '@/utils/pricing';
 
 interface DrinkCardProps {
   drink: Drink;
@@ -115,7 +116,7 @@ const sodaLabel = Array.isArray(drink.SodaUsed)
             </div>
 
             <span className="shrink-0 font-bold text-violet-600">
-              ${drink.Price.toFixed(2)}
+              ${calculateDrinkPrice(drink).toFixed(2)}
             </span>
           </div>
 

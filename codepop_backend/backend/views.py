@@ -776,7 +776,7 @@ class InventoryUpdateAPIView(RetrieveUpdateAPIView):
     permission_classes = [IsStoreManager | IsLogisticsManager]
 
     def patch(self, request, *args, **kwargs):
-        item = self.get_object()  # Retrieve the specific item based on ID
+        item = self.get_object()
 
         if request.user.user_type == 'logistics_manager' or request.user.user_type == 'store_manager':
             local_server = get_local_server()
@@ -788,12 +788,9 @@ class InventoryUpdateAPIView(RetrieveUpdateAPIView):
 
         reset_quantity = request.data.get('reset')  # Check if the request is for a reset
         used_quantity = request.data.get('used_quantity')  # Used quantity for orders
+        restock_amount = request.data.get('restock_amount')
 
-        # Handle inventory reset
-        if reset_quantity:
-            # Reset the quantity to the threshold level (or a specific value)
-            item.Quantity = item.ThresholdLevel  # Or you could use a custom value
-            item.save()
+        updated = False
 
             # Return the updated item details in the response
             return Response(self.get_serializer(item).data, status=status.HTTP_200_OK)
@@ -2476,8 +2473,8 @@ class StripeWebhookView(View):
                 if round(backend_total * 1.08 * 100) == stripe_amount:
                     order.PaymentStatus = 'Paid'
                     order.save()
-                    # Explicitly set the TotalAmount during revenue creation to ensure accuracy
-                    Revenue.objects.create(OrderID=order, TotalAmount=backend_total)
+                    # Idempotently ensure the Revenue record exists
+                    Revenue.objects.get_or_create(OrderID=order, defaults={'TotalAmount': backend_total})
                 else:
                     # Log the discrepancy and flag the order as failed
                     order.PaymentStatus = 'Failed'
@@ -2506,6 +2503,25 @@ class StripeWebhookView(View):
                     )
             except Order.DoesNotExist:
                 print(f"Order with StripeID {payment_intent['id']} not found.")
+
+        elif event['type'] == 'payment_intent.processing':
+            payment_intent = event['data']['object']
+            try:
+                order = Order.objects.get(StripeID=payment_intent['id'])
+                order.PaymentStatus = 'Pending' # Or 'Processing'
+                order.save()
+            except Order.DoesNotExist:
+                pass
+
+        elif event['type'] == 'payment_intent.canceled':
+            payment_intent = event['data']['object']
+            try:
+                order = Order.objects.get(StripeID=payment_intent['id'])
+                order.PaymentStatus = 'Failed'
+                order.OrderStatus = 'Cancelled'
+                order.save()
+            except Order.DoesNotExist:
+                pass
 
         elif event['type'] == 'charge.refunded':
             charge = event['data']['object']
