@@ -8,7 +8,7 @@ from .views import FlavorOperations
 from .views import InventoryListAPIView, InventoryReportAPIView, InventoryUpdateAPIView, InventoryAggregateView, PeerInventoryUpdateView, TransferRequestView
 from .views import NotificationOperations, UserNotificationLookup
 from .views import OrderOperations, UserOrdersLookup
-from .views import RevenueViewSet, RevenueAggregateView
+from .views import RevenueViewSet, RevenueAggregateView, GlobalRevenueAggregateView
 from .views import UserOperations
 from .views import MasterListSyncView, TriggerSyncView, MasterListBroadcastView, PublicDiscoveryView, P2PJoinView, P2PPeerUpdateView, MenuView, UserProfileView, ServerRegistryAPIView, GeneralGenerateAIDrink, UserGenerateAIDrink, emailAPI, MachineStatusView, MachineRunTestView, MachineStatusAggregateView, LeaderboardView
 from .customerAI import Chatbot
@@ -242,6 +242,9 @@ urlpatterns = [
 
     # Regional aggregation endpoint
     path('revenues/aggregate/', RevenueAggregateView.as_view(), name='revenue_aggregate'),
+
+    # Global aggregation endpoint (Super Admin only)
+    path('revenues/global/', GlobalRevenueAggregateView.as_view(), name='global_revenue'),
 
     # Endpoint to retrieve, update, or delete a specific revenue by its primary key (ID).
     # - GET: Retrieve details of a specific revenue.

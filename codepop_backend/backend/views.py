@@ -1800,6 +1800,65 @@ class RevenueAggregateView(APIView):
                 results[server.ServerID] = {"error": "Connection failed", "details": str(e)}
         
         return Response({"results": results}, status=status.HTTP_200_OK)
+
+class GlobalRevenueAggregateView(APIView):
+    """
+    Aggregation endpoint for super admins to see revenue across all stores and all regions.
+    """
+    permission_classes = [IsSuperUser]
+
+    @extend_schema(
+        responses={200: OpenApiTypes.OBJECT},
+        description="Aggregate revenue data from all active stores globally."
+    )
+    def get(self, request):
+        active_servers = ServerRegistry.objects.filter(Status='Active')
+        
+        results = {}
+        headers = {'Content-Type': 'application/json'}
+        auth_header = request.headers.get('Authorization')
+        if auth_header:
+            headers['Authorization'] = auth_header
+            
+        for server in active_servers:
+            # Construct the store's revenue list URL
+            target_url = server.ServerURL.rstrip('/') + '/backend/revenues/'
+            try:
+                # Group by Region for easier frontend processing
+                region_name = server.Region.RegionName if server.Region else "Unassigned"
+                if region_name not in results:
+                    results[region_name] = {}
+                
+                resp = requests.get(target_url, headers=headers, timeout=5)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    # Add metadata about the server
+                    store_info = {
+                        "ServerID": server.ServerID,
+                        "StoreName": server.StoreName or f"Store {server.ServerID}",
+                        "StoreAddress": f"{server.StoreAddress}, {server.StoreCity}, {server.StoreState}",
+                        "Revenues": data
+                    }
+                    results[region_name][server.ServerID] = store_info
+                else:
+                    results[region_name][server.ServerID] = {
+                        "ServerID": server.ServerID,
+                        "StoreName": server.StoreName or f"Store {server.ServerID}",
+                        "error": f"Status {resp.status_code}", 
+                        "details": resp.text
+                    }
+            except Exception as e:
+                region_name = server.Region.RegionName if server.Region else "Unassigned"
+                if region_name not in results:
+                    results[region_name] = {}
+                results[region_name][server.ServerID] = {
+                    "ServerID": server.ServerID,
+                    "StoreName": server.StoreName or f"Store {server.ServerID}",
+                    "error": "Connection failed", 
+                    "details": str(e)
+                }
+        
+        return Response({"results": results}, status=status.HTTP_200_OK)
     
 class UserOperations(viewsets.ModelViewSet):
     permission_classes = [IsAdmin]

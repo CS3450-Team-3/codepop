@@ -204,6 +204,7 @@ export default function AdminDashboardPage() {
                   value={`$${totalRevenue.toFixed(2)}`}
                   sub={`${revenues.length} transactions`}
                   accent="green"
+                  href={user?.user_type === 'super_admin' ? '/admin/global-revenue' : undefined}
                 />
                 <StatCard
                   icon={<TrendingUp size={20} />}

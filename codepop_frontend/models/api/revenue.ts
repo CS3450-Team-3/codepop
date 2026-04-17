@@ -1,8 +1,13 @@
 import api from "./api";
-import { Revenue, CreateRevenuePayload } from "@/models/types/revenue";
+import { Revenue, CreateRevenuePayload, GlobalRevenueResponse } from "@/models/types/revenue";
 
 export async function getRevenues(): Promise<Revenue[]> {
   const { data } = await api.get("revenues/");
+  return data;
+}
+
+export async function getGlobalRevenues(): Promise<GlobalRevenueResponse> {
+  const { data } = await api.get("revenues/global/");
   return data;
 }
 
