@@ -380,52 +380,6 @@ export default function AdminSettingsPage() {
           )}
         </div>
 
-        {/* Profile */}
-        <Section title="Profile">
-          <Row
-            icon={<User size={18} />}
-            label="First Name"
-            value={user.first_name ?? '—'}
-            onClick={() =>
-              setEditField({
-                label: 'First Name',
-                key: 'first_name',
-                value: user.first_name ?? '',
-              })
-            }
-          />
-          <Row
-            icon={<User size={18} />}
-            label="Last Name"
-            value={user.last_name ?? '—'}
-            onClick={() =>
-              setEditField({
-                label: 'Last Name',
-                key: 'last_name',
-                value: user.last_name ?? '',
-              })
-            }
-          />
-          <Row
-            icon={<Mail size={18} />}
-            label="Email"
-            value={user.email ?? '—'}
-            onClick={() =>
-              setEditField({
-                label: 'Email',
-                key: 'email',
-                value: user.email ?? '',
-                type: 'email',
-              })
-            }
-          />
-          <Row
-            icon={<Lock size={18} />}
-            label="Username"
-            value={user.username}
-          />
-        </Section>
-
         {/* System tools — things that exist now */}
         <Section title="System">
           <Row
@@ -488,16 +442,6 @@ export default function AdminSettingsPage() {
               </span>
             </div>
           </div>
-        </Section>
-
-        {/* Account */}
-        <Section title="Account">
-          <Row
-            icon={<LogOut size={18} />}
-            label="Sign Out"
-            onClick={handleLogout}
-            destructive
-          />
         </Section>
 
         <p className="text-center text-xs text-slate-400">

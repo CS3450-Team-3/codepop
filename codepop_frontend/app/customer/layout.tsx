@@ -29,7 +29,7 @@ export default function CustomerLayout({
   children: React.ReactNode;
 }) {
   const { user, loading } = useRequireAuth({
-    allowedRoles: ['customer', 'admin', 'super_admin'],
+    allowedRoles: ['customer', 'admin', 'super_admin', 'store_manager', 'logistics_manager', 'repair_staff'],
   });
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
