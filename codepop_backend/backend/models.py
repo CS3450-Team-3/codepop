@@ -228,6 +228,28 @@ class Revenue(models.Model):
     SaleDate = models.DateTimeField(default=timezone.now)
     Refunded = models.BooleanField(default=False)
 
+
+class TransferRequest(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+        ('completed', 'Completed'),
+    ]
+
+    RequestID = models.AutoField(primary_key=True)
+    FromServer = models.ForeignKey(ServerRegistry, on_delete=models.CASCADE, related_name='outgoing_transfers')
+    ToServer = models.ForeignKey(ServerRegistry, on_delete=models.CASCADE, related_name='incoming_transfers')
+    ItemName = models.CharField(max_length=100)
+    Quantity = models.PositiveIntegerField()
+    Status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    RequestedBy = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    CreatedAt = models.DateTimeField(auto_now_add=True)
+    Notes = models.CharField(max_length=500, blank=True, default='')
+
+    def __str__(self):
+        return f"Transfer {self.RequestID}: {self.ItemName} x{self.Quantity} from {self.FromServer_id} → {self.ToServer_id}"
+
     def calculate_total_amount(self):
         """Calculate the total revenue for the order by summing the price of each drink."""
         try:

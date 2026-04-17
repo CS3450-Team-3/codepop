@@ -57,28 +57,21 @@ class IsStoreManager(permissions.BasePermission):
 
 class IsLogisticsManager(permissions.BasePermission):
     """
-    Allows accessing inventory management and sales/revenue data.
-    Restricted to stores within their own region.
+    Allows accessing inventory management and sales/revenue data across the
+    manager's assigned region, regardless of which server they connect to.
     """
     def has_permission(self, request, view):
         if not request.user.is_authenticated:
             return False
         if request.user.user_type == 'super_admin':
             return True
-        
+
         if request.user.user_type != 'logistics_manager':
             return False
-            
-        try:
-            local_server = get_local_server()
-            # Check if user's home server region matches local server region
-            if not request.user.home_server or not request.user.home_server.Region:
-                return False
-            if not local_server.Region:
-                return False
-            return request.user.home_server.Region_id == local_server.Region_id
-        except Exception:
-            return False
+
+        return bool(
+            request.user.home_server and request.user.home_server.Region
+        )
 
 class IsRepairStaff(permissions.BasePermission):
     """

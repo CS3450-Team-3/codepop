@@ -5,7 +5,7 @@ from .views import StripePaymentIntentView, StripeWebhookView
 from .views import UserPreferenceLookup, PreferencesOperations
 from .views import DrinkOperations, UserDrinksLookup
 from .views import FlavorOperations
-from .views import InventoryListAPIView, InventoryReportAPIView, InventoryUpdateAPIView, InventoryAggregateView
+from .views import InventoryListAPIView, InventoryReportAPIView, InventoryUpdateAPIView, InventoryAggregateView, PeerInventoryUpdateView, TransferRequestView
 from .views import NotificationOperations, UserNotificationLookup
 from .views import OrderOperations, UserOrdersLookup
 from .views import RevenueViewSet, RevenueAggregateView
@@ -166,6 +166,12 @@ urlpatterns = [
 
     # Regional aggregation endpoint
     path('inventory/aggregate/', InventoryAggregateView.as_view(), name='inventory_aggregate'),
+
+    # Proxy PATCH to a peer server's inventory item (logistics managers only)
+    path('inventory/peer/<str:server_id>/<int:item_id>/', PeerInventoryUpdateView.as_view(), name='inventory_peer_update'),
+
+    # Transfer requests between stores
+    path('transfer-requests/', TransferRequestView.as_view(), name='transfer_requests'),
 
     # Endpoint to retrieve, update, or delete a specific inventory item by its primary key (ID)
     # - GET: Retrieve details of a specific inventory item.

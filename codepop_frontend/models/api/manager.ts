@@ -1,7 +1,8 @@
 import api from "./api";
-import { Inventory, PatchedInventory, InventoryReportResponse } from "@/models/types/inventory";
+import { Inventory, PatchedInventory, InventoryReportResponse, AggregateInventoryResponse } from "@/models/types/inventory";
 import { Revenue } from "@/models/types/revenue";
 import { Notification, CreateNotificationPayload } from "@/models/types/notification";
+import { TransferRequest, CreateTransferRequestPayload } from "@/models/types/transfer";
 
 export async function getManagerInventory(): Promise<Inventory[]> {
   const { data } = await api.get("inventory/");
@@ -31,6 +32,30 @@ export async function getManagerInventoryReport(): Promise<InventoryReportRespon
 
 export async function getManagerRevenues(): Promise<Revenue[]> {
   const { data } = await api.get("revenues/");
+  return data;
+}
+
+export async function getRegionalInventory(): Promise<AggregateInventoryResponse> {
+  const { data } = await api.get("inventory/aggregate/");
+  return data;
+}
+
+export async function updatePeerInventoryThreshold(
+  serverId: string,
+  itemId: number,
+  thresholdLevel: number
+): Promise<Inventory> {
+  const { data } = await api.patch(`inventory/peer/${serverId}/${itemId}/`, { ThresholdLevel: thresholdLevel });
+  return data;
+}
+
+export async function getTransferRequests(): Promise<TransferRequest[]> {
+  const { data } = await api.get("transfer-requests/");
+  return data;
+}
+
+export async function createTransferRequest(payload: CreateTransferRequestPayload): Promise<TransferRequest> {
+  const { data } = await api.post("transfer-requests/", payload);
   return data;
 }
 

@@ -19,6 +19,7 @@ export interface PatchedInventory {
 export interface InventoryReportItem {
   InventoryID: number;
   ItemName: string;
+  ItemType?: string;
   Quantity: number;
   ThresholdLevel: number;
 }
@@ -28,4 +29,17 @@ export interface InventoryReportResponse {
   total_items: number;
   out_of_stock: number;
   below_threshold: number;
+}
+
+export type StoreInventoryResult = InventoryReportResponse & {
+  proxied?: string;
+  store_name?: string;
+  store_city?: string;
+  store_state?: string;
+  error?: string;
+  details?: string;
+};
+
+export interface AggregateInventoryResponse {
+  results: Record<string, StoreInventoryResult>;
 }

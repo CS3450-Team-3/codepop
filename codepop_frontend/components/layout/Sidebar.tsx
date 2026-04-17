@@ -17,6 +17,7 @@ import {
   LayoutDashboard,
   Shield,
   Home,
+  Package,
 } from 'lucide-react';
 import { useAuth } from '@/app/contextProviders/AuthContext';
 
@@ -91,6 +92,7 @@ function getNavSections(userType?: string): NavSection[] {
         items: [
           { label: 'Home',      href: '/',                    icon: <Home size={19} /> },
           { label: 'Dashboard', href: '/logistics/dashboard', icon: <LayoutDashboard size={19} /> },
+          { label: 'Inventory', href: '/logistics/inventory', icon: <Package size={19} /> },
           locationsItem,
         ],
       },
