@@ -35,6 +35,24 @@ def get_tokens_for_user(user):
     }
 
 
+class RegionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Region
+        fields = ['RegionID', 'RegionName']
+
+
+class ServerRegistrySerializer(serializers.ModelSerializer):
+    RegionName = serializers.ReadOnlyField(source='Region.RegionName')
+
+    class Meta:
+        model = ServerRegistry
+        fields = [
+            'ServerID', 'ServerURL', 'PublicKey', 'Status', 'LastSeen', 
+            'Region', 'RegionName', 'IsRegionLeader', 'StoreName', 'StoreAddress', 
+            'StoreCity', 'StoreState', 'StoreZip', 'StoreGeohash'
+        ]
+
+
 class CreateUserSerializer(serializers.ModelSerializer):
     username = serializers.CharField()
     password = serializers.CharField(write_only=True,
@@ -75,10 +93,11 @@ class GetUserSerializer(serializers.ModelSerializer):
     username = serializers.CharField()
     password = serializers.CharField(write_only=True,
                                      style={'input_type': 'password'})
+    home_server_details = ServerRegistrySerializer(read_only=True, source='home_server')
 
     class Meta:
         model = get_user_model()
-        fields = ('id', 'username', 'password', 'first_name', 'last_name', 'email', 'is_staff', 'is_superuser', 'user_type')
+        fields = ('id', 'username', 'password', 'first_name', 'last_name', 'email', 'is_staff', 'is_superuser', 'user_type', 'home_server', 'home_server_details')
         write_only_fields = ('password')
         read_only_fields = ('is_staff', 'is_superuser', 'is_active',)
 

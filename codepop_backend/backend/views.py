@@ -1,4 +1,4 @@
-from .models import Preference, Drink, Inventory, Notification, Order, Revenue, CustomUser, MasterList, Flavor, ServerRegistry, Region
+from .models import Preference, Drink, Inventory, Notification, Order, Revenue, CustomUser, MasterList, Flavor, ServerRegistry, Region, UserMovement
 from django.shortcuts import get_object_or_404
 from django.db import models
 from django.utils import timezone
@@ -41,7 +41,7 @@ from drf_spectacular.utils import extend_schema
 from drf_spectacular.types import OpenApiTypes
 from django.utils.dateparse import parse_datetime
 from .drinkAI import generate_soda
-from .sync import get_local_server
+from .sync import get_local_server, masterlist_push_fn
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
@@ -1776,6 +1776,30 @@ class UserOperations(viewsets.ModelViewSet):
             if "password" in edits and edits["password"] not in [None, "unchanged", ""]:
                 user.set_password(edits["password"])
 
+            # ── Home Server (Store) Change ──────────────────────────────────
+            home_server_id = edits.get("home_server") or edits.get("home_server_id")
+            movement_occurred = False
+            if home_server_id and home_server_id != "unchanged" and str(home_server_id) != str(user.home_server_id):
+                # Security: Only super_admin can move a user to a different store
+                if request.user.user_type != 'super_admin':
+                    return Response({"error": "Only super admins can reassign a user's home store."}, status=status.HTTP_403_FORBIDDEN)
+                
+                try:
+                    new_server = ServerRegistry.objects.get(pk=home_server_id)
+                    
+                    # Record the movement in the audit log
+                    UserMovement.objects.create(
+                        UserID=user.id,
+                        PreviousServerID=user.home_server,
+                        NewServerID=new_server,
+                        Status="Completed"
+                    )
+                    
+                    user.home_server = new_server
+                    movement_occurred = True
+                except ServerRegistry.DoesNotExist:
+                    return Response({"error": f"Server {home_server_id} not found."}, status=status.HTTP_400_BAD_REQUEST)
+
             role = edits.get("role") or edits.get("user_type")
             if role and role != "unchanged":
                 # Security: Only super_admin can assign the super_admin role
@@ -1794,6 +1818,37 @@ class UserOperations(viewsets.ModelViewSet):
                     user.is_superuser = False
 
             user.save()
+
+            # ── Sync MasterList ──────────────────────────────────────────────
+            # Always update local MasterList
+            MasterList.objects.update_or_create(
+                UserID=user.id,
+                defaults={
+                    "Username": user.username,
+                    "HomeServerID": user.home_server,
+                },
+            )
+
+            # If the user was moved, broadcast this change to the P2P network immediately
+            if movement_occurred:
+                local_server = get_local_server()
+                peers = ServerRegistry.objects.exclude(ServerID=local_server.ServerID)
+                sync_payload = {
+                    "items": [
+                        {
+                            "UserID": str(user.id),
+                            "Username": user.username,
+                            "HomeServerID": str(user.home_server_id)
+                        }
+                    ]
+                }
+                for peer in peers:
+                    try:
+                        masterlist_push_fn(peer, sync_payload)
+                    except Exception as e:
+                        # Log but don't fail the request if sync to one peer fails
+                        print(f"Warning: Failed to sync user movement to peer {peer.ServerID}: {e}")
+
             serializer = self.serializer_class(user)
             return Response(serializer.data, status=status.HTTP_200_OK)
         except User.DoesNotExist:

@@ -5,6 +5,7 @@ export interface Server {
   Status?: string;
   LastSeen: string;
   Region?: number | null;
+  RegionName?: string;
   IsRegionLeader?: boolean;
   StoreName?: string;
   StoreAddress?: string;
@@ -24,5 +25,6 @@ export interface MasterListSyncRequest {
 }
 
 export interface MasterListSyncResponse {
-  status: string;
+  status?: string;
+  items?: MasterListSyncItem[];
 }

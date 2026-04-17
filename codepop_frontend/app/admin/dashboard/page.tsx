@@ -24,11 +24,13 @@ import Link from 'next/link';
 import { useAuth } from '@/app/contextProviders/AuthContext';
 import { getRevenues } from '@/models/api/revenue';
 import { getOrders } from '@/models/api/order';
+import { getUsers } from '@/models/api/user';
 import { getServers, getMasterList } from '@/models/api/admin';
 import { getInventoryReport } from '@/models/api/inventory';
 import { getNotifications } from '@/models/api/notifications';
 import { Revenue } from '@/models/types/revenue';
 import { Order } from '@/models/types/order';
+import { GetUser } from '@/models/types/user';
 import { Server as ServerType, MasterListSyncResponse } from '@/models/types/server';
 import { InventoryReportResponse } from '@/models/types/inventory';
 import { Notification } from '@/models/types/notification';
@@ -44,6 +46,7 @@ export default function AdminDashboardPage() {
 
   const [revenues, setRevenues] = useState<Revenue[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [users, setUsers] = useState<GetUser[]>([]);
   const [servers, setServers] = useState<ServerType[]>([]);
   const [inventoryReport, setInventoryReport] =
     useState<InventoryReportResponse | null>(null);
@@ -55,13 +58,14 @@ export default function AdminDashboardPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [rev, ord, srv, inv, notifs, ml] = await Promise.allSettled([
+    const [rev, ord, srv, inv, notifs, ml, usr] = await Promise.allSettled([
       getRevenues(),
       getOrders(),
       getServers(),
       getInventoryReport(),
       getNotifications(),
       getMasterList(),
+        getUsers(),
     ]);
     if (rev.status === 'fulfilled') setRevenues(rev.value);
     if (ord.status === 'fulfilled') setOrders(ord.value);
@@ -69,6 +73,7 @@ export default function AdminDashboardPage() {
     if (inv.status === 'fulfilled') setInventoryReport(inv.value);
     if (notifs.status === 'fulfilled') setNotifications(notifs.value);
     if (ml.status === 'fulfilled') setMasterList(ml.value);
+      setUsers(usr);
     setLastRefresh(new Date());
     setLoading(false);
   }, []);
@@ -275,8 +280,8 @@ export default function AdminDashboardPage() {
                 <StatCard
                   icon={<Users size={20} />}
                   label="Network Users"
-                  value={masterList?.status ?? '—'}
-                  sub="master list sync"
+                  value={users.length}
+                  sub={masterList?.items ? `${masterList.items.length} in network` : "master list sync"}
                   accent="blue"
                   href="/admin/users"
                 />

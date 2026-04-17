@@ -15,9 +15,13 @@ import {
   X,
   Shield,
   User,
+  MapPin,
+  Store,
 } from 'lucide-react';
 import { getUsers, deleteUserById, editUserById } from '@/models/api/user';
+import { getServers } from '@/models/api/admin';
 import { GetUser, UserType } from '@/models/types/user';
+import { Server } from '@/models/types/server';
 import Sidebar from '@/components/layout/Sidebar';
 import { useAuth } from '@/app/contextProviders/AuthContext';
 
@@ -147,33 +151,61 @@ const ASSIGNABLE_ROLES: UserType[] = [
   'super_admin',
 ];
 
-function EditRoleModal({
+function EditUserModal({
   user,
+  currentAdmin,
   onSave,
   onClose,
 }: {
   user: GetUser;
-  onSave: (newRole: UserType) => Promise<void>;
+  currentAdmin?: GetUser;
+  onSave: (newRole: UserType, homeServerId?: string) => Promise<void>;
   onClose: () => void;
 }) {
   const [selectedRole, setSelectedRole] = useState<UserType>(
     (user.user_type as UserType) ?? 'customer'
   );
+  const [selectedStore, setSelectedStore] = useState<string>(
+    user.home_server ?? ''
+  );
+  const [servers, setServers] = useState<Server[]>([]);
+  const [loadingServers, setLoadingServers] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const isSuperAdmin = currentAdmin?.user_type === 'super_admin';
+
+  useEffect(() => {
+    if (isSuperAdmin) {
+      const loadServers = async () => {
+        setLoadingServers(true);
+        try {
+          const data = await getServers();
+          setServers(data);
+        } catch {
+          console.error('Failed to load servers');
+        } finally {
+          setLoadingServers(false);
+        }
+      };
+      loadServers();
+    }
+  }, [isSuperAdmin]);
 
   const handleSave = async () => {
     setSaving(true);
     setError(null);
     try {
-      await onSave(selectedRole);
+      await onSave(selectedRole, isSuperAdmin ? selectedStore : undefined);
       onClose();
     } catch {
-      setError('Failed to update role. Please try again.');
+      setError('Failed to update user. Please try again.');
     } finally {
       setSaving(false);
     }
   };
+
+  const hasChanges = selectedRole !== user.user_type || (isSuperAdmin && selectedStore !== (user.home_server ?? ''));
 
   return (
     <div
@@ -182,11 +214,11 @@ function EditRoleModal({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="w-full max-w-md rounded-t-3xl bg-white p-5 sm:rounded-2xl">
+      <div className="w-full max-w-md rounded-t-3xl bg-white p-5 sm:rounded-2xl max-h-[90vh] overflow-y-auto">
         <div className="mb-4 flex items-center justify-between">
           <div>
             <h3 className="text-base font-bold text-slate-900">
-              Edit Role
+              Edit User
             </h3>
             <p className="text-sm text-slate-500">{user.username}</p>
           </div>
@@ -198,28 +230,67 @@ function EditRoleModal({
           </button>
         </div>
 
-        <div className="mb-4 space-y-2">
-          {ASSIGNABLE_ROLES.map((role) => {
-            const config = ROLE_CONFIG[role];
-            const isSelected = selectedRole === role;
-            return (
-              <button
-                key={role}
-                onClick={() => setSelectedRole(role)}
-                className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-sm font-medium transition-colors ${
-                  isSelected
-                    ? 'border-violet-400 bg-violet-50 text-violet-800'
-                    : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
-                }`}
-              >
-                <span>{config.label}</span>
-                {isSelected && (
-                  <div className="h-2 w-2 rounded-full bg-violet-600" />
-                )}
-              </button>
-            );
-          })}
+        {/* Role Selection */}
+        <div className="mb-6">
+          <p className="mb-2 text-xs font-bold uppercase tracking-widest text-slate-400">
+            User Role
+          </p>
+          <div className="space-y-2">
+            {ASSIGNABLE_ROLES.map((role) => {
+              const config = ROLE_CONFIG[role];
+              const isSelected = selectedRole === role;
+              return (
+                <button
+                  key={role}
+                  onClick={() => setSelectedRole(role)}
+                  className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-sm font-medium transition-colors ${
+                    isSelected
+                      ? 'border-violet-400 bg-violet-50 text-violet-800'
+                      : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                  }`}
+                >
+                  <span>{config.label}</span>
+                  {isSelected && (
+                    <div className="h-2 w-2 rounded-full bg-violet-600" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
+
+        {/* Store Selection (Super Admin Only) */}
+        {isSuperAdmin && (
+          <div className="mb-6">
+            <p className="mb-2 text-xs font-bold uppercase tracking-widest text-slate-400">
+              Assigned Store / Home Server
+            </p>
+            {loadingServers ? (
+              <div className="flex items-center gap-2 py-2 text-sm text-slate-500">
+                <Loader2 size={14} className="animate-spin" />
+                Loading stores...
+              </div>
+            ) : (
+              <div className="relative">
+                <select
+                  value={selectedStore}
+                  onChange={(e) => setSelectedStore(e.target.value)}
+                  className="w-full appearance-none rounded-xl border border-slate-200 bg-white px-4 py-3 pr-10 text-sm font-medium text-slate-700 outline-none transition-all focus:border-violet-400 focus:ring-1 focus:ring-violet-400"
+                >
+                  <option value="">Default / Not Assigned</option>
+                  {servers.map((s) => (
+                    <option key={s.ServerID} value={s.ServerID}>
+                      {s.StoreName || s.ServerID}
+                    </option>
+                  ))}
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-400">
+                  <MapPin size={16} />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {error && (
           <div className="mb-3 flex items-center gap-2 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-600">
@@ -237,15 +308,13 @@ function EditRoleModal({
           </button>
           <button
             onClick={handleSave}
-            disabled={
-              saving || selectedRole === user.user_type
-            }
+            disabled={saving || !hasChanges}
             className="flex-1 rounded-xl bg-violet-600 py-2.5 text-sm font-bold text-white hover:bg-violet-700 disabled:opacity-50 transition-colors"
           >
             {saving ? (
               <Loader2 size={16} className="animate-spin mx-auto" />
             ) : (
-              'Save Role'
+              'Save Changes'
             )}
           </button>
         </div>
@@ -259,12 +328,12 @@ function UserCard({
   user,
   currentUserId,
   onDelete,
-  onEditRole,
+  onEditUser,
 }: {
   user: GetUser;
   currentUserId: string;
   onDelete: (user: GetUser) => void;
-  onEditRole: (user: GetUser) => void;
+  onEditUser: (user: GetUser) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const isSelf = user.id === currentUserId;
@@ -338,17 +407,35 @@ function UserCard({
                 <span className="font-semibold text-rose-600">Yes</span>
               </div>
             )}
+            <div className="flex justify-between items-center py-0.5">
+              <span className="flex items-center gap-1.5 text-slate-500">
+                <MapPin size={13} className="text-slate-400" />
+                Region
+              </span>
+              <span className="font-semibold text-slate-700">
+                {user.home_server_details?.RegionName ?? user.home_server_details?.Region ?? 'Not assigned'}
+              </span>
+            </div>
+            <div className="flex justify-between items-center py-0.5">
+              <span className="flex items-center gap-1.5 text-slate-500">
+                <Store size={13} className="text-slate-400" />
+                Store
+              </span>
+              <span className="font-semibold text-slate-700 truncate max-w-[180px]">
+                {user.home_server_details?.StoreName ?? user.home_server ?? 'Not assigned'}
+              </span>
+            </div>
           </div>
 
           {/* Actions — disabled for self to prevent lockout */}
           {!isSelf && (
             <div className="flex gap-2">
               <button
-                onClick={() => onEditRole(user)}
+                onClick={() => onEditUser(user)}
                 className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50 py-2 text-xs font-semibold text-violet-700 hover:bg-violet-100 transition-colors"
               >
                 <Shield size={13} />
-                Edit Role
+                Edit User
               </button>
               <button
                 onClick={() => onDelete(user)}
@@ -371,6 +458,8 @@ const ROLE_FILTERS: { id: RoleFilter; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'customer', label: 'Customers' },
   { id: 'store_manager', label: 'Managers' },
+  { id: 'logistics_manager', label: 'Logistics' },
+  { id: 'repair_staff', label: 'Repairs' },
   { id: 'admin', label: 'Admins' },
   { id: 'super_admin', label: 'Super Admins' },
 ];
@@ -382,19 +471,23 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
-  const [roleFilter, setRoleFilter] = useState<RoleFilter>('all');
+  const [roleFilters, setRoleFilters] = useState<RoleFilter[]>(['all']);
+  const [storeFilter, setStoreFilter] = useState<string>('all');
+  const [allServers, setAllServers] = useState<Server[]>([]);
 
   // Modal state
   const [deleteTarget, setDeleteTarget] = useState<GetUser | null>(null);
-  const [editRoleTarget, setEditRoleTarget] = useState<GetUser | null>(null);
+  const [editUserTarget, setEditUserTarget] = useState<GetUser | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      // getUsers() will return GetUser[] once backend is updated
-      const data = await getUsers() as unknown as GetUser[];
-      setUsers(Array.isArray(data) ? data : [data]);
+      const data = await getUsers();
+      setUsers(data);
+      
+      const serversData = await getServers();
+      setAllServers(serversData);
     } catch {
       setError('Could not load users. Please try again.');
     } finally {
@@ -411,19 +504,20 @@ export default function AdminUsersPage() {
     setUsers((prev) => prev.filter((u) => u.id !== target.id));
   }, []);
 
-  const handleEditRole = useCallback(
-    async (target: GetUser, newRole: UserType) => {
-      const updated = await editUserById(target.id, {
+  const handleEditUser = useCallback(
+    async (target: GetUser, newRole: UserType, homeServerId?: string) => {
+      await editUserById(target.id, {
         username: target.username,
         password: '',
         first_name: target.first_name ?? '',
         last_name: target.last_name ?? '',
         user_type: newRole,
+        home_server: homeServerId,
       });
       setUsers((prev) =>
         prev.map((u) =>
           u.id === target.id
-            ? { ...u, user_type: newRole }
+            ? { ...u, user_type: newRole, home_server: homeServerId ?? u.home_server }
             : u
         )
       );
@@ -431,17 +525,35 @@ export default function AdminUsersPage() {
     []
   );
 
+  const toggleRoleFilter = (id: RoleFilter) => {
+    setRoleFilters((prev) => {
+      if (id === 'all') return ['all'];
+      
+      let next = prev.filter((f) => f !== 'all');
+      if (next.includes(id)) {
+        next = next.filter((f) => f !== id);
+      } else {
+        next = [...next, id];
+      }
+      
+      return next.length === 0 ? ['all'] : next;
+    });
+  };
+
   // ── Filtering ──────────────────────────────────────────────────────────────
   const filtered = users.filter((u) => {
+    const isAllRoles = roleFilters.includes('all');
     const matchesRole =
-      roleFilter === 'all' || u.user_type === roleFilter;
+      isAllRoles || (u.user_type && roleFilters.includes(u.user_type as RoleFilter));
+    const matchesStore =
+      storeFilter === 'all' || u.home_server === storeFilter;
     const q = search.toLowerCase();
     const matchesSearch =
       !q ||
       u.username.toLowerCase().includes(q) ||
       (u.first_name ?? '').toLowerCase().includes(q) ||
       (u.last_name ?? '').toLowerCase().includes(q);
-    return matchesRole && matchesSearch;
+    return matchesRole && matchesStore && matchesSearch;
   });
 
   return (
@@ -469,16 +581,16 @@ export default function AdminUsersPage() {
           </button>
         </div>
 
-        {/* Search */}
-        <div className="px-4 pb-3 pt-1">
-          <div className="relative">
+        {/* Search & Store Filter */}
+        <div className="flex gap-2 px-4 pb-3 pt-1">
+          <div className="relative flex-1">
             <Search
               size={15}
               className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
             />
             <input
               type="text"
-              placeholder="Search by name or username..."
+              placeholder="Search..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-9 pr-4 text-sm text-slate-800 placeholder-slate-400 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-100"
@@ -492,6 +604,25 @@ export default function AdminUsersPage() {
               </button>
             )}
           </div>
+
+          <div className="relative w-32 shrink-0">
+            <select
+              value={storeFilter}
+              onChange={(e) => setStoreFilter(e.target.value)}
+              className="w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 py-2 pl-3 pr-8 text-xs font-bold text-slate-600 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-100"
+            >
+              <option value="all">All Stores</option>
+              {allServers.map((s) => (
+                <option key={s.ServerID} value={s.ServerID}>
+                  {s.StoreName || s.ServerID.slice(0, 8)}
+                </option>
+              ))}
+            </select>
+            <ChevronDown
+              size={12}
+              className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400"
+            />
+          </div>
         </div>
 
         {/* Role filter tabs */}
@@ -499,9 +630,9 @@ export default function AdminUsersPage() {
           {ROLE_FILTERS.map((f) => (
             <button
               key={f.id}
-              onClick={() => setRoleFilter(f.id)}
+              onClick={() => toggleRoleFilter(f.id)}
               className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors ${
-                roleFilter === f.id
+                roleFilters.includes(f.id)
                   ? 'bg-violet-600 text-white shadow-sm'
                   : 'border border-slate-200 bg-white text-slate-600 hover:border-violet-300 hover:text-violet-600'
               }`}
@@ -514,12 +645,13 @@ export default function AdminUsersPage() {
 
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <main className="mx-auto max-w-2xl px-4 pb-10 pt-36 space-y-3">
+      <main className="mx-auto max-w-2xl px-4 pb-10 pt-44 space-y-3">
         {/* Count */}
         {!loading && !error && (
           <p className="px-1 text-xs text-slate-400">
             {filtered.length} user{filtered.length !== 1 ? 's' : ''}
-            {roleFilter !== 'all' && ` · ${ROLE_CONFIG[roleFilter as UserType]?.label}`}
+            {!roleFilters.includes('all') && ` · ${roleFilters.length} roles selected`}
+            {storeFilter !== 'all' && ` · ${allServers.find(s => s.ServerID === storeFilter)?.StoreName || 'Selected Store'}`}
             {search && ` matching "${search}"`}
           </p>
         )}
@@ -554,11 +686,12 @@ export default function AdminUsersPage() {
             <p className="text-base font-semibold text-slate-700">
               No users found
             </p>
-            {(search || roleFilter !== 'all') && (
+            {(search || !roleFilters.includes('all') || storeFilter !== 'all') && (
               <button
                 onClick={() => {
                   setSearch('');
-                  setRoleFilter('all');
+                  setRoleFilters(['all']);
+                  setStoreFilter('all');
                 }}
                 className="mt-3 text-xs font-bold text-violet-500 underline"
               >
@@ -573,7 +706,7 @@ export default function AdminUsersPage() {
               user={u}
               currentUserId={currentUser?.id ?? ''}
               onDelete={setDeleteTarget}
-              onEditRole={setEditRoleTarget}
+              onEditUser={setEditUserTarget}
             />
           ))
         )}
@@ -588,11 +721,12 @@ export default function AdminUsersPage() {
         />
       )}
 
-      {editRoleTarget && (
-        <EditRoleModal
-          user={editRoleTarget}
-          onSave={(role) => handleEditRole(editRoleTarget, role)}
-          onClose={() => setEditRoleTarget(null)}
+      {editUserTarget && (
+        <EditUserModal
+          user={editUserTarget}
+          currentAdmin={currentUser as unknown as GetUser}
+          onSave={(role, homeServerId) => handleEditUser(editUserTarget, role, homeServerId)}
+          onClose={() => setEditUserTarget(null)}
         />
       )}
     </div>

@@ -1,3 +1,5 @@
+import { Server } from "./server";
+
 export type UserType =
   | "customer"
   | "store_manager"
@@ -34,6 +36,8 @@ export interface GetUser {
   is_staff: boolean;
   is_superuser: boolean;
   user_type?: UserType;
+  home_server?: string | null;
+  home_server_details?: Server | null;
 }
 
 export interface UserProfile {
