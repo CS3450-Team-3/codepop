@@ -2230,8 +2230,8 @@ class StripeWebhookView(View):
                 if round(backend_total * 1.08 * 100) == stripe_amount:
                     order.PaymentStatus = 'Paid'
                     order.save()
-                    # Explicitly set the TotalAmount during revenue creation to ensure accuracy
-                    Revenue.objects.create(OrderID=order, TotalAmount=backend_total)
+                    # Idempotently ensure the Revenue record exists
+                    Revenue.objects.get_or_create(OrderID=order, defaults={'TotalAmount': backend_total})
                 else:
                     # Log the discrepancy and flag the order as failed
                     order.PaymentStatus = 'Failed'
@@ -2260,6 +2260,25 @@ class StripeWebhookView(View):
                     )
             except Order.DoesNotExist:
                 print(f"Order with StripeID {payment_intent['id']} not found.")
+
+        elif event['type'] == 'payment_intent.processing':
+            payment_intent = event['data']['object']
+            try:
+                order = Order.objects.get(StripeID=payment_intent['id'])
+                order.PaymentStatus = 'Pending' # Or 'Processing'
+                order.save()
+            except Order.DoesNotExist:
+                pass
+
+        elif event['type'] == 'payment_intent.canceled':
+            payment_intent = event['data']['object']
+            try:
+                order = Order.objects.get(StripeID=payment_intent['id'])
+                order.PaymentStatus = 'Failed'
+                order.OrderStatus = 'Cancelled'
+                order.save()
+            except Order.DoesNotExist:
+                pass
 
         elif event['type'] == 'charge.refunded':
             charge = event['data']['object']
