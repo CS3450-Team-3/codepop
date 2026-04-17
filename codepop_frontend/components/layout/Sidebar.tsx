@@ -17,9 +17,13 @@ import {
   LayoutDashboard,
   Shield,
   Home,
+  Trophy,
   Package,
 } from 'lucide-react';
 import { useAuth } from '@/app/contextProviders/AuthContext';
+import ServerSwitcher from './ServerSwitcher';
+import { useState } from 'react';
+import SocialDrinkingModal from '../modals/SocialDrinkingModal';
 
 interface SidebarProps {
   open: boolean;
@@ -60,6 +64,7 @@ function getNavSections(userType?: string): NavSection[] {
         items: [
           { label: 'Help & Support', href: '/help',    icon: <HelpCircle size={19} /> },
           { label: 'Share with Friends', href: '/share', icon: <Share2 size={19} /> },
+          { label: 'Leaderboard', href: '/leaderboard', icon: <Trophy size={19} /> },
         ],
       },
     ];
@@ -157,6 +162,8 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const sections = getNavSections(user?.user_type);
+
+  const [socialModalOpen, setSocialModalOpen] = useState(false);
 
   const handleLogout = () => {
     logout();
@@ -303,12 +310,19 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
               <span className="font-semibold text-violet-600">#SocialDrinking</span>{' '}
               for 10% off
             </p>
-            <button className="mt-3 w-full rounded-xl border border-slate-200 bg-white py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors">
+            <button
+              onClick={() => setSocialModalOpen(true)}  // ← wired up
+              className="mt-3 w-full rounded-xl border border-slate-200 bg-white py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors"
+            >
               Learn More
             </button>
           </div>
         )}
       </aside>
+      <SocialDrinkingModal
+        open={socialModalOpen}
+        onClose={() => setSocialModalOpen(false)}
+      />
     </>
   );
 }

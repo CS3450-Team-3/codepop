@@ -1,7 +1,7 @@
 import api from "./api";
 import { GetUser, UserProfile, PatchedUserProfile } from "@/models/types/user";
 
-export async function getUsers(): Promise<GetUser> {
+export async function getUsers(): Promise<GetUser[]> {
   const { data } = await api.get("users/");
   return data;
 }

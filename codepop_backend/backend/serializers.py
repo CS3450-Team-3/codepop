@@ -35,6 +35,24 @@ def get_tokens_for_user(user):
     }
 
 
+class RegionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Region
+        fields = ['RegionID', 'RegionName']
+
+
+class ServerRegistrySerializer(serializers.ModelSerializer):
+    RegionName = serializers.ReadOnlyField(source='Region.RegionName')
+
+    class Meta:
+        model = ServerRegistry
+        fields = [
+            'ServerID', 'ServerURL', 'PublicKey', 'Status', 'LastSeen', 
+            'Region', 'RegionName', 'IsRegionLeader', 'StoreName', 'StoreAddress', 
+            'StoreCity', 'StoreState', 'StoreZip', 'StoreGeohash'
+        ]
+
+
 class CreateUserSerializer(serializers.ModelSerializer):
     username = serializers.CharField()
     password = serializers.CharField(write_only=True,
@@ -75,10 +93,11 @@ class GetUserSerializer(serializers.ModelSerializer):
     username = serializers.CharField()
     password = serializers.CharField(write_only=True,
                                      style={'input_type': 'password'})
+    home_server_details = ServerRegistrySerializer(read_only=True, source='home_server')
 
     class Meta:
         model = get_user_model()
-        fields = ('id', 'username', 'password', 'first_name', 'last_name', 'is_staff', 'is_superuser', 'user_type')
+        fields = ('id', 'username', 'password', 'first_name', 'last_name', 'email', 'is_staff', 'is_superuser', 'user_type', 'home_server', 'home_server_details')
         write_only_fields = ('password')
         read_only_fields = ('is_staff', 'is_superuser', 'is_active',)
 
@@ -126,7 +145,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = get_user_model()
         fields = ('id', 'username', 'first_name', 'last_name', 'email', 'user_type', 'home_server')
-        read_only_fields = ('id', 'username') # Username usually shouldn't be changeable easily if it's used as unique identifier, but the requirement says "Fetch their full profile (Username, First Name, Last Name, Email)". Let's allow updating first_name, last_name, email.
+        read_only_fields = ('id', 'username', 'user_type', 'home_server') # Users shouldn't change their type or home server
 
 
 class PreferenceSerializer(serializers.ModelSerializer):
@@ -307,7 +326,11 @@ class ServerRegistrySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ServerRegistry
-        fields = ['ServerID', 'ServerURL', 'PublicKey', 'Status', 'LastSeen', 'Region', 'RegionName', 'IsRegionLeader', 'StoreName', 'StoreAddress', 'StoreCity', 'StoreState', 'StoreZip', 'StoreGeohash']
+        fields = [
+            'ServerID', 'ServerURL', 'PublicKey', 'Status', 'LastSeen', 
+            'Region', 'RegionName', 'IsRegionLeader', 'StoreName', 'StoreAddress', 
+            'StoreCity', 'StoreState', 'StoreZip', 'StoreAddress', 'StoreCity', 'StoreState', 'StoreZip', 'StoreGeohash'
+        ]
 
     def get_RegionName(self, obj):
         return obj.Region.RegionName if obj.Region else None

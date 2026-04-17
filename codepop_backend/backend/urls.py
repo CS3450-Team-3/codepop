@@ -72,6 +72,10 @@ order_detail = OrderOperations.as_view({
     'delete': 'destroy'
 })
 
+order_arrive = OrderOperations.as_view({
+    'post': 'arrive'
+})
+
 revenue_list = RevenueViewSet.as_view({'get': 'list', 'post': 'create'})
 
 revenue_details = RevenueViewSet.as_view({'get': 'retrieve', 'put': 'update', 'delete': 'destroy'})
@@ -152,7 +156,7 @@ urlpatterns = [
 
     # Stripe payment
     path('create-payment-intent/', StripePaymentIntentView.as_view(), name='create-payment-intent'),
-    path('stripe/webhook/', StripeWebhookView.as_view(), name='stripe-webhook'),
+    path('webhooks/stripe/', StripeWebhookView.as_view(), name='stripe-webhook'),
 
     # Inventory URLs
     # Endpoint to list all inventory items
@@ -203,6 +207,7 @@ urlpatterns = [
     # - GET: Retrieve details of a specific order.
     # - PATCH: Update the specific order (e.g., adding drinks).
     # - DELETE: Remove the specific order from the database.
+    path('orders/<uuid:pk>/arrive/', order_arrive, name='order_arrive'),
     path('orders/<uuid:pk>/', order_detail, name='order_detail'),
 
     # Retrieve Orders by UserID

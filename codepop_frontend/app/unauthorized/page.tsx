@@ -10,7 +10,7 @@ export default function UnauthorizedPage() {
   const { user } = useAuth();
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 px-4">
+    <div className="flex min-h-screen flex-col items-center justify-center app-bg relative px-4">
       <div className="w-full max-w-sm text-center">
         {/* Icon */}
         <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-red-100">

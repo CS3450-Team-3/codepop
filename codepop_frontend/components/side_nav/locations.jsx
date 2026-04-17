@@ -1,38 +1,5 @@
 import { useEffect, useState } from "react";
-
-function decodeGeohash(hash) {
-  const BASE32 = "0123456789bcdefghjkmnpqrstuvwxyz";
-  const lat = [-90.0, 90.0];
-  const lon = [-180.0, 180.0];
-  let isLon = true;
-  for (const char of hash) {
-    const bits = BASE32.indexOf(char);
-    for (let i = 4; i >= 0; i--) {
-      const bit = (bits >> i) & 1;
-      if (isLon) {
-        const mid = (lon[0] + lon[1]) / 2;
-        if (bit) lon[0] = mid; else lon[1] = mid;
-      } else {
-        const mid = (lat[0] + lat[1]) / 2;
-        if (bit) lat[0] = mid; else lat[1] = mid;
-      }
-      isLon = !isLon;
-    }
-  }
-  return { latitude: (lat[0] + lat[1]) / 2, longitude: (lon[0] + lon[1]) / 2 };
-}
-
-function haversineKm(lat1, lon1, lat2, lon2) {
-  const R = 6371;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(lat1 * Math.PI / 180) *
-    Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLon / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
+import { decodeGeohash, haversineKm } from "@/utils/geolocation";
 
 function getCookie(name) {
   if (typeof document === "undefined") return null;
