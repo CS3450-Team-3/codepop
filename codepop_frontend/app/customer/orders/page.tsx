@@ -23,6 +23,7 @@ import { getInventory } from '@/models/api/inventory';
 import { Order, OrderStatus, PaymentStatus } from '@/models/types/order';
 import { Drink } from '@/models/types/drink';
 import { Inventory } from '@/models/types/inventory';
+import { calculateDrinkPrice } from '@/utils/pricing';
 import CustomizeModal from '@/components/modals/CustomizeModal';
 import DrinkColorAvatar from '@/components/drinks/DrinkColorAvatar';
 
@@ -278,7 +279,7 @@ function OrderDetailModal({
                     </div>
                     <div className="flex shrink-0 flex-col items-end gap-1.5">
                       <span className="text-sm font-bold text-violet-600">
-                        ${drink.Price.toFixed(2)}
+                        ${calculateDrinkPrice(drink).toFixed(2)}
                       </span>
                       <button
                         onClick={() => {

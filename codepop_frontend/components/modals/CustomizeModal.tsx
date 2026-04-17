@@ -6,16 +6,15 @@ import { X, Minus, Plus } from 'lucide-react';
 import { Drink } from '@/models/types/drink';
 import { Inventory } from '@/models/types/inventory';
 import { useCart } from '@/app/contextProviders/CartContext';
+import { calculateDrinkPrice, SIZE_UPCHARGES, SYRUP_UPCHARGE } from '@/utils/pricing';
 
 type Size = 'Small' | 'Medium' | 'Large';
 
 const SIZE_CONFIG: Record<Size, { label: string; oz: string; upcharge: number }> = {
-  Small:  { label: 'Small',  oz: '16oz', upcharge: 0 },
-  Medium: { label: 'Medium', oz: '24oz', upcharge: 0.5 },
-  Large:  { label: 'Large',  oz: '32oz', upcharge: 1.0 },
+  Small:  { label: 'Small',  oz: '16oz', upcharge: SIZE_UPCHARGES['small'] },
+  Medium: { label: 'Medium', oz: '24oz', upcharge: SIZE_UPCHARGES['medium'] },
+  Large:  { label: 'Large',  oz: '32oz', upcharge: SIZE_UPCHARGES['large'] },
 };
-
-const SYRUP_UPCHARGE = 0.5;
 
 interface CustomizeModalProps {
   drink: Drink | null;
@@ -78,10 +77,14 @@ export default function CustomizeModal({
     );
   }, []);
 
-  const linePrice =
-    (drink?.Price ?? 0) +
-    SIZE_CONFIG[size].upcharge +
-    selectedSyrups.length * SYRUP_UPCHARGE;
+  const linePrice = drink
+    ? calculateDrinkPrice({
+        ...drink,
+        Size: size,
+        SyrupsUsed: selectedSyrups,
+        AddIns: selectedAddIns,
+      })
+    : 0;
 
   const handleAddToCart = () => {
     if (!drink) return;
