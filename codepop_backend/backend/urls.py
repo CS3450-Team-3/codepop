@@ -5,12 +5,12 @@ from .views import StripePaymentIntentView, StripeWebhookView
 from .views import UserPreferenceLookup, PreferencesOperations
 from .views import DrinkOperations, UserDrinksLookup
 from .views import FlavorOperations
-from .views import InventoryListAPIView, InventoryReportAPIView, InventoryUpdateAPIView, InventoryAggregateView
+from .views import InventoryListAPIView, InventoryReportAPIView, InventoryUpdateAPIView, InventoryAggregateView, PeerInventoryUpdateView, TransferRequestView
 from .views import NotificationOperations, UserNotificationLookup
 from .views import OrderOperations, UserOrdersLookup
 from .views import RevenueViewSet, RevenueAggregateView
 from .views import UserOperations
-from .views import MasterListSyncView, PublicDiscoveryView, P2PJoinView, P2PPeerUpdateView, MenuView, UserProfileView, ServerRegistryAPIView, GeneralGenerateAIDrink, UserGenerateAIDrink, emailAPI, MachineStatusView, MachineRunTestView, MachineStatusAggregateView, LeaderboardView
+from .views import MasterListSyncView, TriggerSyncView, MasterListBroadcastView, PublicDiscoveryView, P2PJoinView, P2PPeerUpdateView, MenuView, UserProfileView, ServerRegistryAPIView, GeneralGenerateAIDrink, UserGenerateAIDrink, emailAPI, MachineStatusView, MachineRunTestView, MachineStatusAggregateView, LeaderboardView
 from .customerAI import Chatbot
 
 #this ensures that the url calls the right function from the views for each type of request
@@ -171,6 +171,12 @@ urlpatterns = [
     # Regional aggregation endpoint
     path('inventory/aggregate/', InventoryAggregateView.as_view(), name='inventory_aggregate'),
 
+    # Proxy PATCH to a peer server's inventory item (logistics managers only)
+    path('inventory/peer/<str:server_id>/<int:item_id>/', PeerInventoryUpdateView.as_view(), name='inventory_peer_update'),
+
+    # Transfer requests between stores
+    path('transfer-requests/', TransferRequestView.as_view(), name='transfer_requests'),
+
     # Endpoint to retrieve, update, or delete a specific inventory item by its primary key (ID)
     # - GET: Retrieve details of a specific inventory item.
     # - PATCH: Update the quantity of the specific inventory item.
@@ -258,6 +264,8 @@ urlpatterns = [
     path('p2p/discover/', PublicDiscoveryView.as_view(), name='p2p_discovery'),
     path('p2p/join/', P2PJoinView.as_view(), name='p2p_join'),
     path('p2p/update-peer/', P2PPeerUpdateView.as_view(), name='p2p_update_peer'),
+    path('p2p/trigger-sync/', TriggerSyncView.as_view(), name='p2p_trigger_sync'),
+    path('p2p/broadcast-masterlist/', MasterListBroadcastView.as_view(), name='p2p_broadcast_masterlist'),
 
     # Menu API
     path('menu/', MenuView.as_view(), name='menu_list'),

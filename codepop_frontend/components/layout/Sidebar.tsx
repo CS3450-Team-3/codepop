@@ -18,6 +18,7 @@ import {
   Shield,
   Home,
   Trophy,
+  Package,
 } from 'lucide-react';
 import { useAuth } from '@/app/contextProviders/AuthContext';
 import ServerSwitcher from './ServerSwitcher';
@@ -96,6 +97,7 @@ function getNavSections(userType?: string): NavSection[] {
       {
         items: [
           { label: 'Dashboard', href: '/logistics/dashboard', icon: <LayoutDashboard size={19} /> },
+          { label: 'Inventory', href: '/logistics/inventory', icon: <Package size={19} /> },
         ],
       },
       moreSection
@@ -112,6 +114,7 @@ function getNavSections(userType?: string): NavSection[] {
           { label: 'Admin Dashboard',          href: '/admin/dashboard',     icon: <Shield size={19} /> },
           { label: 'Store Manager',            href: '/manage/dashboard',    icon: <LayoutDashboard size={19} /> },
           { label: 'Logistics Manager',  href: '/logistics/dashboard', icon: <LayoutDashboard size={19} /> },
+          { label: 'Inventory', href: '/logistics/inventory', icon: <Package size={19} /> },
           { label: 'User Management', href: '/admin/users',   icon: <User size={19} /> },
           { label: 'Servers',         href: '/admin/servers', icon: <LayoutDashboard size={19} /> },
           { label: 'Settings',        href: '/admin/settings', icon: <Settings size={19} /> },

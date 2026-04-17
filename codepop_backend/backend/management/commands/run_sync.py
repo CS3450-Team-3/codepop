@@ -12,21 +12,26 @@ To sync a different data type, import and call the appropriate sync_* function.
 
 from django.core.management.base import BaseCommand
 
-from backend.sync import get_local_server, sync_masterlist
+from backend.sync import get_local_server, sync_masterlist, trigger_sync_on_leader
 
 
 class Command(BaseCommand):
-    help = "Run the regional MasterList sync from this server (must be the region leader)."
+    help = "Trigger a full MasterList sync. Non-leaders forward the request to their region leader."
 
     def handle(self, *args, **options):
         local_server = get_local_server()
 
         if not local_server.IsRegionLeader:
             self.stdout.write(
-                self.style.WARNING(
-                    f"Server {local_server.ServerID} is not a region leader. Skipping sync."
-                )
+                f"Server {local_server.ServerID} is not a region leader. "
+                "Forwarding sync trigger to region leader..."
             )
+            try:
+                trigger_sync_on_leader(local_server)
+                self.stdout.write(self.style.SUCCESS("Sync trigger forwarded to region leader successfully."))
+            except Exception as exc:
+                self.stderr.write(self.style.ERROR(f"Failed to forward sync trigger: {exc}"))
+                raise
             return
 
         self.stdout.write(f"Starting MasterList sync from leader {local_server.ServerID} ({local_server.ServerURL})...")

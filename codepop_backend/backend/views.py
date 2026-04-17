@@ -1,4 +1,4 @@
-from .models import Preference, Drink, Inventory, Notification, Order, Revenue, CustomUser, MasterList, Flavor, ServerRegistry, Region, UserMovement
+from .models import Preference, Drink, Inventory, Notification, Order, Revenue, CustomUser, MasterList, Flavor, ServerRegistry, Region, UserMovement, TransferRequest
 from django.shortcuts import get_object_or_404
 from django.db import models
 from django.utils import timezone
@@ -27,8 +27,11 @@ from .documentation_serializers import (
     EmailAPIResponseSerializer, InventoryReportResponseSerializer, 
     MasterListSyncRequestSerializer, MasterListSyncResponseSerializer
 )
+import logging
 import stripe
 from django.conf import settings
+
+logger = logging.getLogger(__name__)
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views import View
@@ -41,7 +44,7 @@ from drf_spectacular.utils import extend_schema
 from drf_spectacular.types import OpenApiTypes
 from django.utils.dateparse import parse_datetime
 from .drinkAI import generate_soda
-from .sync import get_local_server, masterlist_push_fn
+from .sync import get_local_server, masterlist_push_fn, trigger_sync_on_leader, sync_masterlist
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
@@ -395,10 +398,27 @@ class CreateUserAPIView(CreateAPIView):
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
         headers = self.get_success_headers(serializer.data)
-        
+
         user = serializer.instance
+
+        # Assign home_server to this node and register in MasterList so the
+        # user is discoverable across the P2P network from the moment they sign up.
+        try:
+            local_server = get_local_server()
+            user.home_server = local_server
+            user.save(update_fields=['home_server'])
+            MasterList.objects.update_or_create(
+                UserID=user.id,
+                defaults={
+                    "Username": user.username,
+                    "HomeServerID": local_server,
+                },
+            )
+        except Exception as exc:
+            logger.warning("Could not register new user %s in MasterList: %s", user.username, exc)
+
         token_data = get_tokens_for_user(user)
-        
+
         response = Response(
             {**serializer.data, **token_data},
             status=status.HTTP_201_CREATED,
@@ -758,6 +778,45 @@ class InventoryUpdateAPIView(RetrieveUpdateAPIView):
     def patch(self, request, *args, **kwargs):
         item = self.get_object()
 
+        if request.user.user_type == 'logistics_manager' or request.user.user_type == 'store_manager':
+            local_server = get_local_server()
+            if request.user.home_server.Region_id != local_server.Region_id:
+                return Response(
+                    {"error": "Cannot update inventory outside your assigned region."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+        reset_quantity = request.data.get('reset')  # Check if the request is for a reset
+        used_quantity = request.data.get('used_quantity')  # Used quantity for orders
+        restock_amount = request.data.get('restock_amount')
+
+        updated = False
+
+            # Return the updated item details in the response
+            return Response(self.get_serializer(item).data, status=status.HTTP_200_OK)
+        item = self.get_object()  # Retrieve the specific item based on ID
+
+        if request.user.user_type == 'logistics_manager':
+            local_server = get_local_server()
+            if request.user.home_server.Region_id != local_server.Region_id:
+                return Response(
+                    {"error": "Cannot update inventory outside your assigned region."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+        reset_quantity = request.data.get('reset')  # Check if the request is for a reset
+        used_quantity = request.data.get('used_quantity')  # Used quantity for orders
+
+        # Handle inventory reset
+        if reset_quantity:
+            # Reset the quantity to the threshold level (or a specific value)
+            item.Quantity = item.ThresholdLevel  # Or you could use a custom value
+            item.save()
+
+            # Return the updated item details in the response
+            return Response(self.get_serializer(item).data, status=status.HTTP_200_OK)
+        item = self.get_object()
+
         # 1. Handle specialized update commands
         reset_quantity = request.data.get('reset')
         used_quantity = request.data.get('used_quantity')
@@ -852,9 +911,11 @@ class InventoryAggregateView(APIView):
                 region_servers = ServerRegistry.objects.filter(Region_id=int(region_id_param), Status='Active')
             except (ValueError, TypeError):
                 region_servers = ServerRegistry.objects.filter(Region=local_server.Region, Status='Active')
-        else:
-            # Default: aggregate within the local server's region.
+        elif request.user.user_type == 'super_admin':
             region_servers = ServerRegistry.objects.filter(Region=local_server.Region, Status='Active')
+        else:
+            # Logistics managers always see their home region, regardless of which server they hit.
+            region_servers = ServerRegistry.objects.filter(Region=request.user.home_server.Region, Status='Active')
 
         results = {}
         # Peer servers now use AllowAny on /backend/inventory/report/ so no
@@ -870,13 +931,123 @@ class InventoryAggregateView(APIView):
                     data = resp.json()
                     if isinstance(data, dict):
                         data['proxied'] = str(server.ServerID)
+                        data['store_name'] = server.StoreName or ''
+                        data['store_city'] = server.StoreCity or ''
+                        data['store_state'] = server.StoreState or ''
+                        data['store_name'] = server.StoreName or ''
+                        data['store_city'] = server.StoreCity or ''
+                        data['store_state'] = server.StoreState or ''
                     results[server.ServerID] = data
                 else:
-                    results[server.ServerID] = {"error": f"Status {resp.status_code}", "details": resp.text}
+                    results[server.ServerID] = {"error": f"Status {resp.status_code}", "details": resp.text,
+                                                 "store_name": server.StoreName or '', "store_city": server.StoreCity or '', "store_state": server.StoreState or ''}
+                    results[server.ServerID] = {"error": f"Status {resp.status_code}", "details": resp.text,
+                                                 "store_name": server.StoreName or '', "store_city": server.StoreCity or '', "store_state": server.StoreState or ''}
             except Exception as e:
-                results[server.ServerID] = {"error": "Connection failed", "details": str(e)}
+                results[server.ServerID] = {"error": "Connection failed", "details": str(e),
+                                             "store_name": server.StoreName or '', "store_city": server.StoreCity or '', "store_state": server.StoreState or ''}
+                results[server.ServerID] = {"error": "Connection failed", "details": str(e),
+                                             "store_name": server.StoreName or '', "store_city": server.StoreCity or '', "store_state": server.StoreState or ''}
 
         return Response({"results": results}, status=status.HTTP_200_OK)
+
+
+class PeerInventoryUpdateView(APIView):
+    """
+    Proxy a threshold/quantity PATCH to a peer server on behalf of a logistics manager.
+    The user's JWT is forwarded so the peer can authenticate the request.
+    """
+    permission_classes = [IsLogisticsManager]
+
+    def patch(self, request, server_id, item_id):
+        try:
+            target_server = ServerRegistry.objects.get(ServerID=server_id)
+        except ServerRegistry.DoesNotExist:
+            return Response({"error": "Server not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        auth_header = request.headers.get('Authorization', '')
+        headers = {
+            'Content-Type': 'application/json',
+            'Authorization': auth_header,
+        }
+        target_url = target_server.ServerURL.rstrip('/') + f'/backend/inventory/{item_id}/'
+        try:
+            resp = requests.patch(target_url, json=request.data, headers=headers, timeout=5)
+            return Response(resp.json(), status=resp.status_code)
+        except Exception as e:
+            return Response({"error": "Peer unreachable", "details": str(e)}, status=status.HTTP_502_BAD_GATEWAY)
+
+
+class TransferRequestView(APIView):
+    """Create and list inventory transfer requests between stores in a region."""
+    permission_classes = [IsLogisticsManager]
+
+    def get(self, request):
+        local_server = get_local_server()
+        user_region = request.user.home_server.Region if request.user.user_type != 'super_admin' else local_server.Region
+        region_server_ids = ServerRegistry.objects.filter(Region=user_region).values_list('ServerID', flat=True)
+        qs = TransferRequest.objects.filter(
+            models.Q(FromServer_id__in=region_server_ids) | models.Q(ToServer_id__in=region_server_ids)
+        ).order_by('-CreatedAt')
+        from .serializers import TransferRequestSerializer
+        return Response(TransferRequestSerializer(qs, many=True).data)
+
+    def post(self, request):
+        from .serializers import TransferRequestSerializer
+        serializer = TransferRequestSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save(RequestedBy=request.user)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class PeerInventoryUpdateView(APIView):
+    """
+    Proxy a threshold/quantity PATCH to a peer server on behalf of a logistics manager.
+    The user's JWT is forwarded so the peer can authenticate the request.
+    """
+    permission_classes = [IsLogisticsManager]
+
+    def patch(self, request, server_id, item_id):
+        try:
+            target_server = ServerRegistry.objects.get(ServerID=server_id)
+        except ServerRegistry.DoesNotExist:
+            return Response({"error": "Server not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        auth_header = request.headers.get('Authorization', '')
+        headers = {
+            'Content-Type': 'application/json',
+            'Authorization': auth_header,
+        }
+        target_url = target_server.ServerURL.rstrip('/') + f'/backend/inventory/{item_id}/'
+        try:
+            resp = requests.patch(target_url, json=request.data, headers=headers, timeout=5)
+            return Response(resp.json(), status=resp.status_code)
+        except Exception as e:
+            return Response({"error": "Peer unreachable", "details": str(e)}, status=status.HTTP_502_BAD_GATEWAY)
+
+
+class TransferRequestView(APIView):
+    """Create and list inventory transfer requests between stores in a region."""
+    permission_classes = [IsLogisticsManager]
+
+    def get(self, request):
+        local_server = get_local_server()
+        user_region = request.user.home_server.Region if request.user.user_type != 'super_admin' else local_server.Region
+        region_server_ids = ServerRegistry.objects.filter(Region=user_region).values_list('ServerID', flat=True)
+        qs = TransferRequest.objects.filter(
+            models.Q(FromServer_id__in=region_server_ids) | models.Q(ToServer_id__in=region_server_ids)
+        ).order_by('-CreatedAt')
+        from .serializers import TransferRequestSerializer
+        return Response(TransferRequestSerializer(qs, many=True).data)
+
+    def post(self, request):
+        from .serializers import TransferRequestSerializer
+        serializer = TransferRequestSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save(RequestedBy=request.user)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class NotificationOperations(viewsets.ModelViewSet):
@@ -1804,14 +1975,14 @@ class UserOperations(viewsets.ModelViewSet):
             user.save()
 
             # ── Sync MasterList ──────────────────────────────────────────────
-            # Always update local MasterList
-            MasterList.objects.update_or_create(
-                UserID=user.id,
-                defaults={
-                    "Username": user.username,
-                    "HomeServerID": user.home_server,
-                },
-            )
+            if user.home_server:
+                MasterList.objects.update_or_create(
+                    UserID=user.id,
+                    defaults={
+                        "Username": user.username,
+                        "HomeServerID": user.home_server,
+                    },
+                )
 
             # If the user was moved, broadcast this change to the P2P network immediately
             if movement_occurred:
@@ -1876,15 +2047,87 @@ class MasterListSyncView(APIView):
     )
     def post(self, request):
         items = request.data.get("items", [])
+        known_server_ids = set(ServerRegistry.objects.values_list("ServerID", flat=True))
+        skipped = 0
         for item in items:
+            home_id = str(item.get("HomeServerID", ""))
+            if home_id not in known_server_ids:
+                logger.warning(
+                    "MasterListSync: skipping UserID %s — HomeServerID %s not in local registry.",
+                    item.get("UserID"), home_id,
+                )
+                skipped += 1
+                continue
             MasterList.objects.update_or_create(
                 UserID=item["UserID"],
                 defaults={
                     "Username": item["Username"],
-                    "HomeServerID_id": item["HomeServerID"],
+                    "HomeServerID_id": home_id,
                 },
             )
-        return Response({"status": "ok"}, status=status.HTTP_200_OK)
+        return Response({"status": "ok", "skipped": skipped}, status=status.HTTP_200_OK)
+
+class TriggerSyncView(APIView):
+    """
+    P2P endpoint to trigger a full MasterList sync on this server.
+
+    If this server is a region leader, it runs the full three-phase sync
+    (including cross-region exchange and Phase 3b broadcast to other regions'
+    peers). If this server is not a region leader, it forwards the trigger to
+    its region leader.
+
+    POST /backend/p2p/trigger-sync/
+    """
+    permission_classes = [IsPeerServer]
+
+    def post(self, request):
+        local_server = get_local_server()
+        if not local_server.IsRegionLeader:
+            try:
+                trigger_sync_on_leader(local_server)
+                return Response({"status": "forwarded to region leader"}, status=status.HTTP_202_ACCEPTED)
+            except Exception as exc:
+                return Response({"error": str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        try:
+            sync_masterlist(local_server)
+            return Response({"status": "sync completed"}, status=status.HTTP_200_OK)
+        except Exception as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class MasterListBroadcastView(APIView):
+    """
+    P2P endpoint called by the coordinating region leader during Phase 3b.
+
+    This server receives the final merged MasterList, writes it to its local DB,
+    then pushes it to all of its own regional peers so every store in the region
+    is up to date after a cross-region sync.
+
+    POST /backend/p2p/broadcast-masterlist/
+    """
+    permission_classes = [IsPeerServer]
+
+    def post(self, request):
+        from .sync import _get_regional_peers
+        items = request.data.get("items", [])
+        data = {"items": items}
+        local_server = get_local_server()
+
+        # Write merged data to this server's local DB.
+        masterlist_push_fn(local_server, data)
+
+        # Push to all active peers in this region.
+        for peer in _get_regional_peers(local_server):
+            try:
+                masterlist_push_fn(peer, data)
+            except Exception as exc:
+                logger.warning(
+                    "Broadcast: failed to push to regional peer %s (%s): %s — skipping.",
+                    peer.ServerID, peer.ServerURL, exc,
+                )
+
+        return Response({"status": "broadcast complete"}, status=status.HTTP_200_OK)
+
 
 class PublicDiscoveryView(APIView):
     """

@@ -3,7 +3,7 @@ from django.conf import settings
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
-from .models import Preference, Drink, Inventory, Order, Notification, Revenue, Region, ServerRegistry, MasterList, Flavor
+from .models import Preference, Drink, Inventory, Order, Notification, Revenue, Region, ServerRegistry, MasterList, Flavor, TransferRequest
 
 
 def get_tokens_for_user(user):
@@ -340,3 +340,20 @@ class MasterListSerializer(serializers.ModelSerializer):
     class Meta:
         model = MasterList
         fields = ['UserID', 'Username', 'HomeServerID']
+
+
+class TransferRequestSerializer(serializers.ModelSerializer):
+    FromServerName = serializers.SerializerMethodField()
+    ToServerName = serializers.SerializerMethodField()
+
+    class Meta:
+        model = TransferRequest
+        fields = ['RequestID', 'FromServer', 'FromServerName', 'ToServer', 'ToServerName',
+                  'ItemName', 'Quantity', 'Status', 'RequestedBy', 'CreatedAt', 'Notes']
+        read_only_fields = ['RequestID', 'CreatedAt', 'RequestedBy']
+
+    def get_FromServerName(self, obj):
+        return obj.FromServer.StoreName or str(obj.FromServer_id)
+
+    def get_ToServerName(self, obj):
+        return obj.ToServer.StoreName or str(obj.ToServer_id)
