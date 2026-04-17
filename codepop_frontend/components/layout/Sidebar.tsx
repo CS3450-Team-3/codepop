@@ -10,7 +10,6 @@ import {
   MapPin,
   Share2,
   HelpCircle,
-  Settings,
   LogOut,
   LogIn,
   UserPlus,
@@ -22,7 +21,6 @@ import {
   DollarSign,
 } from 'lucide-react';
 import { useAuth } from '@/app/contextProviders/AuthContext';
-import ServerSwitcher from './ServerSwitcher';
 import { useState } from 'react';
 import SocialDrinkingModal from '../modals/SocialDrinkingModal';
 
@@ -130,7 +128,6 @@ function getNavSections(userType?: string): NavSection[] {
       { label: 'Inventory',         href: '/logistics/inventory', icon: <Package size={19} /> },
       { label: 'User Management',   href: '/admin/users',         icon: <User size={19} /> },
       { label: 'Servers',           href: '/admin/servers',       icon: <LayoutDashboard size={19} /> },
-      { label: 'Settings',          href: '/admin/settings',      icon: <Settings size={19} /> },
     ];
 
     if (userType === 'super_admin') {
