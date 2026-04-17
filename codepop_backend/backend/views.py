@@ -13,6 +13,7 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework import status, viewsets, permissions
+from rest_framework.decorators import action
 from rest_framework.views import APIView, exception_handler
 from .serializers import (
     CreateUserSerializer, GetUserSerializer, UserProfileSerializer, 
@@ -1002,7 +1003,7 @@ class OrderOperations(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action == 'destroy':
              return [IsStoreManager()]
-        elif self.action in ['update', 'partial_update', 'create', 'retrieve']:
+        elif self.action in ['update', 'partial_update', 'create', 'retrieve', 'arrive']:
             return [AllowAny()]
         return super().get_permissions()
 
@@ -1093,12 +1094,43 @@ class OrderOperations(viewsets.ModelViewSet):
         if serializer.is_valid():
             serializer.save()
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'], permission_classes=[AllowAny])
+    def arrive(self, request, pk=None):
+        """
+        Mark that the user has arrived. Immediately start processing the order,
+        and mark as completed after a short delay (for demo).
+        """
+        import threading
+        import time
+
+        order = self.get_object()
         
-    # def get_permissions(self):
-    #     """Only authenticated users can create, update, or delete orders."""
-    #     if self.action in ['create', 'update', 'destroy']:
-    #         return [IsAuthenticated()]
-    #     return super().get_permissions()
+        if order.OrderStatus == 'Completed':
+            return Response({"status": "already_completed", "order_status": order.OrderStatus})
+
+        # 1. Update to Processing immediately
+        order.OrderStatus = 'Processing'
+        order.save()
+
+        # 2. Trigger delayed completion in a separate thread for the demo
+        def complete_order(order_id):
+            time.sleep(5) # 5 second delay as requested
+            try:
+                o = Order.objects.get(pk=order_id)
+                o.OrderStatus = 'Completed'
+                o.save()
+                print(f"Demo: Order {order_id} marked as Completed after arrival delay.")
+            except Order.DoesNotExist:
+                pass
+
+        threading.Thread(target=complete_order, args=(order.OrderID,)).start()
+
+        return Response({
+            "status": "processing",
+            "order_status": "Processing",
+            "message": "Order preparation started! It will be ready in 5 seconds."
+        }, status=status.HTTP_200_OK)
 
     def create(self, request, *args, **kwargs):
         # Extract data from the request

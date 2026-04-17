@@ -40,7 +40,7 @@ function CheckoutForm({ orderId, total, onSuccess }: CheckoutFormProps) {
     const { error: stripeError, paymentIntent } = await stripe.confirmPayment({
       elements,
       confirmParams: {
-        return_url: `${window.location.origin}/order-confirmation/${orderId}`,
+        return_url: `${window.location.origin}/cart/order-confirmation/${orderId}`,
       },
       redirect: 'if_required',
     });
@@ -144,7 +144,7 @@ export default function CheckoutPage() {
         } else {
           for (let i = 0; i < item.quantity; i++) {
             // Strip ID and Favorite to avoid 400 errors
-            const { DrinkID, Favorite, ...restDrink } = item.drink;
+            const { DrinkID: _DrinkID, Favorite: _Favorite, ...restDrink } = item.drink;
             
             const copiedDrink = await createDrink({
               ...restDrink,
@@ -205,7 +205,7 @@ export default function CheckoutPage() {
     clearCart();
     const orderId =
       checkoutState.status === 'ready' ? checkoutState.orderId : '';
-    router.replace(`/order-confirmation/${orderId}`);
+    router.replace(`/cart/order-confirmation/${orderId}`);
   }, [clearCart, checkoutState, router]);
 
   const elementsOptions: StripeElementsOptions =

@@ -7,6 +7,10 @@ export interface Server {
   Region?: number | null;
   IsRegionLeader?: boolean;
   StoreName?: string;
+  StoreAddress?: string;
+  StoreCity?: string;
+  StoreState?: string;
+  StoreZip?: string;
 }
 
 export interface MasterListSyncItem {
