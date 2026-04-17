@@ -1,36 +1,41 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { getGlobalRevenues } from '@/models/api/revenue';
 import { GlobalRevenueResponse, StoreRevenueInfo, Revenue } from '@/models/types/revenue';
-import { Globe, DollarSign, AlertCircle, MapPin, Building2, ChevronDown, ChevronRight } from 'lucide-react';
+import { Globe, DollarSign, AlertCircle, MapPin, Building2, ChevronDown, ChevronRight, RefreshCw } from 'lucide-react';
+import Sidebar from '@/components/layout/Sidebar';
+import Header from '@/components/layout/Header';
 
 const GlobalRevenuePage = () => {
   const [data, setData] = useState<GlobalRevenueResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedRegions, setExpandedRegions] = useState<Record<string, boolean>>({});
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const result = await getGlobalRevenues();
+      setData(result);
+      // Expand all regions by default
+      const initialExpanded: Record<string, boolean> = {};
+      Object.keys(result.results).forEach(region => {
+        initialExpanded[region] = true;
+      });
+      setExpandedRegions(initialExpanded);
+    } catch (err) {
+      setError('Failed to load global revenue data.');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const result = await getGlobalRevenues();
-        setData(result);
-        // Expand all regions by default
-        const initialExpanded: Record<string, boolean> = {};
-        Object.keys(result.results).forEach(region => {
-          initialExpanded[region] = true;
-        });
-        setExpandedRegions(initialExpanded);
-      } catch (err) {
-        setError('Failed to load global revenue data.');
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchData();
-  }, []);
+  }, [fetchData]);
 
   const toggleRegion = (region: string) => {
     setExpandedRegions(prev => ({ ...prev, [region]: !prev[region] }));
@@ -68,20 +73,26 @@ const GlobalRevenuePage = () => {
     return total;
   };
 
-  if (loading) {
+  if (loading && !data) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+      <div className="flex min-h-screen items-center justify-center app-bg">
         <div className="h-12 w-12 animate-spin rounded-full border-4 border-violet-600 border-t-transparent"></div>
       </div>
     );
   }
 
-  if (error || !data) {
+  if (error && !data) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 p-4">
+      <div className="flex min-h-screen flex-col items-center justify-center app-bg p-4">
         <AlertCircle className="mb-4 h-16 w-16 text-red-500" />
         <h1 className="text-2xl font-bold text-slate-800">Oops! Something went wrong.</h1>
         <p className="text-slate-600">{error || 'Could not fetch data.'}</p>
+        <button 
+          onClick={fetchData}
+          className="mt-6 rounded-xl bg-violet-600 px-6 py-2 font-bold text-white transition-colors hover:bg-violet-700"
+        >
+          Try Again
+        </button>
       </div>
     );
   }
@@ -89,9 +100,25 @@ const GlobalRevenuePage = () => {
   const globalTotal = calculateGlobalTotal();
 
   return (
-    <div className="min-h-screen bg-slate-50 p-6 lg:p-10">
-      <div className="mx-auto max-w-7xl">
-        {/* Header */}
+    <div className="min-h-screen app-bg relative">
+      <Header
+        onMenuClick={() => setSidebarOpen(true)}
+        title="Global Revenue"
+        rightAction={
+          <button
+            onClick={fetchData}
+            disabled={loading}
+            className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-600 hover:bg-slate-100 disabled:opacity-40 transition-colors"
+          >
+            <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+          </button>
+        }
+      />
+
+      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+
+      <main className="mx-auto max-w-7xl px-4 pb-10 pt-20">
+        {/* Page Header Content */}
         <div className="mb-10 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
             <div className="mb-2 flex items-center gap-2 text-violet-600">
@@ -117,7 +144,7 @@ const GlobalRevenuePage = () => {
 
         {/* Regions */}
         <div className="space-y-8">
-          {Object.keys(data.results).sort().map(regionName => {
+          {data && Object.keys(data.results).sort().map(regionName => {
             const regionStats = calculateRegionStats(regionName);
             const stores = data.results[regionName];
             const isExpanded = expandedRegions[regionName];
@@ -203,7 +230,7 @@ const GlobalRevenuePage = () => {
             );
           })}
         </div>
-      </div>
+      </main>
     </div>
   );
 };
