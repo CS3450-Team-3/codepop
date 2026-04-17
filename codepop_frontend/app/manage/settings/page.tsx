@@ -202,7 +202,7 @@ export default function ManageSettingsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen app-bg relative">
       <header className="fixed top-0 z-40 w-full border-b border-slate-100 bg-white/90 backdrop-blur-md">
         <div className="flex h-14 items-center justify-between px-4">
           <button
@@ -218,7 +218,7 @@ export default function ManageSettingsPage() {
 
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <main className="mx-auto max-w-2xl px-4 pb-10 pt-20 space-y-4">
+      <main className="relative z-10 mx-auto max-w-2xl px-4 pb-10 pt-20 space-y-4">
         {/* Avatar */}
         <div className="flex flex-col items-center py-6">
           <div className="flex h-20 w-20 items-center justify-center rounded-full bg-violet-600 text-2xl font-bold text-white shadow-lg">

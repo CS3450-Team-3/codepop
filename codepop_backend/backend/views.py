@@ -1,4 +1,4 @@
-from .models import Preference, Drink, Inventory, Notification, Order, Revenue, CustomUser, MasterList, Flavor, ServerRegistry, Region
+from .models import Preference, Drink, Inventory, Notification, Order, Revenue, CustomUser, MasterList, Flavor, ServerRegistry, Region, UserMovement
 from django.shortcuts import get_object_or_404
 from django.db import models
 from django.utils import timezone
@@ -13,6 +13,7 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework import status, viewsets, permissions
+from rest_framework.decorators import action
 from rest_framework.views import APIView, exception_handler
 from .serializers import (
     CreateUserSerializer, GetUserSerializer, UserProfileSerializer, 
@@ -40,7 +41,7 @@ from drf_spectacular.utils import extend_schema
 from drf_spectacular.types import OpenApiTypes
 from django.utils.dateparse import parse_datetime
 from .drinkAI import generate_soda
-from .sync import get_local_server
+from .sync import get_local_server, masterlist_push_fn
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
@@ -1002,7 +1003,7 @@ class OrderOperations(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action == 'destroy':
              return [IsStoreManager()]
-        elif self.action in ['update', 'partial_update', 'create', 'retrieve']:
+        elif self.action in ['update', 'partial_update', 'create', 'retrieve', 'arrive']:
             return [AllowAny()]
         return super().get_permissions()
 
@@ -1093,12 +1094,43 @@ class OrderOperations(viewsets.ModelViewSet):
         if serializer.is_valid():
             serializer.save()
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'], permission_classes=[AllowAny])
+    def arrive(self, request, pk=None):
+        """
+        Mark that the user has arrived. Immediately start processing the order,
+        and mark as completed after a short delay (for demo).
+        """
+        import threading
+        import time
+
+        order = self.get_object()
         
-    # def get_permissions(self):
-    #     """Only authenticated users can create, update, or delete orders."""
-    #     if self.action in ['create', 'update', 'destroy']:
-    #         return [IsAuthenticated()]
-    #     return super().get_permissions()
+        if order.OrderStatus == 'Completed':
+            return Response({"status": "already_completed", "order_status": order.OrderStatus})
+
+        # 1. Update to Processing immediately
+        order.OrderStatus = 'Processing'
+        order.save()
+
+        # 2. Trigger delayed completion in a separate thread for the demo
+        def complete_order(order_id):
+            time.sleep(5) # 5 second delay as requested
+            try:
+                o = Order.objects.get(pk=order_id)
+                o.OrderStatus = 'Completed'
+                o.save()
+                print(f"Demo: Order {order_id} marked as Completed after arrival delay.")
+            except Order.DoesNotExist:
+                pass
+
+        threading.Thread(target=complete_order, args=(order.OrderID,)).start()
+
+        return Response({
+            "status": "processing",
+            "order_status": "Processing",
+            "message": "Order preparation started! It will be ready in 5 seconds."
+        }, status=status.HTTP_200_OK)
 
     def create(self, request, *args, **kwargs):
         # Extract data from the request
@@ -1724,26 +1756,52 @@ class UserOperations(viewsets.ModelViewSet):
             # Support both { edits: { ... } } and direct { ... } payloads
             edits = data.get('edits', data)
 
-            username = edits.get("username")
-            first_name = edits.get("firstName") or edits.get("first_name")
-            last_name = edits.get("lastName") or edits.get("last_name")
-            password = edits.get("password")
+            # Update fields if present in payload and not marked as "unchanged"
+            if "username" in edits and edits["username"] not in [None, "unchanged", ""]:
+                user.username = edits["username"]
+
+            if "first_name" in edits and edits["first_name"] != "unchanged":
+                user.first_name = edits["first_name"]
+            elif "firstName" in edits and edits["firstName"] != "unchanged":
+                user.first_name = edits["firstName"]
+
+            if "last_name" in edits and edits["last_name"] != "unchanged":
+                user.last_name = edits["last_name"]
+            elif "lastName" in edits and edits["lastName"] != "unchanged":
+                user.last_name = edits["lastName"]
+
+            if "email" in edits and edits["email"] != "unchanged":
+                user.email = edits["email"]
+
+            if "password" in edits and edits["password"] not in [None, "unchanged", ""]:
+                user.set_password(edits["password"])
+
+            # ── Home Server (Store) Change ──────────────────────────────────
+            home_server_id = edits.get("home_server") or edits.get("home_server_id")
+            movement_occurred = False
+            if home_server_id and home_server_id != "unchanged" and str(home_server_id) != str(user.home_server_id):
+                # Security: Only super_admin can move a user to a different store
+                if request.user.user_type != 'super_admin':
+                    return Response({"error": "Only super admins can reassign a user's home store."}, status=status.HTTP_403_FORBIDDEN)
+                
+                try:
+                    new_server = ServerRegistry.objects.get(pk=home_server_id)
+                    
+                    # Record the movement in the audit log
+                    UserMovement.objects.create(
+                        UserID=user.id,
+                        PreviousServerID=user.home_server,
+                        NewServerID=new_server,
+                        Status="Completed"
+                    )
+                    
+                    user.home_server = new_server
+                    movement_occurred = True
+                except ServerRegistry.DoesNotExist:
+                    return Response({"error": f"Server {home_server_id} not found."}, status=status.HTTP_400_BAD_REQUEST)
+
             role = edits.get("role") or edits.get("user_type")
-
-            if (user.username != username and username != "unchanged" and username):
-                user.username = username
-
-            if (user.first_name != first_name and first_name != "unchanged" and first_name):
-                user.first_name = first_name
-
-            if (user.last_name != last_name and last_name != "unchanged" and last_name):
-                user.last_name = last_name
-
-            if (user.password != password and password != "unchanged" and password):
-                user.set_password(password)
-                print("Password updated")
-
-            if (role != "unchanged" and role):
+            if role and role != "unchanged":
                 # Security: Only super_admin can assign the super_admin role
                 if role == 'super_admin' and request.user.user_type != 'super_admin':
                     return Response({"error": "Only super admins can assign the super admin role."}, status=status.HTTP_403_FORBIDDEN)
@@ -1760,7 +1818,39 @@ class UserOperations(viewsets.ModelViewSet):
                     user.is_superuser = False
 
             user.save()
-            return Response({"message":"User edited successfully"}, status=status.HTTP_200_OK)
+
+            # ── Sync MasterList ──────────────────────────────────────────────
+            # Always update local MasterList
+            MasterList.objects.update_or_create(
+                UserID=user.id,
+                defaults={
+                    "Username": user.username,
+                    "HomeServerID": user.home_server,
+                },
+            )
+
+            # If the user was moved, broadcast this change to the P2P network immediately
+            if movement_occurred:
+                local_server = get_local_server()
+                peers = ServerRegistry.objects.exclude(ServerID=local_server.ServerID)
+                sync_payload = {
+                    "items": [
+                        {
+                            "UserID": str(user.id),
+                            "Username": user.username,
+                            "HomeServerID": str(user.home_server_id)
+                        }
+                    ]
+                }
+                for peer in peers:
+                    try:
+                        masterlist_push_fn(peer, sync_payload)
+                    except Exception as e:
+                        # Log but don't fail the request if sync to one peer fails
+                        print(f"Warning: Failed to sync user movement to peer {peer.ServerID}: {e}")
+
+            serializer = self.serializer_class(user)
+            return Response(serializer.data, status=status.HTTP_200_OK)
         except User.DoesNotExist:
             return Response(
                 {"error": "User not found", "details": {"user_id": user_id}}, 

@@ -34,7 +34,7 @@
 //   const activeTrucks = data.routes.filter(r => r.status === 'in_transit').length;
 
 //   return (
-//     <div className="min-h-screen bg-slate-50">
+//     <div className="min-h-screen app-bg relative">
 //       <DashboardHeader 
 //         title="Logistics Manager" 
 //         loading={loading} 
@@ -126,7 +126,7 @@
 
 export default function LogisticsDashboard() {
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen app-bg relative">
       <main className="mx-auto max-w-2xl px-4 pb-10 pt-20 space-y-6">
         <h1 className="text-2xl font-bold text-slate-900">Logistics Dashboard</h1>
         <p className="text-sm text-slate-600">This is a placeholder for the logistics dashboard. Implementing this page is a stretch goal and will be done after core features are complete.</p>

@@ -20,7 +20,7 @@ export default function ManageLayout({
 
   if (loading || !user) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+      <div className="flex min-h-screen items-center justify-center app-bg relative">
         <Loader2 size={28} className="animate-spin text-violet-500" />
       </div>
     );

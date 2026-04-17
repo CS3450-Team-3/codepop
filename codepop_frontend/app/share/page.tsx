@@ -108,7 +108,7 @@ export default function SharePage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen app-bg relative">
       <Header onMenuClick={() => setSidebarOpen(true)} title="Share" />
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
