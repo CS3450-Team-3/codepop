@@ -2,6 +2,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/app/contextProviders/AuthContext';
 import {
   Menu,
   RefreshCw,
@@ -356,12 +358,22 @@ const TYPE_FILTERS: ItemTypeFilter[] = [
 ];
 
 export default function ManageInventoryPage() {
+  const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [inventory, setInventory] = useState<Inventory[]>([]);
   const [report, setReport] = useState<InventoryReportResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [typeFilter, setTypeFilter] = useState<ItemTypeFilter>('All');
+
+  useEffect(() => {
+    if (authLoading) return;
+    const allowed = ['store_manager', 'admin', 'super_admin'];
+    if (!user || !allowed.includes(user.user_type ?? '')) {
+      router.replace('/auth/login');
+    }
+  }, [user, authLoading, router]);
 
   // Modal state
   const [modalItem, setModalItem] = useState<Inventory | null>(null);
