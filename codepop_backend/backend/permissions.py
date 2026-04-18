@@ -38,22 +38,15 @@ class IsAdmin(permissions.BasePermission):
 class IsStoreManager(permissions.BasePermission):
     """
     Used for daily operational endpoints (orders, house drinks, local notifications).
-    Restricted strictly to the manager's own store.
+    Allows any authenticated store_manager/admin through — P2P proxy enforces
+    that operations are routed to the manager's home server.
     """
     def has_permission(self, request, view):
         if not request.user.is_authenticated:
             return False
         if request.user.user_type == 'super_admin':
             return True
-        
-        if request.user.user_type not in ['admin', 'store_manager']:
-            return False
-            
-        try:
-            local_server = get_local_server()
-            return request.user.home_server_id == local_server.ServerID
-        except Exception:
-            return False
+        return request.user.user_type in ['admin', 'store_manager']
 
 class IsLogisticsManager(permissions.BasePermission):
     """

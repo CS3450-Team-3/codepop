@@ -7,6 +7,8 @@ RUN npm install
 
 COPY . .
 
+RUN npm run build
+
 EXPOSE 4000
 
 ENV HOSTNAME=0.0.0.0

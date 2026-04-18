@@ -618,9 +618,9 @@ class DrinkOperations(viewsets.ModelViewSet):
         return queryset
 
     def create(self, request, *args, **kwargs):
-        proxy_resp = proxy_user_request(request, '/backend/drinks/')
-        if proxy_resp:
-            return proxy_resp
+        # Do NOT proxy drink creation to home server — the drink must exist locally
+        # so that order creation on this (visiting) server can reference it by UUID.
+        # The sync_order_to_home_server flow propagates drinks to home via DrinksData.
         return super().create(request, *args, **kwargs)
 
     def update(self, request, *args, **kwargs):
@@ -748,6 +748,12 @@ class InventoryListAPIView(ListAPIView):
     serializer_class = InventorySerializer
     permission_classes = [AllowAny]
 
+    def list(self, request, *args, **kwargs):
+        proxy_resp = proxy_user_request(request, '/backend/inventory/')
+        if proxy_resp:
+            return proxy_resp
+        return super().list(request, *args, **kwargs)
+
 class InventoryReportAPIView(APIView):
     """Generate an inventory report."""
     # AllowAny so peer servers can call this endpoint without needing the
@@ -760,6 +766,10 @@ class InventoryReportAPIView(APIView):
         description="Generate a detailed report of current inventory including out-of-stock and low-stock counts."
     )
     def get(self, request):
+        proxy_resp = proxy_user_request(request, '/backend/inventory/report/')
+        if proxy_resp:
+            return proxy_resp
+
         inventory = Inventory.objects.all()
         serializer = InventorySerializer(inventory, many=True)
         report_data = {
@@ -777,6 +787,11 @@ class InventoryUpdateAPIView(RetrieveUpdateAPIView):
     permission_classes = [IsStoreManager | IsLogisticsManager]
 
     def patch(self, request, *args, **kwargs):
+        pk = kwargs.get('pk')
+        proxy_resp = proxy_user_request(request, f'/backend/inventory/{pk}/')
+        if proxy_resp:
+            return proxy_resp
+
         item = self.get_object()
 
         if request.user.user_type == 'logistics_manager' or request.user.user_type == 'store_manager':
@@ -860,6 +875,13 @@ class InventoryUpdateAPIView(RetrieveUpdateAPIView):
             response_data['warning'] = warning
 
         return Response(response_data, status=status.HTTP_200_OK)
+
+    def put(self, request, *args, **kwargs):
+        pk = kwargs.get('pk')
+        proxy_resp = proxy_user_request(request, f'/backend/inventory/{pk}/')
+        if proxy_resp:
+            return proxy_resp
+        return super().update(request, *args, **kwargs)
 
 class InventoryAggregateView(APIView):
     """
@@ -1150,8 +1172,13 @@ class OrderOperations(viewsets.ModelViewSet):
         return super().retrieve(request, *args, **kwargs)
 
     def patch(self, request, *args, **kwargs):
+        pk = kwargs.get('pk')
+        proxy_resp = proxy_user_request(request, f'/backend/orders/{pk}/')
+        if proxy_resp:
+            return proxy_resp
+
         order = self.get_object()
-        
+
         # 1. Ownership & Modification Check
         # Check if the user is trying to modify drinks or details
         drinks_to_add = request.data.get("AddDrinks", [])
@@ -1273,8 +1300,9 @@ class OrderOperations(viewsets.ModelViewSet):
             order_data["OrderID"] = order_id
         if stripe_id:
             order_data["StripeID"] = stripe_id
-        if originating_server_id:
-            order_data["OriginatingServer"] = originating_server_id
+        # OriginatingServer is intentionally excluded from order_data here — DRF's
+        # PrimaryKeyRelatedField would fail if the visiting server isn't yet in this
+        # node's ServerRegistry. We set it via the model's _id field after creation.
 
         # 1. Ensure all drinks in the sync payload exist locally
         drinks_data = request.data.get("DrinksData")
@@ -1292,6 +1320,16 @@ class OrderOperations(viewsets.ModelViewSet):
         serializer = self.get_serializer(data=order_data)
         serializer.is_valid(raise_exception=True)
         order = serializer.save()
+
+        # Set OriginatingServer after creation to bypass FK validation on unknown peer servers.
+        # If the peer isn't in our ServerRegistry yet, we still honour the originating_server_id
+        # variable below for Stripe-skip logic — only the model field is left None.
+        if originating_server_id:
+            try:
+                order.OriginatingServer = ServerRegistry.objects.get(pk=originating_server_id)
+                order.save(update_fields=['OriginatingServer'])
+            except ServerRegistry.DoesNotExist:
+                pass
 
         # Add drinks to the order if provided (ManyToMany)
         if drinks:
@@ -1312,6 +1350,31 @@ class OrderOperations(viewsets.ModelViewSet):
         # Skip Stripe for inter-server syncs or if StripeID is already present (e.g. from sync)
         if originating_server_id or order.StripeID:
             return Response(response_data, status=status.HTTP_201_CREATED)
+
+        # If the order belongs to a user visiting from a non-home server, request the
+        # Stripe PaymentIntent from their home server (which has real Stripe keys).
+        # The order was already synced there by sync_order_to_home_server() above.
+        visiting_user = order.UserID
+        if visiting_user and visiting_user.home_server:
+            try:
+                local_server = get_local_server()
+                if str(visiting_user.home_server_id) != str(local_server.ServerID):
+                    proxy_url = visiting_user.home_server.ServerURL.rstrip('/') + '/backend/create-payment-intent/'
+                    auth_header = request.headers.get('Authorization', '')
+                    resp = requests.post(
+                        proxy_url,
+                        json={'order_id': str(order.OrderID)},
+                        headers={'Content-Type': 'application/json', 'Authorization': auth_header},
+                        timeout=10
+                    )
+                    if resp.status_code == 200:
+                        stripe_data = resp.json()
+                        response_data['clientSecret'] = stripe_data.get('paymentIntent')
+                        response_data['publishableKey'] = stripe_data.get('publishableKey')
+                        return Response(response_data, status=status.HTTP_201_CREATED)
+            except Exception as e:
+                print(f"Failed to get Stripe from home server {visiting_user.home_server_id}: {e}")
+                # Fall through to local Stripe creation
 
         try:
             amount_val = order.calculate_total()
@@ -1350,9 +1413,17 @@ class OrderOperations(viewsets.ModelViewSet):
         return Response(response_data, status=status.HTTP_201_CREATED)
 
     def update(self, request, *args, **kwargs):
+        pk = kwargs.get('pk')
+        proxy_resp = proxy_user_request(request, f'/backend/orders/{pk}/')
+        if proxy_resp:
+            return proxy_resp
         return super().update(request, *args, **kwargs)
 
     def destroy(self, request, *args, **kwargs):
+        pk = kwargs.get('pk')
+        proxy_resp = proxy_user_request(request, f'/backend/orders/{pk}/')
+        if proxy_resp:
+            return proxy_resp
         return super().destroy(request, *args, **kwargs)
 
 class UserOrdersLookup(ListCreateAPIView):
@@ -1427,9 +1498,8 @@ class UserOrdersLookup(ListCreateAPIView):
 # Pricing logic moved to models.py
 
 @method_decorator(csrf_exempt, name='dispatch')
-
 class StripePaymentIntentView(View):
-    
+
     def post(self, request, *args, **kwargs):
         try:
             data = json.loads(request.body)
