@@ -9,6 +9,7 @@ CodePop is more than just a dirty soda app. It is a streamlined ecosystem design
 - **Customer:** Track an order through its lifecycle from placed to ready for pickup.
 - **Store Manager:** Monitor low inventory warnings and take action before stock runs out.
 - **Store Owner:** Review the decentralized multi-store dashboard.
+- **User:** Review social media and leaderboard
 
 ## Table of Contents
 
@@ -28,7 +29,7 @@ CodePop is more than just a dirty soda app. It is a streamlined ecosystem design
 
 # Overview: What is CodePop?
 
-CodePop is a custom soda ordering platform built for the modern beverage scene. Whether you are craving a specific flavor combo or just want a drink picked out for you, CodePop takes you from idea to straw-in-hand faster than your local drive-thru.
+CodePop is a custom soda ordering platform built for the modern beverage scene. Whether you are craving a specific flavor combo or just want a drink picked out for you, CodePop takes you from idea to straw in hand faster than your local drive-thru.
 
 Under the hood, CodePop runs on a **decentralized network**. Every store runs its own server, but your account and orders follow you anywhere in the network. Order at your home store, your vacation store, or the one by your office. It just works.
 
@@ -174,7 +175,7 @@ From the Home page, clicking an **Order Now** button opens a menu with various o
 
 ## Your Cart and Payment
 
-You will now see the cart is updated. Click there to view it.
+You will now see that the cart is updated. Click there to view it.
 
 ![][image7]
 
@@ -217,7 +218,7 @@ When the order is ready for pickup, we will let you know. (Our machines are very
 
 ![][image17]
 
-**Note:** You may see that upon clicking **My Orders** that there is nothing there. We wanted to ensure that any in-progress orders are displayed prominently. If your order is ready for pickup, it will be under the **Past** or **All** orders sections, viewed at the top.
+**Note:** You may see that, upon clicking **My Orders**, there is nothing there. We wanted to ensure that any in-progress orders are displayed prominently. If your order is ready for pickup, it will be under the **Past** or **All** orders sections, viewed at the top.
 
 ![][image18]
 
