@@ -10,64 +10,51 @@
 
 ## 1. Introduction
 
-**Purpose:**
+Codepop is a **distributed beverage ordering network** that lets customers order drinks from any store while keeping their account, preferences, and order history portable across locations. Behind the scenes, it's built as a robust production system with:
 
-The purpose of this document is to provide the high-level architecture and design of **Codepop**, and automated beverage fulfillment ecosystem, designed to revolutionize the "dirty soda" industry. The system aims to minimize human labor requirements and provide a quick, easy, and efficient system whereby customer's orders are prepared just-in-time to minimize waiting periods and maximize flavor.
+- **`codepop_frontend`**: A sleek Next.js/React application for phones, tablets, and desktops—built for speed, touchability, and seamless checkout experiences.
+- **`codepop_backend`**: A Django 5.1 powerhouse with REST APIs, peer-to-peer server authentication, Stripe payments, and inventory orchestration across a decentralized network.
 
-Codepop is built to support a decentralized system, allowing peer-to-peer communication between stores and supply hubs. Doing this, we can ensure just-in-time supply fulfillment as well as proactive maintenance, ensuring maximum uptime for each store. This document serves as a reference for stakeholders and developers to ensure the system is scalable, secure, and aligned with the goal of providing a high-satisfaction user experience.
+Stores run as independent servers that discover and sync with each other, customers can move between locations without re-authentication, and managers control local operations from their dashboards—all while the system keeps data consistent across the network.
 
-### 1.1 Legal and Regulatory Considerations
+### 1.1 Security & Compliance First
 
-> **Disclaimer:** This document does not constitute legal advice. As software developers, we do not have the relevant legal expertise to ensure that all regulatory requirements are met. It is the responsibility of stakeholders to ensure compliance with applicable laws and regulations (e.g., GDPR, CCPA, HIPAA) by conversing with appropriate legal council.
+> **Important:** This document is not legal advice. Consult legal counsel for GDPR, CCPA, HIPAA, or local data protection laws.
 
 #### Compliance Goals:
 
-As software developers, we are committed to ensuring the safety and security of the personal, proprietary, and sensitive information of the company and of the customers. We aim to adhere to industry standards and regulations, including:
+- [**OWASP Top 10**](https://owasp.org/Top10/2025/) vulnerabilities (injection, auth bypass, XSS, etc.) are actively mitigated through Django's ORM, React's safe rendering, and CSRF protection.
+- **PCI DSS Compliance:** Stripe handles all card tokenization—raw payment data never touches our servers, just secure payment references.
 
-- [**OWASP Top 10:**](https://owasp.org/Top10/2025/) The mitigation of common security vulnerabilities across the web, including injection attacks and broken access controls
-- **PCI DSS:** Ensuring secure handling of payment information through a compliant third-party company (Stripe)
-
-Relevant and detailed information can be found under the [Data Classification & Security](#4-data-classification--security) section of this document
+Details on data handling, encryption, and role-based access are in Section 4.
 
 ---
 
 ## 2. Hardware Platforms
 
-Customers will access Codepop from personal devices (smartphones, tablets, or laptops) using their preferred web browser (Chrome, Firefox, Edge, Safari). The web application will be responsive across screen sizes and can be offered as a Progressive Web App (PWA) for an installable, native-like experience.
+Codepop lives in the browser—no downloads, no app store friction. Whether you're using a phone in line, a tablet behind the counter, or a desktop in the back office, the experience adapts beautifully.
 
 ### 2.1 Mobile & Touch
 
-- **Responsive Design:** Implement a mobile-first, fluid layout using CSS Grid and Flexbox. Define standard breakpoints (e.g., 320px, 480px, 768px, 1024px, 1280px) and prefer relative units (`rem`, `%`, `vw`) for spacing and typography. Serve responsive images (`srcset` / `sizes`), optimize touch targets (>=44px), and use media queries (and container queries where supported) to adapt component layouts. Use design tokens (CSS variables) for consistent theming, follow progressive enhancement, and validate UI across real devices, emulators, and automated visual regression tests.
-- **Gestures:** Implement gesture support using Pointer Events and a lightweight gesture library (for example, `@use-gesture/react` or `hammerjs`). Provide swipe gestures for carousels and in-app navigation, pinch-to-zoom and double-tap to zoom for images/previews, and long-press where appropriate. Use CSS `touch-action` to avoid scroll/gesture conflicts, set sensible gesture thresholds and debounce to reduce accidental activations, and avoid calling `preventDefault()` on touch events unless necessary. Always provide accessible fallbacks (visible buttons and keyboard equivalents), respect `prefers-reduced-motion`, and validate gestures across iOS and Android devices and major browsers.
+- **Adaptive Design:** Built on Next.js and Tailwind CSS, Codepop scales fluidly from iPhone screens to tablets. Touch targets are generous, spacing is natural, and scrolling feels native.
+- **Smart Navigation:** Bottom tabs for quick access to home/cart/account, a slide-out menu for deeper options, drink category filters that don't clutter, and modals that feel native—all designed with thumbs in mind.
+- **Cross-Platform:** Works great on Chrome, Safari, Edge, and Firefox. Whether iOS or Android, web or PWA, the experience is consistent and snappy.
 
 ### 2.2 Web / Desktop
 
-- **Technology:** Code Pop will be made as a Progressive Web App (PWA) to be accessed as a website but feel more like an app to provide a more native interation for the User.
-- **Service Workers:** Implement a Service Worker (using Workbox or a small custom worker) to provide reliable offline behavior and efficient caching. Precache the application shell (HTML, core JS/CSS, critical assets) so the app can load while offline. Use runtime caching strategies tuned per resource type: network-first for API requests with a short fallback cache, stale-while-revalidate for images and static assets, and cache-first for large immutable resources with proper cache versioning and max-age limits. Provide background sync for failed POSTs (order submission) so retries occur when connectivity returns. Ensure the Service Worker follows HTTPS requirements, handles updates gracefully (skipWaiting/clients.claim patterns with an optional user-visible update prompt), and exposes health/diagnostic hooks for remote monitoring.
-- **Manifest:** Include a complete `manifest.json` to enable installability and a native-like launch experience. Provide `name` and `short_name`, a descriptive `description`, `start_url`, `scope`, `display` (prefer `standalone`), `orientation`, `theme_color`, and `background_color`. Ship a full set of icons (PNG/SVG) at recommended sizes (48, 72, 96, 144, 192, 512) and include service-worker-aware icon references. Test installability on Chrome, Edge, and Safari (where supported) and document icon generation and caching requirements.
-- **Push Notifications:** Support opt-in Web Push using the Push API + Notifications API with VAPID keys for server authentication. Request permission using a contextual UX (ask after a user action or clear value exchange), allow segmentation (order updates, promotions, local store alerts), and include actionable buttons and deep links into the app. Respect user preferences and rate limits — include unsubscribe and quiet-hours options, follow consent/GDPR rules (store consent server-side), and avoid spammy behavior. Implement push handling in the Service Worker to show notifications when appropriate, handle `notificationclick` to route users to relevant views, and capture delivery/engagement metrics for analytics and A/B testing.
+- **Modern & Fast:** Next.js 16.1 + React 19.2 power a truly responsive interface. Client-side rendering keeps interactions smooth; no annoying page refreshes.
+- **Battle-Tested Dependencies:** `axios` for reliable HTTP, `lucide-react` for crisp icons, Stripe's official SDK for secure payments, and Tailwind CSS for pixel-perfect design.
+- **Future-Ready:** Built with PWA principles in mind—service workers and offline support can be added when you're ready.
 
 ### 2.3 IoT & Future Platforms (Optional)
 
-The Codepop ecosystem leverages Internet of Things (IoT) telemetry to ensure machine reliability and inventory accuracy. Soda dispensing units will be equipped with networked sensors that communicate with the central backend via secure MQTT or HTTP protocols.
+The current codebase does not include full IoT device integration, but the architecture supports future machine telemetry and automation.
 
-## IoT
+Potential extensions include:
 
-- Install IoT devices in soda making machine to track:
-  - Stock levels
-  - Temperature
-  - Machine Health
-  - Sales per location
-- Connects to the PWA to dynamically show the availability of items
-
-- Integrate AI with Iot to provide:
-  - Demand Forecasting
-  - Dynamic Pricing
-  - Predictive Maintenance
-
-## Future Platforms
-
-- Voice Assistant that allows the User a seamless experience where they don't have to physically interact with the PWA and can simply navigate to where they need to go and order. This would be useful for the visually impaired or those who are doing an activity that requires sight such as driving.
+- Real-time dispenser stock telemetry and machine alerts,
+- Predictive inventory ("this machine needs refilling in 2 hours"),
+- Gamified fulfillment (reward staff for fast machine service).
 
 ---
 
@@ -75,122 +62,114 @@ The Codepop ecosystem leverages Internet of Things (IoT) telemetry to ensure mac
 
 ### 3.1 Concept and Design
 
-- **Consistency:** The site is designed around the same components, colors, and styles to ensure a consistent experience across the entire application. This consistency allows users to easily understand how to interact with the application, and where to find the information they need.
-- **Navigation:** The navigation is designed to be intuitive, with a clear hierarchy and logical flow between pages. The main page provides easy access to the most important features for each user level (e.g., ordering for customers, inventory management for store managers) and the navigation menu allows for easy access to other sections of the site.
-- **Accessibility:** The site is designed with accessibility in mind, ensuring that colors and fonts are chosen for readability and that the application is usable by individuals with disabilities.
+The UI is component-driven and designed to be easy to use on both moble and web applications
+
+- **Reusable Components:** Shared components include `Header`, `Sidebar`, `BottomNav`, `StoreSelector`, `DrinkCard`, `CustomizeModal`, and `CategoryFilter`.
+- **Role-aware Flows:** Customers get order and AI pick pages, while managers and admins access inventory, order queue, revenue, and server registry views.
+- **Feedback-first Interaction:** The frontend provides loading states, error messaging, and clear prompts for checkout and chatbot actions.
 
 ### 3.2 Color Palette
 
-- **Background:** `#FCF8FF` - Off-White
-- **Text:** `#0A0A0A` - Dark Gray
-- **Primary:** `#FFFFFF` - White
-- **Secondary:** `#030213` - Charcoal Black
-- **Accent/Contrast:** `#9810FA` - Vibrant Purple
-- **Neutral:** `#ECECF0` - Light Gray
+- **Background:** `#FCF8FF`
+- **Text:** `#0A0A0A`
+- **Primary:** `#FFFFFF`
+- **Secondary:** `#030213`
+- **Accent:** `#9810FA`
+- **Neutral:** `#ECECF0`
 
-### 3.3 Frameworks and Tools (Tech Stack)
+### 3.3 Framework and tools (Tech Stack)
 
-- **Frontend:** ReactJS
-  - _Reasoning:_ React has many developer focused features, such as a large ecosystem of libraries, reusable components, and a virtual DOM for efficient rendering. This allows us to rapidly develop a responsive and dynamic user interface that can easily adapt to different hardware platforms. Additionally, React's component-based architecture promotes code reusability and maintainability, which is crucial for a project of this scale and complexity.
-- **Backend:** Django (Python)
-  - _Reasoning:_ Django was primarily chosen for its ease of use, security features, and scalability. Django's built-in admin interface allows for easy management of the database and user accounts, while its robust security features help protect against common web vulnerabilities. Additionally, Django's scalability allows us to handle a growing user base and increasing data volume as the application expands.
-- **Database:** PostgreSQL
-  - _Reasoning:_ PostgreSQL was used because it works well with our other software choices, and is a powerful, open-source relational database that offers advanced features such as support for JSON data types. This allows us to efficiently store and query complex data structures, which is essential for the functionality of our application.
+**Frontend:**
+- Next.js 16.1.7, React 19.2.3, Tailwind CSS 4, TypeScript
+- HTTP: `axios`, Icons: `lucide-react`, Payments: Stripe official SDKs
+
+**Backend:**
+- Django 5.1.2, Django REST Framework for REST, `rest_framework_simplejwt` for auth
+- OpenAPI schema (`drf_spectacular`), CORS support, custom JWT P2P validation
+
+**Data:**
+- PostgreSQL with Django ORM—no raw SQL, migrations handle schema evolution
+
+**Intelligence:**
+- **Chatbot:** `microsoft/DialoGPT-medium` for conversational drink advice
+- **Recommendations:** Similarity matching over CSV-based drink attributes (flavor, caffeine, sugar, etc.)
 
 ---
 
 ## 4. Data Classification & Security
 
-All data, when possible, should be encrypted. This helps ensure that security remains a priority, and decreases the likelihood of malicious individuals gaining unauthorized access to information and systems that should otherwise be protected.
+Codepop treats data with respect and rigor. Here's how we categorize what we hold:
 
 ### 4.1 Definitions
 
-- **Personal Data:** Information that identifies an individual (e.g., Names, Emails). _Security Standard: [e.g., Encrypted in transit]_
-- **Sensitive Data:** High-risk information (e.g., Financials, Store Information, Location Data). _Security Standard: [e.g., Encrypted at rest and in transit]_
-- **Other Data:** Non-identifiable information (e.g., preferences, order history). _Security Standard: [e.g., Encrypted at rest and in transit]_
+- **Personal:** Username, email, name, favorite store—data that identifies you
+- **Sensitive:** Stripe payment references, server registry keys, machine telemetry—data that could harm if leaked
+- **Operational:** Drink recipes, order history, flavor preferences, inventory snapshots, notifications—data that powers the service
 
 ### 4.2 Data Breakdown by Role
 
-| User Role               | Personal Data Collected | Sensitive Data Collected                | Other Data                                     |
-| :---------------------- | :---------------------- | :-------------------------------------- | :--------------------------------------------- |
-| **Guest Customer**      | None (Transient)        | Location, Payment Token                 | Session Order Data                             |
-| **Registered Customer** | Name, Email, Username   | Location, Payment Token, Chat Logs      | Drink Preferences, Order History, Saved Drinks |
-| **Store Manager**       | Name, Employee ID       | Payroll Info, Store Performance Data    | Local Inventory Logs                           |
-| **Logistics Manager**   | Name, Employee ID       | Regional Supply Data, Route Data        | Work History                                   |
-| **Repair Staff**        | Name, Employee ID       | Machine Status Logs                     | Assigned Tickets, Route History                |
-| **Admin (Local)**       | Name, Employee ID       | Access Logs, Local User Management Logs | System Configuration History                   |
-| **Super Admin**         | Name, Employee ID       | Global System Config, Full Access Logs  | Global Inventory & Sales Data                  |
+| User Role             | Personal Data Collected | Sensitive Data Collected          | Other Data                                |
+| :-------------------- | :---------------------- | :-------------------------------- | :---------------------------------------- |
+| **Guest Customer**    | None                    | Stripe token references           | Session drink/cart data                   |
+| **Registered Customer** | Name, email, username | Stripe token references, home server | Preferences, favorites, order history  |
+| **Store Manager**     | Name, employee meta     | Local inventory and machine metrics | Store orders, notifications               |
+| **Logistics Manager** | Name, employee meta     | Regional stock and transfer data  | Inventory reports                         |
+| **Repair Staff**      | Name, employee meta     | Machine health logs               | Repair ticket activity                    |
+| **Admin**             | Name, employee meta     | Access logs, user management data | Local system configuration                |
+| **Super Admin**       | Name, employee meta     | Global registry, peer server data | Global inventory and revenue              |
 
 ### 4.3 Encryption Guidelines
 
-#### **Data in Transit:**
+#### Data in Transit
 
-To ensure the definitive security of all data, everything in transit must be encrypted. Meaning that, regardless of what _we_ deem as sensitive, everything is protected, ensuring that there's no possibility of unauthorized access while data is being transmitted.
+- Client-server connections must use HTTPS/TLS.
+- The API uses bearer JWT tokens and asymmetric P2P validation for cross-server authentication.
+- Stripe checkout is tokenized so card data never reaches backend storage.
 
-- All client-server communication must occur over HTTPS using TLS 1.2+.
-- API endpoints and website access must occur using token-based authentication (Django Token Auth) to prevent unauthorized interception
-
-#### **Data at Rest:**
-
-Data will be encrypted at rest using a transparent encryption layer when possible. This ensures that there are no additional complexities that the developers have to manage. Thus, the likelihood of incorrect implementations decreases drastically.
-
-- **Database:** User passwords are automatically hashed using PBKDF2 (Django default) with the option to upgrade to Argon2.
-- **Sensitive Fields:** Payment information is _not_ handled directly by our systems; only Stripe tokens are retained. Personally Identifiable Information should be encrypted when possible using `Django-encrypted-fields`.
+#### Data At Rest
+- **Passwords:** Hashed and salted through Django's crypto—even we can't read them.
+- **Payment References:** Only Stripe token IDs and metadata live in the database; actual cards are in Stripe's fortress.
+- **Sensitive Fields:** Can be encrypted in the database for extra paranoia (future enhancement).
 
 ### 4.4 Secure Code Guidelines
 
-#### Web Security Considerations
-
-Codepop must be resilient against common vulnerabilities, including but not limited to:
-
-- **SQL Injection:** Prevented by Django's Object-based (ORM) implementation of SQL commands, treating all user inputs purely as text.
-- **Cross-site Scripting (XSS):** React by default treats all rendered variables as pure text, instead of just putting it into the webpage. This prevents instances where if a malicious username is rendered, even if there is code by way of `<script>` tags, these are not executed in the browser.
-- **CSRF:** Prevented by using Django's CSRF Token checks during state-changing requests (e.g. POST, PUT, DELETE). Only valid, active sessions have a usable CSRF token, preventing random websites from sending requests to the database.
-- **Denial of Service (DoS)**
-
-#### General Security & Language Considerations
-
-- **Safety Features:** React and Django already have built-in security features that prevent malicious user input from being executed. Both by default treat user input and variables as plain text; thus, although input sanitation is good practice, there's another layer of safety in case the sanitation methods don't catch everything.
-- **Unsafe Functions:** Unsafe functions, such as Python's `eval()` or React's `dangerouslySetInnerHTML` should not be used, as these bypass many of the security benefits of the frameworks. If they absolutely must be used for a specific feature, these functions **_can not_** use user-provided values.
-- **Input Validation:** User inputs, especially ones being sent to the AI Chatbot, should be sanitized to prevent prompt injection or processing of malicious code.
-- **Error Handling:** Users will receive generic "something went wrong" messages when an error occurs. This prevents general users from being overwhelmed from seeing a stack trace, and no longer trusting the company to be secure. Detailed Stack Traces will be logged internally for debugging.
-
-### 4.5 Hardware & Device Security
-
-- **Client Side:** The mobile app acts as a client that communicates via a secure token. Users can revoke these tokens by way of a password reset in cases of lost or stolen devices.
-- **Server Side:** The backend is separated from the client. Access to the API is restricted to only authorized users via authenticated tokens.
-- **Stripe Integration:** The information within the [Stripe Developer Documentation](https://docs.stripe.com/) will be strictly followed. This ensures that the security of user's credit card information is handled by a reliable and reputable company.
+- **SQL Injection:** Django ORM parameterizes all queries—attackers can't inject malicious SQL.
+- **XSS (Cross-Site Scripting):** React escapes HTML by default; text stays text, scripts stay inert. No `dangerouslySetInnerHTML` with user input.
+- **CSRF (Cross-Site Request Forgery):** Django middleware validates token origin for state-changing requests.
+- **Forbidden APIs:** No `eval()`, no raw HTML from untrusted sources, no secrets in frontend code.
+- **Error Messages:** Users see friendly, helpful errors ("Oops, try again in a moment"). Developers see detailed logs with stack traces and context.
 
 ---
 
-## 5. Internal Components
+## 5. System Architecture
 
-The Codepop system employs a robust 3-Tier Client-Server architecture designed to support a decentralized network of stores.
+Codepop's strength comes from **connected independence**: stores operate autonomously, yet customers and data flow seamlessly between them.
 
 ### 5.1 Component Definitions
 
-**Client:** Responsible for UI and displaying application views. Handles routing and input validation, renders order and confirmation views, communicates with the backend over HTTPS using token-based auth, and implements PWA behaviors (offline support, Service Worker, manifest) and graceful fallbacks for limited connectivity.
-**Server:** Handles business logic, request validation, authentication and authorization, database queries, and orchestration of third-party APIs (e.g., Stripe for payments, selected AI provider). Exposes REST API endpoints, enforces security controls (CSRF, TLS), and queues/dispatches background tasks for long-running work.
-**Database:** PostgreSQL stores persistent data (users, orders, inventory, telemetry, analytics). Sensitive fields are encrypted or tokenized where appropriate; the database is accessed via the Django ORM and managed with migrations and backups.
+- **Client:** Next.js frontend handles ordering, store selection, drink customization, checkout, and support chat.
+- **Server:** Django backend manages authentication, order processing, inventory, revenue, notifications, AI, and P2P syncing.
+- **Database:** PostgreSQL stores persistent data for users, drinks, orders, inventory, servers, and notifications.
 
 ### 5.2 Server Subcomponents
 
-**Controller:** Validates incoming requests, enforces authentication/authorization, applies business rules, and coordinates service calls and background jobs before returning results to the client.
-**View Module:** Serializes and constructs API responses or server-rendered views (JSON payloads, templates). Uses serializers to shape data, enforces output formatting, and ensures responses do not leak sensitive internals.
-**API Handlers:** Decoupled adapters that manage communication with external services (payment gateway, AI provider, geolocation services, push delivery). Handle retries, rate-limiting, error translation, and circuit-breaking to preserve system stability.
+- **API Views:** Endpoints are defined in `backend/urls.py` and include authentication, drinks, inventory, orders, revenue, leaderboard, chatbot, AI generation, and P2P sync routes.
+- **Authentication:** `backend.authentication.P2PJWTAuthentication` verifies server-issued JWTs using the public keys stored in `ServerRegistry`.
+- **Payment Processing:** Stripe PaymentIntent and webhook endpoints handle checkout and payment confirmation.
+- **Peer Sync:** P2P endpoints such as `/p2p/discover/`, `/p2p/join/`, `/p2p/update-peer/`, and `/sync/masterlist/` let servers discover and synchronize across the network.
 
 ### 5.3 Database Schema
 
-**Potential Tables:**
+Key models include:
 
-- `users`: Stores user accounts and profiles (user_id, email, hashed password, roles, preferences, default payment token references, device push tokens). Sensitive fields are hashed/encrypted and access is strictly controlled.
-- `orders`: Stores customer orders and fulfillment state (order_id, customer_id, store_id, items JSON, total, payment_token_reference, status, timestamps, fulfillment_queue_id). Designed for immutable audit trails and retryable processing.
-- `inventory`: Stores product and per-store inventory data (product_id, store_id, quantity_on_hand, low_stock_threshold, recent_restock_events, ingredient_batches). Used for availability checks, forecasting, and automated restock triggers.
-
-### 5.4 Client & Employee Class Diagrams
-
-![UserClasses](misc/ClassUsers.png)
-![RoleClasses](misc/ClassRoles.png)
+- `CustomUser`: custom user entity with role type and home server.
+- `ServerRegistry`: networked store server metadata and public keys.
+- `MasterList`: roaming user registry for cross-server login.
+- `Drink`: drink recipes, pricing, favorite relationships, and user-created status.
+- `Order`: order lifecycle, payment status, pickup time, locker combo, and Stripe IDs.
+- `Inventory`: stock quantities, thresholds, and item types.
+- `Notification`: user and global notifications.
+- `Preference`: user flavor preferences.
 
 ---
 
@@ -198,98 +177,56 @@ The Codepop system employs a robust 3-Tier Client-Server architecture designed t
 
 ### 6.1 System Dataflow
 
-1.  User initiates request via Client.
-2.  Client sends HTTPS request to Server.
-3.  Server Controller processes request.
-4.  Controller queries Database/API.
-5.  Server responds with updated View/Data.
-6.  Client renders data.
-
-#### UML Sequence Diagram
-
-```mermaid
-sequenceDiagram
-  User->>Client: initiateOrder()
-  Client->>Controller: HTTPS request (order data)
-
-  Controller->>Service: validateRequest()
-  Service->>DB: fetchUser/session data
-  DB-->>Service: user data
-
-  Service->>Store: checkAvailability()
-  Store-->>Service: availabilityConfirmed
-
-  Service->>Stripe: processPayment()
-  Stripe-->>Service: paymentResult
-
-  alt Payment successful
-      Service->>DB: saveOrder()
-      Service->>Store: queueOrder()
-      Service-->>Controller: success response
-  else Payment failed
-      Service-->>Controller: error response
-  end
-
-  Controller-->>Client: updated data/view
-  Client-->>User: render confirmation
-```
+1. **Pick a Store:** Frontend detects your location or you choose manually.
+2. **Load Menu:** Browser downloads drinks and inventory from that store's backend.
+3. **Sign In (or Guest):** Stripe tokenizes your payment method; local JWT grants access to your account and history.
+4. **Customize & Order:** Pick a drink, tweak it, tap *Order Now*.
+5. **Payment:** Stripe captures the charge; webhook confirms it instantly.
+6. **Fulfillment:** Order queued at the store, inventory adjusted, notification sent ("Your drink is ready").
+7. **You Arrive:** Show the code on your phone; staff hand it over.
+8. **Chat & Rate:** Ask the AI for recommendations next time or rate the drink.
 
 ### 6.2 Component Interfaces
 
-- **Client Interface:** Input/interaction contracts (touch/keyboard), display & accessibility requirements, offline caching and secure token storage.
-- **Server Interface:** REST API contracts (auth scopes, request/response shapes), versioning, rate-limiting, and observability hooks.
-- **Database Interface:** Django ORM access patterns, transactional boundaries, indexing/backup, and encryption-at-rest policies.
+- **Client Interface:** JSON API calls under `/backend/`, bearer auth headers, and stateful front-end contexts.
+- **Server Interface:** RESTful object endpoints, P2P sync endpoints, and OpenAPI schema.
+- **Database Interface:** Django ORM models, migrations, transactions, and indexed queries.
 
 ---
 
 ## 7. External Interfaces
 
-Third-party services: Stripe for payments and tokenized card flows, OpenAI API (with an abstraction layer) for chat/recommendations and forecasting, mapping/geocoding providers for store selection and routing, OAuth SSO providers for optional social/enterprise login.
+- **Stripe:** The payment backbone. We hand off card data; they secure it, process charges, handle fraud detection, and send confirmations back.
+- **AI Companions:** 
+  - **Chatbot:** DialoGPT-medium runs locally on the backend (no external API calls), so conversations are instant, private, and cheap to scale.
+  - **Recommendations:** Similarity matching (e.g., "find drinks with similar flavor profiles to what you liked") uses CSV data, so no heavy ML infrastructure needed.
+- **Geolocation (Future):** Browser can ask for GPS; fallback to manual store picker for privacy-conscious users.
+- **SSO (Future):** Easy to bolt on Google/Microsoft/GitHub logins if you want one-click onboarding; today we use local JWT for simplicity and control.
 
-### 7.1 Artificial Intelligence (AI)
+---
 
-- **Usage:** Chatbots for customer support and conversational ordering; recommendation engine for personalized drink suggestions; demand forecasting and inventory optimization;
-- **Interface Options:**
-  - _Option A (Selected):_ OpenAI API
-  - _Option B (Rejected):_ Self-hosted Llama 2.
+## 8. Deployment and developer workflow
 
-| Feature / Factor          | OpenAI API (Hosted)             | Self-Hosted Llama 2                   |
-| ------------------------- | ------------------------------- | ------------------------------------- |
-| Setup Speed               | Very fast — simple API calls    | Slow — infra + deployment required    |
-| Upfront Cost              | Low                             | Very high (GPUs, servers)             |
-| Ongoing Cost              | Usage-based (per token/request) | Infrastructure-based (power, hosting) |
-| Intelligence Quality      | Very high (state-of-the-art)    | Medium–high (lower out-of-box)        |
-| Custom Training           | Limited fine-tuning             | Full fine-tuning control              |
-| Data Privacy              | Cloud processing                | Full local control                    |
-| Scaling                   | Automatic                       | Manual scaling required               |
-| Maintenance               | Minimal                         | Heavy DevOps + ML ops                 |
-| Offline Capability        | No                              | Yes (edge deployment possible)        |
-| Latency Control           | Dependent on API/network        | Full control locally                  |
-| Reliability               | Depends on provider uptime      | Depends on your infra                 |
-| Feature Updates           | Automatic improvements          | Manual upgrades                       |
-| Multimodal (voice/image)  | Native support                  | Requires extra tooling                |
-| Best For MVPs             | Excellent                       | Overkill                              |
-| Best For Enterprise       | Good                            | Excellent                             |
-| Cost at Low Volume        | Cheap                           | Expensive                             |
-| Cost at High Volume       | Expensive                       | Cheaper long-term                     |
-| Recipe / IP Protection    | Moderate                        | Strong                                |
-| Edge / Vending Deployment | Not suitable                    | Suitable                              |
-| Dev Team Required         | Small                           | Large (ML + DevOps)                   |
+### Spin It Up Locally
 
-- **Resilience Strategy:** Implement an AI abstraction layer with configurable provider adapters, automatic failover to secondary providers or local/edge models and feature flags to gracefully degrade non‑critical features; ensure SLAs and data portability for migration.
+**Frontend:**
+Server starts on `http://localhost:4000`. Hot reload on file change.
 
-### 7.2 Single Sign On (SSO)
+**Backend:**
 
-- **Target Providers:** Google, Microsoft, GitHub, etc.
-- **Resilience Strategy:** Ensure users can still login via Email/Password if SSO fails or is removed.
+API listens on `http://localhost:9000`.
 
-### 7.3 Geolocation (Optional)
+Both front and back sever will be deployed with a python script that will start a up a docker container for the datbase, the front end and the back end 
 
-- **API:** Use the Browser Geolocation API (with explicit consent) for precise location, and a geocoding/mapping provider (Google Maps, Mapbox or OpenStreetMap) for reverse geocoding, routing and map tiles; server-side IP-based geolocation can provide a coarse fallback.
-- **Privacy:** Require clear, contextual consent; explain purpose; store minimal location data and only when necessary; allow revocation and deletion; anonymize or short-retain telemetry and follow GDPR/CCPA rules.
-- **Resilience:** Provide manual address/ZIP entry, cached last-known location, and server-side IP fallback; allow users to select a store manually if automatic location fails.
+### Configuration
 
-### 7.4 Payment Processing (Optional)
+The backend reads from environment variables (PostgreSQL, Stripe keys, P2P signing keys). For local dev, it falls back to PEM files at `/data/node_key.pem` (private) and `/data/node_key_pub.pem` (public).
 
-- **Strategy:** Primary payment provider: Stripe. Use Stripe Checkout or Payment Intents to handle card flows and tokenization so raw card data never touches our servers, minimizing PCI scope.
-- **Implementation:** Implement decoupled payment handlers that create/confirm `PaymentIntent`s server-side, verify webhooks (signature verification), store only Stripe payment token/metadata, use idempotency keys for retries, implement webhook-backed order state transitions, test with Stripe test keys and enable Stripe Radar/fraud controls; document migration steps for alternate providers.
+### Explore the API
+
+Hit the interactive docs:
+- **Swagger UI:** `http://localhost:8000/api/schema/swagger-ui/`  
+- **ReDoc:** `http://localhost:8000/api/schema/redoc/`  
+- **Raw OpenAPI:** `http://localhost:8000/api/schema/`
+
+endpoints can be viewed from the browser.
