@@ -1,296 +1,348 @@
-# Purpose
+# Codepop Requirements Document
 
-The purpose of this document is to define the functional, non-functional, business, and user requirements for the Codepop application. Codepop is an automated beverage fulfillment ecosystem designed to minimize human labor while still upholding maximum customer satisfaction. This document serves to provide the scope for the system's capabilities.
+---
 
-# Scope
+## 1. Purpose
 
-The Codepop ecosystem is comprised of a customer-facing mobile and web application for ordering, a comprehensive system for inventory and logistics management, and a machine interface for tracking the status of automated robotic drink dispensers. The system manages the flow between customers, store managers, logistic coordinators, and repair staff to ensure "Just-In-Time" drink fulfillment and efficient supply chain operations.
+Codepop is designed to redefine how customers interact with beverage services by combining automation, personalization, and operational efficiency into a single cohesive system. At its core, Codepop exists to solve two parallel problems:
 
-# Definitions & Acronyms
+1. Customers want fast, customizable drinks without waiting.
+2. Businesses want to reduce labor while maintaining high-quality service.
 
-Supply Hub:
+This document defines the **functional, nonfunctional, business, and user requirements** that guide the development of the Codepop ecosystem. Rather than describing how the system will be built, it focuses on what the system must accomplish and why those outcomes matter.
 
-- A central warehouse facility responsible for distributing inventory to stores within its region and neighboring regions within 1000 miles.
+The intention is to ensure that every requirement contributes to a system that is:
+- Clear in purpose  
+- Efficient in operation  
+- Scalable in design  
+- Valuable to all users  
 
-Region:
+---
 
-- A collection of stores in a large geographical area.
+## 2. Scope
 
-Micro-Region:
+Codepop is not a single application—it is an interconnected ecosystem that coordinates multiple actors and systems in real time.
 
-- A subdivision of a geographic region used to optimize repair staff travel and stock transfers.
+Imagine a typical scenario:
 
-# User Classes and Characteristics
+A customer is driving home after work. They want a drink, but they don’t want to wait in line or risk it being watered down. Using the Codepop app, they place an order. The system detects their location and calculates when they will arrive. Based on this, it delays drink preparation until the optimal moment.
 
-To ensure the system meets the needs of all users, we have identified the following user classes and characteristics:
+Behind that simplicity is a complex system consisting of:
 
-### Guest Customer
+- A **customer-facing mobile and web application**
+- A **store-level operational system**
+- A **logistics and inventory network**
+- A **machine interface for robotic drink dispensers**
 
-A transient user who interacts with the system for immediate needs without long-term commitment.
+These components work together to enable **Just-In-Time drink fulfillment**, meaning drinks are prepared at the optimal moment based on when the customer will arrive.
 
-- **Characteristics:**
-  - Wishes to use the system without retaining personal data.
-  - Values a frictionless and speedy ordering process.
-- **Limitations:**
-  - Data and preferences are not saved after the session ends.
-  - Will not have access to advanced personalized AI features (e.g., preference-based drink generation).
+The system must continuously manage interactions between:
+- Customers placing orders  
+- Store managers overseeing operations  
+- Logistics managers coordinating supply  
+- Repair staff maintaining uptime  
 
-### Registered Customer
+The success of Codepop depends on how well these interactions are synchronized.
 
-A recurring user who creates an account to enhance their ordering experience through data persistence.
+---
 
-- **Characteristics:**
-  - Values convenience features such as saving favorite drink recipes and payment methods.
-  - Utilizes the Codepop Drink Generator AI for personalized recommendations.
-- **System Interaction:**
-  - The system automatically suggests the optimal store location based on the user's current GPS location.
-  - Order history and preferences are synchronized across all regions.
+## 3. System Context: Regions, Hubs, and Flow
 
-### Store Manager
+To support scalability, Codepop organizes its operations geographically.
 
-The operational lead responsible for a specific physical location. They ensure the day-to-day efficiency of the store.
+A **Region** represents a large operational area containing multiple stores.
 
-- **Responsibilities:**
-  - Monitors local inventory levels (syrups, cups, ice, CO2).
-  - Tracks store revenue and financial reporting.
-  - Monitors immediate machine status and alerts.
-- **Access Control:**
-  - Strictly limited to the information of their own assigned store; cannot view data from other locations.
+Within each region exists a **Supply Hub**, a centralized warehouse responsible for distributing inventory to stores. These hubs can also support nearby regions within a 1000-mile radius when necessary.
 
-### Logistics Manager
+To further optimize efficiency, regions may be divided into **Micro-Regions** (A subdivision of a geographic region), which allow:
+- Faster stock transfers  
+- More efficient repair staff routing  
+- Better localized decision-making  
 
-A high-level administrator responsible for the supply chain and inventory flow across multiple regions and Supply Hubs.
+This structure ensures that the system can scale without relying on a single centralized authority.
 
-- **Responsibilities:**
-  - Manages "Supply Hubs" and authorizes stock transfers between stores and hubs.
-  - Assigns tasks and routes to **Repair Staff**.
-  - Analyzes supply usage patterns using an AI or algorithm to optimize restocking.
-- **Access:**
-  - **Region Stock:** View specific store stock within their region.
-  - **Hub Stock:** View inventory levels in regional Supply Hubs.
-  - **Proximity Stock:** View stock availability in regions within 1000 miles for emergency sourcing.
-  - **Sales Data:** Access aggregated store sales data to inform logistics decisions.
+> Codepop is not just an ordering app—it is a coordinated ecosystem where multiple systems and users interact to deliver a single, seamless outcome.
 
-### Repair Staff
+---
 
-Technical staff tasked with maintaining robotic drink dispensers to minimize store downtime. They operate primarily in the field based on automated or assigned tickets.
+## 4. Understanding the Users (User Classes and Characteristics)
 
-- **Responsibilities:**
-  - Ensures maintenance is completed in a timely manner.
-  - Responds to machine status alerts (e.g., "error", "service upcoming").
-- **Information Access:**
-  - Receives detailed store information (Address, Contact).
-  - View machine specifics: Machine Type, Operational Start Date.
-  - View real-time logs: Machine Status (e.g., "Repair-Start", "Normal"), Status Date.
+The effectiveness of Codepop depends on its ability to serve a diverse set of users, each with distinct goals, responsibilities, and constraints.
 
-### Admin (Local)
+---
 
-A store-level administrator with elevated permissions compared to the standard Store Manager.
+### 4.1 Guest Customer
 
-- **Access:**
-  - Includes all access rights of a **Store Manager** (Stock, Revenue, Machine Status).
-- **User Management:**
-  - Ability to manage local user accounts (e.g., adding or removing Store Managers).
-  - Can update/unlock user accounts for their specific location.
+The Guest Customer interacts with Codepop for immediate needs. They prioritize convenience above all else.
 
-### Super Admin
+They want:
+- A fast ordering process  
+- No requirement to create an account  
+- Minimal friction between decision and checkout  
 
-The highest level of system access, responsible for the global configuration of the decentralized network.
+However, they accept limitations:
+- No saved preferences  
+- No personalized recommendations  
+- No persistent data  
 
-- **Responsibilities:**
-  - Manages global security settings and system configurations.
-  - Oversees all user accounts system-wide.
-- **Network Control:**
-  - Can create or delete Supply Hubs and Regions.
-  - Has unrestricted read/write access to data at any store location or Supply Hub.
+For this user, success is measured in **speed and simplicity**.
 
-# Business Requirements
+---
 
-These requirements define high-level business goals
+### 4.2 Registered Customer
 
-1. Scalability via Decentralization
-   - The architecture must be optimized to allow for easy expansion from a single store to multiple locations, being organized into regions and sub-regions.
-   - The software must operate without a single centralized master server. Instead local stores must communicate with each other and synchronize peer-to-peer or with their regional hub only when necessary.
-2. Automation and Minimal Human Interaction:
-   - The system must enable stores to run without the interference of human operators, with minimal visits by store staff, relying instead on robotic fulfillment.
-3. Supply Chain Optimization
-   - The system must reduce waste and stockouts by utilizing the 7 designated supply hubs
-   - Inventory logic must prioritize shipping from the closest valid source _(Local Store > Regional Hub > Neighboring Hub < 1000 miles)_.
-   - The 7 hubs are as listed:
-     1. **Region A:** Chicago, IL
-     2. **Region B:** New Jersey, NY
-     3. **Region C:** Logan, UT
-     4. **Region D:** Dallas, TX
-     5. **Region E:** Atlanta, GA
-     6. **Region F:** Phoenix, AZ
-     7. **Region G:** Boise, ID
-4. Maintenance Efficiency
-   - To maximize system uptime and profits, the system must transition from a reactive to a proactive maintenance schedule. Repair staff travel should be minimized using specialized algorithms.
-5. Regulatory and Reporting Compliance
-   - Each location must maintain independent revenue tracking. Global reporting must be aggregable by Super Admins without compromising the decentralized nature of the network.
-6. Payment System
+The Registered Customer builds a relationship with the system.
 
-- App/Site should be able to process payment when an order is placed
-- Refunds must be process before order is retrieved
-- ability to track revenue
+They expect:
+- Saved drink preferences  
+- Stored payment methods  
+- Access to order history  
+- Personalized drink recommendations  
 
-## Must Have
+They also benefit from advanced features such as:
+- AI-generated drink suggestions  
+- Optimized order timing based on location  
 
-### Region Management
+For them, Codepop becomes part of a routine, where each interaction improves the next.
 
-- Stores will belong and act within an assigned region
-- Each Region will have a supply hub
-- Supplies can come from supply hub, local suppliers, stores within region, and regions within 1000 miles
+---
 
-### Store Info
+### 4.3 Store Manager
 
-- Communicate directly with other stores inside of their region
-- Own stock quantity
+The Store Manager ensures that the physical store operates smoothly.
 
-- Sales data
+Their responsibilities include:
+- Monitoring inventory (syrups, cups, CO2, etc.)  
+- Tracking revenue and transactions  
+- Observing machine status and alerts  
 
-- The user will pay for their soda(s) as soon as they submit their order either on the app or the website. If the cart is empty no transactions will take place. If the user decides to cancel the order, they will get immediately reimbursed. The user should not be able to cancel their order once the drinks have been picked up.
+They rely on:
+- Accurate, real-time data  
+- Clear system notifications  
+- Limited but focused access to their own store  
 
-- All transactions will be handled by third party software to reduce need for encryption
+Their goal is to prevent disruptions before they affect customers.
 
-### Machine Management
+---
 
-- Keep track of maintenance schedule
+### 4.4 Logistics Manager
 
-- Keep track of machine type
+The Logistics Manager operates at a higher level, focusing on **efficiency across the network**.
 
-- Keep track of machine status
-  - running
+They are responsible for:
+- Managing inventory flow between stores and hubs  
+- Assigning repair staff routes  
+- Analyzing supply trends  
 
-  - repair-start
+They require:
+- Access to aggregated data  
+- Visibility across regions  
+- Predictive insights into demand  
 
-  - repair-end
+Their role ensures that supply meets demand without waste or shortages.
 
-  - error
+---
 
-  - critical error
+### 4.5 Repair Staff
 
-  - out of order
+Repair Staff tasked with maintaining robotic drink dispensers to minimize store downtime. They operate primarily in the field based on automated or assigned tickets.
 
-  - service upcoming
+They must:
+- Respond to machine alerts  
+- Perform maintenance efficiently  
+- Minimize downtime  
 
-- Keep track of when the status is applied/changed
+They rely on:
+- Accurate machine status data  
+- Clear task assignments  
+- Efficient routing between locations  
 
-- Keep track of how long until machine is inoperable
+Their work directly impacts customer experience.
 
-- Keep track of repair staff location/status
+---
 
-### Dashboards
+### 4.6 Administrative Roles
 
-- each role requires a specific dashboard to update/change/view everything that their responsibilities require of them
+Administrative users ensure system integrity.
 
-- User has the option to create their own drink without the use of AI
+**Local Admins**: A store-level administrator with elevated permissions compared to the standard Store Manager.
+- Manage store-level users  
+- Maintain account access  
 
-### Universal Drink ordering system
+**Super Admins**: The highest level of system access, responsible for the global configuration of the decentralized network.
+- Control regions and supply hubs  
+- Manage global configurations  
+- Oversee all system data  
 
-- Drinks are universal in their makeup
-  - a small is x oz, medium is y oz, and a large is z oz
+These roles ensure the system remains secure, organized, and scalable.
 
-  - syrup is quantized to a squirt (cant order a half squirt)
+---
 
-  - Ingredients share the same name everywhere
+## 5. Business Requirements
 
-- an order can contain many drinks
+The following requirements define the strategic goals of Codepop.
 
-- each drink does not have to fill the entire volume
+---
 
-- ingredients added in different order are the same (mtn dew, lime, lemon is the same as lemon, mtn dew, lime)
+### 5.1 Scalability Through Decentralization
 
-- ingredients combine if added out of order (1 lemon, 1 lime, 1 lemon -> 2 lemon, 1 lime)
+The system must support growth from a single store to a distributed network.
 
-### AI
+- Stores operate independently
+- easy expansion from a single store to multiple locations
+- Data synchronization occurs only when necessary  
+- No single centralized server controls the entire system 
 
-- Can randomly generate drinks from soda flavor, ice amount, syrup flavor and pumps, and cream
-- If User likes the generated drink they can chose to save it, or if they don't they can recreate it.
+---
 
-- The AI will use Geo-Location to keep track of the user. Using a combination of the user’s rate of speed and an estimation of how long the soda order will take to create, the AI determines how close the user needs to be to the CodePop location before the robots start creating their order.
+### 5.2 Automation and Minimal Human Interaction
 
-- Keep track of ingredient popularity and the rate at which ingredients are being used (in store). When it predicts an ingredient to start running low, it will notify the manager what ingredients should be ordered and restocked.
+Codepop aims to minimize reliance on human labor while maintaining service quality.
 
-### Device Access
+- Drink fulfillment is handled by robotic dispensers  
+- AI assists in decision-making  
+- Staff involvement is minimized  
 
-- Prioritize access through Application, should be available on both Apple and Android as well as web applications. Web applications should include Google Chrome, Safari, Firefox, and Edge compatibility
+---
 
-## Should Have
+### 5.3 Supply Chain Optimization
 
-### Regions
+The system must minimize waste and prevent shortages.
 
-- Contain Micro Regions
-  - Micro regions will allow for repair staff to move around more efficiently
+- Inventory is sourced based on proximity:
+  - Local Store → Regional Hub → Nearby Hub (<1000 miles)
+- Supply hubs must efficiently distribute stock
+- Predict demand based on usage patterns  
 
-  - Micro regions will NOT have impenetrable borders
+---
 
-### Stores
+### 5.4 Maintenance Efficiency
 
-- Store specific drinks
+To maximize system uptime and profits, the system must transition from a reactive to a proactive maintenance schedule.
 
-- Drinks in the order queue (ordered but not yet made)
+- Machine issues are predicted before failure  
+- Repair routes are optimized  
+- Downtime is minimized  
 
-- Organize other stores between micro and main region
+---
 
-- upcoming maintenance schedule
+### 5.5 Financial and Regulatory Compliance
 
-- total storage availability (can store 100 lbs of syrup, 30 different flavors, etc)
+Each store must maintain accurate financial records while allowing aggregation at higher levels.
 
-- minimum stock before re-order
+The system must:
+- Track revenue at each store  
+- Allow aggregation at higher levels  
+- Maintain accurate financial records  
 
-- minimum stock required to allow transfer to other store
+---
 
-- maximum stock of items
+### 5.6 Payment Handling
 
-- contains their own server
+- Payments are processed at order submission  
+- Refunds are issued before pickup  
+- Third-party systems handle transactions for security (stripe)
 
-- sign in any user from any store server
+---
 
-### Logistic Manager
+## 6. Functional Requirements (System Behavior)
 
-- Adjust minimum stock quantities to have on hand inside the supply hub
+---
 
-- access all store stock info
-  - minimum/maximum
+### 6.1 Customer Ordering Experience
 
-  - minimum stock to allow transfers
+The system must allow users to:
+- Order drinks via mobile or web  
+- Customize drink ingredients  
+- Place multiple drinks in one order  
+- Cancel orders before fulfillment  
 
-### Manager
+Drink rules must remain consistent:
+- Standard sizes (small, medium, large)  
+- Ingredients are normalized regardless of order  
+- Quantities are discrete (no partial units)  
 
-- set store minimum/maximum stock
+---
 
-- set store minimum allow to transfer value
+### 6.2 AI Capabilities
 
-- request stock from other stores
+The system must:
+- Generate drink suggestions  
+- Learn user preferences  
+- Predict when to begin drink preparation based on location  
 
-- deny stock transfer requests
+---
 
-## Could Have
+### 6.3 Inventory Management
 
-### Stock
+The system must:
+- Track stock levels at all locations  
+- Trigger restocking when thresholds are reached  
+- Enable transfers between stores and hubs  
 
-- stock organized within micro regions so stock transfers are faster
+---
 
-- predictive ordering based off of sales data
+### 6.4 Machine Monitoring
 
-- new suggested minimums based off of sales data
+The system must:
+- Track machine states (running, error, repair, etc.)  
+- Log status changes with timestamps  
+- Predict failure timelines  
 
-### Push Notifications
+---
 
-- users can receive notifications about order status and special offers
+### 6.5 Role-Based Dashboards
 
-- managers can receive notifications of supplies running low which need restocking
+Each user role must have access to a tailored dashboard that allows them to:
+- View relevant data  
+- Perform necessary actions  
+- Monitor system status  
 
-- repair_staff can receive notifications for when a bot needs immediate attention
+---
 
-## Will not have
+## 7. Nonfunctional Requirements (System Quality)
 
-- The ability for multiple users to use the same account
+---
 
-- A gift card or cash processing system (all types of payment will be processed using Stripe)
+### 7.1 Performance
 
-# User Stories
+The system must respond quickly to all user interactions.
+
+---
+
+### 7.2 Reliability
+
+The system must operate continuously with minimal downtime.
+
+---
+
+### 7.3 Scalability
+
+The system must handle growth in users, stores, and data.
+
+---
+
+### 7.4 Security
+
+Sensitive operations must be handled securely through trusted services.
+
+---
+
+### 7.5 Compatibility
+
+The system must support:
+- iOS and Android  
+- Web browsers (Chrome, Safari, Firefox, Edge)  
+
+---
+
+### 7.6 Availability
+
+The system must remain accessible during peak usage periods.
+
+---
+
+## 8. User Stories
 
 The User Stories below describe the functional requirements from the perspective of each role
 
@@ -370,7 +422,188 @@ The User Stories below describe the functional requirements from the perspective
 
 30. As a Super Admin I want to add new ingredients to every store and supply hub so that when a new flavor is added we can deploy it quickly and efficiently
 
-# Use Case Diagrams
+---
+
+## 9. MoSCoW Prioritization
+
+## Must Have
+### Region Management
+
+- Stores will belong and act within an assigned region
+- Each Region will have a supply hub
+- Supplies can come from supply hub, local suppliers, stores within region, and regions within 1000 miles
+
+### Store Info
+
+- Communicate directly with other stores inside of their region
+- Own stock quantity
+
+- Sales data
+
+- The user will pay for their soda(s) as soon as they submit their order either on the app or the website. If the cart is empty no transactions will take place. If the user decides to cancel the order, they will get immediately reimbursed. The user should not be able to cancel their order once the drinks have been picked up.
+
+- All transactions will be handled by third party software to reduce need for encryption
+
+### Machine Management
+
+- Keep track of maintenance schedule
+
+- Keep track of machine type
+
+- Keep track of machine status
+  - running
+
+  - repair-start
+
+  - repair-end
+
+  - error
+
+  - critical error
+
+  - out of order
+
+  - service upcoming
+
+- Keep track of when the status is applied/changed
+
+- Keep track of how long until machine is inoperable
+
+- Keep track of repair staff location/status
+
+### Dashboards
+
+- each role requires a specific dashboard to update/change/view everything that their responsibilities require of them
+
+- User has the option to create their own drink without the use of AI
+
+### Universal Drink ordering system
+
+- Drinks are universal in their makeup
+  - a small is x oz, medium is y oz, and a large is z oz
+
+  - syrup is quantized to a squirt (cant order a half squirt)
+
+  - Ingredients share the same name everywhere
+
+- an order can contain many drinks
+
+- each drink does not have to fill the entire volume
+
+- ingredients added in different order are the same (mtn dew, lime, lemon is the same as lemon, mtn dew, lime)
+
+- ingredients combine if added out of order (1 lemon, 1 lime, 1 lemon -> 2 lemon, 1 lime)
+
+### AI
+
+- Can randomly generate drinks from soda flavor, ice amount, syrup flavor and pumps, and cream
+- If User likes the generated drink they can chose to save it, or if they don't they can recreate it.
+
+- The AI will use Geo-Location to keep track of the user. Using a combination of the user’s rate of speed and an estimation of how long the soda order will take to create, the AI determines how close the user needs to be to the CodePop location before the robots start creating their order.
+
+- Keep track of ingredient popularity and the rate at which ingredients are being used (in store). When it predicts an ingredient to start running low, it will notify the manager what ingredients should be ordered and restocked.
+
+### Device Access
+
+- Prioritize access through Application, should be available on both Apple and Android as well as web applications. Web applications should include Google Chrome, Safari, Firefox, and Edge compatibility 
+
+---
+
+## Should Have
+### Regions
+
+- Contain Micro Regions
+  - Micro regions will allow for repair staff to move around more efficiently
+
+  - Micro regions will NOT have impenetrable borders
+
+### Stores
+
+- Store specific drinks
+
+- Drinks in the order queue (ordered but not yet made)
+
+- Organize other stores between micro and main region
+
+- upcoming maintenance schedule
+
+- total storage availability (can store 100 lbs of syrup, 30 different flavors, etc)
+
+- minimum stock before re-order
+
+- minimum stock required to allow transfer to other store
+
+- maximum stock of items
+
+- contains their own server
+
+- sign in any user from any store server
+
+### Logistic Manager
+
+- Adjust minimum stock quantities to have on hand inside the supply hub
+
+- access all store stock info
+  - minimum/maximum
+
+  - minimum stock to allow transfers
+
+### Manager
+
+- set store minimum/maximum stock
+
+- set store minimum allow to transfer value
+
+- request stock from other stores
+
+- deny stock transfer requests
+
+---
+
+## Could Have
+### Stock
+
+- stock organized within micro regions so stock transfers are faster
+
+- predictive ordering based off of sales data
+
+- new suggested minimums based off of sales data
+
+### Push Notifications
+
+- users can receive notifications about order status and special offers
+
+- managers can receive notifications of supplies running low which need restocking
+
+- repair_staff can receive notifications for when a bot needs immediate attention
+
+---
+
+## Will Not Have
+
+- Shared accounts 
+
+- Alternative payment systems such as gift card or cash payment
+
+---
+
+## 10. System Narrative: Bringing It Together
+
+The true success of Codepop lies in making a complex system feel effortless.
+
+A customer places an order.  
+The system calculates timing.  
+The store prepares the drink.  
+Inventory adjusts automatically.  
+Maintenance is predicted before failure.  
+
+What the customer experiences is simple—but what enables it is a tightly coordinated system of requirements working together.
+
+Every requirement in this document exists to support that illusion of simplicity.
+
+---
+
+## 11. Use Case Diagrams 
 
 ## Customer Experience
 
@@ -487,3 +720,16 @@ flowchart LR
     SuperAdmin --> uc_users
     SuperAdmin --> uc_add_ingred
 ```
+
+## 12. Conclusion
+
+This document transforms a collection of features into a unified system vision.
+
+By focusing on:
+- User intent  
+- Business value  
+- System reliability  
+
+it ensures that Codepop is not just functional, but meaningful, scalable, and efficient.
+
+The result is a system that delivers value at every level—from the individual customer to the global network.
