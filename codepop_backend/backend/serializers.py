@@ -35,28 +35,10 @@ def get_tokens_for_user(user):
     }
 
 
-class RegionSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Region
-        fields = ['RegionID', 'RegionName']
-
-
-class ServerRegistrySerializer(serializers.ModelSerializer):
-    RegionName = serializers.ReadOnlyField(source='Region.RegionName')
-
-    class Meta:
-        model = ServerRegistry
-        fields = [
-            'ServerID', 'ServerURL', 'PublicKey', 'Status', 'LastSeen', 
-            'Region', 'RegionName', 'IsRegionLeader', 'StoreName', 'StoreAddress', 
-            'StoreCity', 'StoreState', 'StoreZip', 'StoreGeohash'
-        ]
-
-
 class CreateUserSerializer(serializers.ModelSerializer):
     username = serializers.CharField()
     password = serializers.CharField(write_only=True,
-                                     style={'input_type': 'password'})
+                                    style={'input_type': 'password'})
 
     class Meta:
         model = get_user_model()
@@ -89,10 +71,26 @@ class CreateUserSerializer(serializers.ModelSerializer):
         )
         return user
 
+
+class ServerRegistrySerializer(serializers.ModelSerializer):
+    RegionName = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ServerRegistry
+        fields = [
+            'ServerID', 'ServerURL', 'PublicKey', 'Status', 'LastSeen', 
+            'Region', 'RegionName', 'IsRegionLeader', 'StoreName', 'StoreAddress', 
+            'StoreCity', 'StoreState', 'StoreZip', 'StoreGeohash'
+        ]
+
+    def get_RegionName(self, obj):
+        return obj.Region.RegionName if obj.Region else None
+
+
 class GetUserSerializer(serializers.ModelSerializer):
     username = serializers.CharField()
     password = serializers.CharField(write_only=True,
-                                     style={'input_type': 'password'})
+                                    style={'input_type': 'password'})
     home_server_details = ServerRegistrySerializer(read_only=True, source='home_server')
 
     class Meta:
@@ -184,7 +182,8 @@ class PreferenceSerializer(serializers.ModelSerializer):
 
         # Return the lowercase value for saving
         return value
-    
+
+
 class DrinkSerializer(serializers.ModelSerializer):
     DrinkID = serializers.UUIDField(required=False)
 
@@ -221,6 +220,7 @@ class FlavorSerializer(serializers.ModelSerializer):
         model = Flavor
         fields = ['SyrupID', 'Name', 'PrimaryFlavor', 'SecondaryFlavor', 'TertiaryFlavor']
 
+
 class InventorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Inventory
@@ -229,10 +229,36 @@ class InventorySerializer(serializers.ModelSerializer):
             'Quantity', 'ThresholdLevel', 'LastUpdated'
         ]
 
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        request = self.context.get('request')
+        
+        is_privileged = False
+        is_peer = False
+
+        if request:
+            if request.user and request.user.is_authenticated:
+                if request.user.user_type in ['super_admin', 'admin', 'store_manager', 'logistics_manager']:
+                    is_privileged = True
+            
+            auth_header = request.headers.get('Authorization', '')
+            if auth_header.startswith('Server-Token '):
+                is_peer = True
+
+        # If not a manager/admin or a peer server, hide specific amounts
+        if not is_privileged and not is_peer:
+            representation['InStock'] = instance.Quantity > 0
+            representation.pop('Quantity', None)
+            representation.pop('ThresholdLevel', None)
+            
+        return representation
+
+
 class NotificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Notification
         fields = '__all__'
+
 
 class OrderSerializer(serializers.ModelSerializer):
     Drinks = serializers.PrimaryKeyRelatedField(many=True, queryset=Drink.objects.all(), required=False)
@@ -283,8 +309,9 @@ class OrderSerializer(serializers.ModelSerializer):
         # We still want at least one drink for NEW orders, 
         # but for syncs/updates it might be handled differently.
         if value is not None and not value:
-             raise serializers.ValidationError("At least one drink must be included in the order.")
+            raise serializers.ValidationError("At least one drink must be included in the order.")
         return value
+
 
 class RevenueSerializer(serializers.ModelSerializer):
     class Meta:
@@ -321,21 +348,6 @@ class RegionSerializer(serializers.ModelSerializer):
         fields = ['RegionID', 'RegionName']
 
 
-class ServerRegistrySerializer(serializers.ModelSerializer):
-    RegionName = serializers.SerializerMethodField()
-
-    class Meta:
-        model = ServerRegistry
-        fields = [
-            'ServerID', 'ServerURL', 'PublicKey', 'Status', 'LastSeen', 
-            'Region', 'RegionName', 'IsRegionLeader', 'StoreName', 'StoreAddress', 
-            'StoreCity', 'StoreState', 'StoreZip', 'StoreAddress', 'StoreCity', 'StoreState', 'StoreZip', 'StoreGeohash'
-        ]
-
-    def get_RegionName(self, obj):
-        return obj.Region.RegionName if obj.Region else None
-
-
 class MasterListSerializer(serializers.ModelSerializer):
     class Meta:
         model = MasterList
@@ -349,7 +361,7 @@ class TransferRequestSerializer(serializers.ModelSerializer):
     class Meta:
         model = TransferRequest
         fields = ['RequestID', 'FromServer', 'FromServerName', 'ToServer', 'ToServerName',
-                  'ItemName', 'Quantity', 'Status', 'RequestedBy', 'CreatedAt', 'Notes']
+                'ItemName', 'Quantity', 'Status', 'RequestedBy', 'CreatedAt', 'Notes']
         read_only_fields = ['RequestID', 'CreatedAt', 'RequestedBy']
 
     def get_FromServerName(self, obj):

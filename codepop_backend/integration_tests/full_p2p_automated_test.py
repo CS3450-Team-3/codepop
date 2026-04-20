@@ -11,7 +11,7 @@ from cryptography.hazmat.backends import default_backend
 from port_utils import find_n_available_ports
 
 # CONFIGURATION
-SECTION_TOTAL = 16
+SECTION_TOTAL = 17
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # ANSI Color Codes
@@ -741,7 +741,7 @@ def main():
             }
             
             resp = requests.post(
-                f"http://localhost:{PORT_A}/backend/stripe/webhook/",
+                f"http://localhost:{PORT_A}/backend/webhooks/stripe/",
                 headers={"Stripe-Signature": "mock_signature_for_testing"},
                 json=webhook_payload
             )
@@ -796,7 +796,7 @@ def main():
                 }
             }
             resp = requests.post(
-                f"http://localhost:{PORT_A}/backend/stripe/webhook/",
+                f"http://localhost:{PORT_A}/backend/webhooks/stripe/",
                 headers={"Stripe-Signature": "mock_signature_for_testing"},
                 json=refund_payload
             )
@@ -1096,7 +1096,7 @@ def main():
                     
                     # Send Webhook
                     w_resp = requests.post(
-                        f"http://localhost:{port}/backend/stripe/webhook/",
+                        f"http://localhost:{port}/backend/webhooks/stripe/",
                         json=webhook_payload,
                         headers={"Stripe-Signature": "mock_signature_for_testing"}
                     )

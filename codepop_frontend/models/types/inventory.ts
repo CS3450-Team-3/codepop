@@ -7,6 +7,7 @@ export interface Inventory {
   Quantity: number;
   ThresholdLevel: number;
   LastUpdated: string;
+  InStock?: boolean;
 }
 
 export interface PatchedInventory {

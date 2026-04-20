@@ -30,15 +30,15 @@ export default function CustomizeModal({
   const { addItem } = useCart();
 
   const availableSodas = inventory
-    .filter((i) => i.ItemType === 'Soda' && i.Quantity > 0)
+    .filter((i) => i.ItemType === 'Soda' && (i.InStock ?? i.Quantity > 0))
     .map((i) => i.ItemName);
 
   const availableSyrups = inventory
-    .filter((i) => i.ItemType === 'Syrup' && i.Quantity > 0)
+    .filter((i) => i.ItemType === 'Syrup' && (i.InStock ?? i.Quantity > 0))
     .map((i) => i.ItemName);
 
   const availableAddIns = inventory
-    .filter((i) => i.ItemType === 'Add In' && i.Quantity > 0)
+    .filter((i) => i.ItemType === 'Add In' && (i.InStock ?? i.Quantity > 0))
     .map((i) => i.ItemName);
 
   // Pre-fill from the drink, fallback to first available
