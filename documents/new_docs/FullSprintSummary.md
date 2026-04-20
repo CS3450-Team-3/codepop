@@ -11,8 +11,6 @@
 
 ## Weekly Summary
 
-The team made strong progress across backend, frontend, and infrastructure, with clear ownership of tasks and consistent collaboration.
-
 **Ethan H.** Completed 2 sections of the LLD and created our prototype to show off in the show and tell
 
 **Ethan T.** Completed 3 sections of the LLD along with overall revisions.
