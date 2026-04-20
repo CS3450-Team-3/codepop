@@ -4,13 +4,6 @@
 
 CodePop is more than just a dirty soda app. It is a streamlined ecosystem designed to bring customization and speed to the beverage industry. Whether you are a customer tracking your favorite mix, a manager keeping the syrups flowing, or an owner overseeing a soda empire, this manual is your roadmap to the CodePop experience. Let's get mixing.
 
-## Use Cases
-
-- **Customer:** Track an order through its lifecycle from placed to ready for pickup.
-- **Store Manager:** Monitor low inventory warnings and take action before stock runs out.
-- **Store Owner:** Review the decentralized multi-store dashboard.
-- **User:** Review social media and leaderboard
-
 ## Table of Contents
 
 - [Overview: What is CodePop?](#overview-what-is-codepop)
@@ -58,7 +51,7 @@ Here's the fastest path from "never used CodePop" to "sipping your first drink."
 
 ### Step 1: Open CodePop
 
-Navigate to the CodePop web address in any modern browser on your phone or computer. No download required.
+Navigate to the CodePop web address in any modern browser on your phone or computer. No download required!
 
 ### Step 2: Pick Your Store
 
