@@ -6,6 +6,38 @@ Team SocialDrinkers (3)
 
 **Team Lead: Dillan**
 
+Sprint 0 was dedicated to the initial conceptualization and foundational planning of the Codepop project. During this period, the team focused on defining the core project scope, gathering business and technical requirements, and establishing the standards for collaboration. This sprint was critical in transitioning our ideas into a structured roadmap, ensuring that every team member had a clear understanding of the project's decentralized architecture and the various user roles within the ecosystem.
+
+### Weekly Summary
+
+- **Ethan H.** served as the primary documentarian and repository manager. He structured the initial project documentation, created the Use Case Diagrams for all system roles, and established the backend testing protocols to ensure future code quality.
+
+- **Ethan T.** focused on defining the core user-facing requirements, including the integrated payment system (Stripe), the logic for the AI drink recommendation engine, and ensuring cross-platform compatibility across mobile and web environments.
+
+- **Nate** established the team's technical workflow by authoring the Git Usage Standards and Code Standards. He also managed the initial repository configuration, ensuring that the team had a consistent set of guidelines for branching, commits, and code formatting from the very start.
+
+- **Dillan** led the sprint as Team Lead, overseeing the initial requirement gathering phase. He was responsible for drafting the project's high-level business goals and implementing the MoSCoW prioritization framework to guide the project's scope.
+
+- **Michael** developed the comprehensive suite of User Stories that formed the basis for the system's functional requirements. He defined the specific access levels and dashboard requirements for each of the seven identified user roles, from Guest Customers to Super Admins.
+
+
+---
+
+### Work Completed
+
+- **Project Requirements:** Finalized a comprehensive `Requirements.md` document covering business goals, functional requirements (Must/Should/Could Have), and detailed user stories.
+- **System Architecture Design:** Defined the decentralized, peer-to-peer network structure and regional supply hub model.
+- **Use Case Modeling:** Created detailed Use Case Diagrams for Customer Experience, Store Management, and Logistics Management to visualize system interactions.
+- **Technical Standards:** Established Git usage protocols, branching strategies, and initial code formatting standards.
+- **Prioritization Framework:** Implemented a MoSCoW plan to define the MVP (minimum viable product) and future feature roadmap.
+- **Repository Setup:** Configured the initial repository structure, `.gitignore` rules, and environment management tools.
+
+---
+
+### Key Takeaways
+
+The primary takeaway from Sprint 0 was the successful transition from abstract concepts to a concrete, documented roadmap. By establishing detailed User Stories and Use Case Diagrams early on, the team ensured a unified vision for the product's scope and stakeholder needs. Furthermore, the early adoption of Git and Code Standards laid a critical foundation for conflict-free collaboration, while the clear commitment to a decentralized P2P architecture provided the technical clarity necessary to prevent architectural drift as the project progressed into more complex development phases.
+
 ## Sprint 1 Summary: Design
 
 **Team Lead:** Nate Washburn
@@ -36,7 +68,7 @@ The team completed the LLD and a prototype to show off
 
 **Team Lead:** Ethan Huff
 
-During Sprint 3 the team transitioned from design to active development. The primary objective was to establish a functional MVP (minimum viable product) by splitting the team into dedicated frontend and backend development sub-teams. This approach allowed for parallel development and specialized focus into each aspect of the project. To ensure efficiency and prevent duplication of efforts, we implemented a decentralized management style:
+During Sprint 3 the team transitioned from design to active development. The primary objective was to establish a functional MVP by splitting the team into dedicated frontend and backend development sub-teams. This approach allowed for parallel development and specialized focus into each aspect of the project. To ensure efficiency and prevent duplication of efforts, we implemented a decentralized management style:
 
 - **Task Management:** Major goals were decomposed into granular tasks and tracked as GitHub Issues. Team Members self-assigned the tasks between each other based on their expertise and availability.
 - **Code Quality:** We established a mandatory peer-review process. Branch protection was enabled, preventing code from being pushed directly to the master branch until it had been reviewed by at least one other team member, preferably someone within the same sub-team.
