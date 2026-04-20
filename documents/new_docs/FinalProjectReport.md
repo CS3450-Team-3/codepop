@@ -1,16 +1,20 @@
-# Sprint 0 Summary: Requirement Gathering
+# Final Project Report
+
+Team SocialDrinkers (3)
+
+## Sprint 0 Summary: Requirement Gathering
 
 **Team Lead: Dillan**
 
-# Sprint 1 Summary: Design
+## Sprint 1 Summary: Design
 
 **Team Lead:** Nate Washburn
 
-# Sprint 2 Summary: Low-Level Design
+## Sprint 2 Summary: Low-Level Design
 
 **Team Lead:** Michael Seeley
 
-## Weekly Summary
+### Weekly Summary
 
 **Ethan H.** Completed 2 sections of the LLD and created our prototype to show off in the show and tell
 
@@ -24,11 +28,11 @@
 
 ---
 
-## Work Completed
+### Work Completed
 
 The team completed the LLD and a prototype to show off
 
-# Sprint 3 Summary: Development
+## Sprint 3 Summary: Development
 
 **Team Lead:** Ethan Huff
 
@@ -38,7 +42,7 @@ During Sprint 3 the team transitioned from design to active development. The pri
 - **Code Quality:** We established a mandatory peer-review process. Branch protection was enabled, preventing code from being pushed directly to the master branch until it had been reviewed by at least one other team member, preferably someone within the same sub-team.
 - **Documentation:** Backend endpoints were documented using Swagger to provide a comprehensive view of the API endpoints and their functionalities.
 
-## Weekly Summary
+### Weekly Summary
 
 **Ethan H.** finalized the Django models to align with the Low-Level Design, developed the core REST API endpoints (including the backend JWT authentication), and integrated Swagger documentation. He also implemented the Stripe payment API and created a comprehensive Integration Testing Suite to simulate user traffic.
 
@@ -50,7 +54,9 @@ During Sprint 3 the team transitioned from design to active development. The pri
 
 **Dillan** spent substantial time focusing on backend infrastructure, specifically the P2P database syncing logic to ensure data integrity across the network. He also led the initial effort to containerize the application using Docker.
 
-## Work Completed
+---
+
+### Work Completed
 
 - **Authentication & Security:** Established a JWT-based auth system using Asymmetric RSA keys. This includes registration, login, and token refresh logic.
 - **Core Backend API:** Developed the RESTful API required for the frontend to interact with the database, fully documented via Swagger.
@@ -59,7 +65,9 @@ During Sprint 3 the team transitioned from design to active development. The pri
 - **Payment Integration:** Initial integration with the Stripe API for order processing and payment verification.
 - **Testing Suite:** Created an Integration Testing Suite that manages headers and cookies to accurately test API responses under authenticated conditions.
 
-## Incomplete Work
+---
+
+### Incomplete Work
 
 There still remained certain aspects that, although were goals for this sprint, had to be deferred for future sprints due to time and complexity constraints, including:
 
@@ -71,15 +79,17 @@ There still remained certain aspects that, although were goals for this sprint, 
 
 - **Containerization Finalization:** Initial Docker configurations were successful, but final deployment testing across different hardware environments is still pending.
 
-## Key Takeaways
+---
+
+### Key Takeaways
 
 The transition to a sub-team structure was highly effective. By utilizing Swagger for API documentation early in the sprint, the frontend and backend teams were able to work synchronously with minimal friction. We found that our modular design significantly reduced merge conflicts, allowing us to focus on development rather than version control issues. A major highlight was the Integration Testing Suite, which provided a reliable method for verifying our JWT authentication logic in a simulated environment.
 
-# Sprint 4 Summary: Development
+## Sprint 4 Summary: Development
 
 **Team Lead:** Ethan Tatton
 
-## Weekly Summary
+### Weekly Summary
 
 The team made strong progress across backend, frontend, and infrastructure, with clear ownership of tasks and consistent collaboration.
 
@@ -95,7 +105,7 @@ The team made strong progress across backend, frontend, and infrastructure, with
 
 ---
 
-## Work Completed
+### Work Completed
 
 The team completed a wide range of development tasks, including:
 
@@ -112,7 +122,7 @@ The team completed a wide range of development tasks, including:
 
 ---
 
-## Incomplete / Ongoing Work
+### Incomplete / Ongoing Work
 
 Some features were started but not fully completed:
 
@@ -125,7 +135,7 @@ These tasks are planned to be finalized in the next sprint, which will focus on 
 
 ---
 
-## Key Takeaways
+### Key Takeaways
 
 - The team demonstrated strong collaboration, especially through asynchronous communication
 - Major technical milestones (Docker migration, backend stability, API completion) were successfully achieved
@@ -133,10 +143,10 @@ These tasks are planned to be finalized in the next sprint, which will focus on 
 - Better task breakdown, earlier prioritization, and improved frontend-backend coordination are needed moving forward
 - Next sprint will prioritize testing, debugging, and completing near-finished features
 
-# Sprint 5 Summary: Testing and Deployment
+## Sprint 5 Summary: Testing and Deployment
 
 **Team Lead:** Dillan
 
-# Sprint 6 Summary: Maintenance
+## Sprint 6 Summary: Maintenance
 
 **Team Lead:** Dillan
