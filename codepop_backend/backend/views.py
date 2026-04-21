@@ -45,7 +45,10 @@ from drf_spectacular.utils import extend_schema
 from drf_spectacular.types import OpenApiTypes
 from django.utils.dateparse import parse_datetime
 from .drinkAI import generate_soda
-from .sync import get_local_server, masterlist_push_fn, trigger_sync_on_leader, sync_masterlist, http_get
+from .sync import (
+    get_local_server, masterlist_push_fn, trigger_sync_on_leader, 
+    sync_masterlist, http_get, _build_auth_headers
+)
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
@@ -743,35 +746,28 @@ class UserDrinksLookup(ListAPIView):
 
 
 class InventoryListAPIView(ListAPIView):
-    """List all items that are not out of stock."""
-    queryset = Inventory.objects.filter(Quantity__gt=0)
+    """List all inventory items (now includes out-of-stock items, sensitive counts hidden by serializer)."""
+    queryset = Inventory.objects.all()
     serializer_class = InventorySerializer
     permission_classes = [AllowAny]
 
     def list(self, request, *args, **kwargs):
-        proxy_resp = proxy_user_request(request, '/backend/inventory/')
-        if proxy_resp:
-            return proxy_resp
         return super().list(request, *args, **kwargs)
 
 class InventoryReportAPIView(APIView):
     """Generate an inventory report."""
-    # AllowAny so peer servers can call this endpoint without needing the
-    # requesting user to exist in their own database.  The aggregate endpoint
-    # that calls this is itself protected by IsLogisticsManager.
-    permission_classes = [AllowAny]
+    # AllowAny removed to enforce RBAC. Logistics managers, Store managers, 
+    # and peer servers can access the report. Peer servers now use Server-Token
+    # auth via IsPeerServer.
+    permission_classes = [IsLogisticsManager | IsStoreManager | IsPeerServer]
 
     @extend_schema(
         responses={200: InventoryReportResponseSerializer},
         description="Generate a detailed report of current inventory including out-of-stock and low-stock counts."
     )
     def get(self, request):
-        proxy_resp = proxy_user_request(request, '/backend/inventory/report/')
-        if proxy_resp:
-            return proxy_resp
-
         inventory = Inventory.objects.all()
-        serializer = InventorySerializer(inventory, many=True)
+        serializer = InventorySerializer(inventory, many=True, context={'request': request})
         report_data = {
             'inventory_items': serializer.data,
             'total_items': inventory.count(),
@@ -788,10 +784,6 @@ class InventoryUpdateAPIView(RetrieveUpdateAPIView):
 
     def patch(self, request, *args, **kwargs):
         pk = kwargs.get('pk')
-        proxy_resp = proxy_user_request(request, f'/backend/inventory/{pk}/')
-        if proxy_resp:
-            return proxy_resp
-
         item = self.get_object()
 
         if request.user.user_type == 'logistics_manager' or request.user.user_type == 'store_manager':
@@ -877,10 +869,6 @@ class InventoryUpdateAPIView(RetrieveUpdateAPIView):
         return Response(response_data, status=status.HTTP_200_OK)
 
     def put(self, request, *args, **kwargs):
-        pk = kwargs.get('pk')
-        proxy_resp = proxy_user_request(request, f'/backend/inventory/{pk}/')
-        if proxy_resp:
-            return proxy_resp
         return super().update(request, *args, **kwargs)
 
 class InventoryAggregateView(APIView):
@@ -910,12 +898,27 @@ class InventoryAggregateView(APIView):
             region_servers = ServerRegistry.objects.filter(Region=request.user.home_server.Region, Status='Active')
 
         results = {}
-        # Peer servers now use AllowAny on /backend/inventory/report/ so no
-        # auth header is needed.  Forwarding the user's JWT would fail anyway
-        # because peer databases don't contain users from other servers.
-        headers = {'Content-Type': 'application/json'}
+        # Peer servers now use Server-Token auth on /backend/inventory/report/.
+        # We must provide our server ID and key fingerprint to be verified.
+        headers = _build_auth_headers(local_server)
 
         for server in region_servers:
+            if server.ServerID == local_server.ServerID:
+                # Local data
+                inventory = Inventory.objects.all()
+                serializer = InventorySerializer(inventory, many=True, context={'request': request})
+                results[server.ServerID] = {
+                    'inventory_items': serializer.data,
+                    'total_items': inventory.count(),
+                    'out_of_stock': inventory.filter(Quantity=0).count(),
+                    'below_threshold': inventory.filter(Quantity__lte=models.F('ThresholdLevel')).count(),
+                    'store_name': server.StoreName or '',
+                    'store_city': server.StoreCity or '',
+                    'store_state': server.StoreState or '',
+                    'proxied': str(server.ServerID)
+                }
+                continue
+
             target_url = server.ServerURL.rstrip('/') + '/backend/inventory/report/'
             try:
                 resp = requests.get(target_url, headers=headers, timeout=5)
@@ -2452,10 +2455,10 @@ class MenuView(APIView):
         featured_drinks = Drink.objects.filter(User_Created=False)[:10]
 
         data = {
-            "sodas": InventorySerializer(sodas, many=True).data,
-            "syrups": InventorySerializer(syrups, many=True).data,
-            "addins": InventorySerializer(addins, many=True).data,
-            "featured_drinks": DrinkSerializer(featured_drinks, many=True).data,
+            "sodas": InventorySerializer(sodas, many=True, context={'request': request}).data,
+            "syrups": InventorySerializer(syrups, many=True, context={'request': request}).data,
+            "addins": InventorySerializer(addins, many=True, context={'request': request}).data,
+            "featured_drinks": DrinkSerializer(featured_drinks, many=True, context={'request': request}).data,
         }
         return Response(data, status=status.HTTP_200_OK)
 
