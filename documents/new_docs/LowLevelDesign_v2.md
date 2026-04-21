@@ -20,6 +20,7 @@ Table of contents:
     - [3.1 Subsystem Breakdown](#31-subsystem-breakdown)
     - [3.2 Detailed Class Definitions](#32-detailed-class-definitions)
     - [3.3 UML Class Diagrams](#33-uml-class-diagrams)
+    - [3.4 Order State Machine](#34-order-state-machine)
   - [4. Database Design](#4-database-design)
     - [4.1 Database Tables and Schema](#41-database-tables-and-schema)
       - [**Table: `user` (`auth_user`)**](#table-user-auth_user)
