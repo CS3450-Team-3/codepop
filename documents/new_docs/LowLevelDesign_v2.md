@@ -320,8 +320,6 @@ FUNCTION check_inventory_threshold(item):
             log_info("Low inventory alert created for", item.item_name)
 ```
 
-
-
 - `Notification` _(extends `Model`)_: Stores a single alert or message for a user or for all users.
   - _Fields:_ `NotificationID (AutoField PK)`, `UserID (ForeignKey → auth_user)`, `Message (CharField, max 500)`, `Timestamp (DateTimeField, default now)`, `Type (CharField, max 50)`, `Global (BooleanField, default False)`
   - _Methods:_ `__str__()`
@@ -405,8 +403,6 @@ FUNCTION generate_soda(user_preferences):
 ```
 
 **Complexity:** O(d · p) where d = number of candidate drinks and p = number of user preference tags. At expected scale (hundreds of drinks, dozens of tags per user) this runs in well under a millisecond before the OpenAI call.
-
-
 
 - `Chatbot` _(extends `APIView`)_: Manages a multi-turn conversational support session powered by Microsoft DialoGPT-medium.
   - _Fields (session state):_ `phase` — current conversation stage (`init`, `1`, `collect`); `order_number` — captured order reference; `selected_drinks` — drinks flagged for refund/remake
@@ -1631,12 +1627,12 @@ SessionCache = {
 }
 ```
 
-| Operation | Complexity | Notes |
-|:---|:---|:---|
-| `get(token)` | O(1) average | Direct hash lookup on every request |
-| `set(token, data)` | O(1) average | Overwrites if token already exists |
-| `delete(token)` | O(1) average | Called on logout |
-| `sweep_expired()` | O(n) | Background tick; removes entries where `expires_at < now()` |
+| Operation          | Complexity   | Notes                                                       |
+| :----------------- | :----------- | :---------------------------------------------------------- |
+| `get(token)`       | O(1) average | Direct hash lookup on every request                         |
+| `set(token, data)` | O(1) average | Overwrites if token already exists                          |
+| `delete(token)`    | O(1) average | Called on logout                                            |
+| `sweep_expired()`  | O(n)         | Background tick; removes entries where `expires_at < now()` |
 
 ---
 
