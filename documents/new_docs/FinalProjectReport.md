@@ -76,23 +76,37 @@ The biggest win of Sprint 1 was reaching full team alignment on the technology s
 
 **Team Lead:** Michael Seeley
 
+Sprint 2 focused on transitioning from high-level architectural concepts to detailed low-level design specifications. The primary objective was to produce a comprehensive Low-Level Design (LLD) document that would serve as the technical blueprint for the upcoming development phase. This included defining the database schema, detailing subsystem interactions, designing high-fidelity UI prototypes, and formalizing the peer-to-peer (P2P) networking logic. Additionally, the team finalized the High-Level Design (HLD) to ensure a stable architectural foundation before proceeding with granular implementation details.
+
 ### Weekly Summary
 
-**Ethan H.** Completed 2 sections of the LLD and created our prototype to show off in the show and tell
+* **Michael** served as Team Lead and was responsible for the architectural overview and introduction of the LLD. He developed the detailed UML Class Diagrams, illustrating the relationships between core system entities such as Users, Drinks, and Orders. He also oversaw the finalization of the High-Level Design document and prepared technical diagrams for the mid-sprint "Show and Tell" presentation.
 
-**Ethan T.** Completed 3 sections of the LLD along with overall revisions.
+* **Ethan H.** acted as the primary architect for the LLD document structure. He established the document template, authored a detailed Table of Contents, and was the lead contributor to the Database Design section, where he defined the PostgreSQL schema and normalization strategies. He also managed repository maintenance, including the implementation of automated code formatting for documentation and `.gitignore` optimizations.
 
-**Michael** Created Diagrams for the Show and Tell and completed 2 sections of the LLD.
+* **Ethan T.** focused on user-facing design and external system integrations. He authored the UI/UX Design section of the LLD and produced a comprehensive suite of prototypes for all user roles, including Customers, Managers, and Admins. Additionally, he documented the third-party integration strategies for critical services including Stripe (payments), OpenAI (AI recommendations), and Google Maps (location services).
 
-**Nate** Focused on the peer 2 peer network, ironing it out and improving it.
+* **Dillan** took ownership of the complex Peer-to-Peer (P2P) networking specifications. He defined the logic for Home and Visiting server assignments, cross-server session handling, and data synchronization protocols. He also contributed to the logistics management design and performed rigorous quality assurance on the LLD to eliminate inconsistencies and ensure technical accuracy across all sections.
 
-**Dillan** Completed 3 sections of the LLD, including revisions, and helped establish the peer 2 peer network idea.
+* **Nate** collaborated on the development of the P2P networking model, focusing on fault tolerance and scalability aspects of the decentralized architecture. He also supported the refinement of the component and interface models, ensuring alignment with the security and performance goals established during the earlier design phases.
 
 ---
 
 ### Work Completed
 
-The team completed the LLD and a prototype to show off
+- **Low-Level Design Document:** Authored a comprehensive technical specification covering all nine major system subsystems and their interactions.
+- **Database Schema:** Finalized a fully normalized PostgreSQL schema, complete with detailed table definitions, foreign key relationships, and indexing strategies.
+- **UI/UX Prototypes:** Developed high-fidelity wireframes and flow diagrams for seven distinct user roles, establishing the visual language and core user journeys.
+- **P2P Networking Logic:** Formalized the "Home vs. Visiting Server" architecture, including authentication handshakes, data ownership rules, and synchronization triggers.
+- **UML Modeling:** Completed detailed Class and Sequence diagrams to map internal logic and facilitate inter-subsystem communication.
+- **Third-Party Integration Plans:** Documented technical implementation details and API security protocols for Stripe, OpenAI, and Google Maps.
+- **High-Level Design Finalization:** Integrated stakeholder feedback into the HLD to create a finalized baseline for the project's architecture.
+
+---
+
+### Key Takeaways
+
+The primary success of Sprint 2 was the creation of a "developer-ready" blueprint that significantly reduced ambiguity for the subsequent implementation phases. By investing heavily in the P2P networking and database design early, the team was able to identify and resolve potential data integrity challenges before any application code was written. The mid-sprint "Show and Tell" was a critical milestone, allowing the team to validate UI/UX flows and ensure the system's complexity remained manageable for all stakeholders. While the decentralized networking logic proved to be the most challenging aspect of the design, the collaborative effort between the architectural and networking leads resulted in a robust model that balances local autonomy with network-wide data consistency.
 
 ## Sprint 3 Summary: Development
 
