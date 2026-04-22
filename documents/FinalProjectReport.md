@@ -309,7 +309,7 @@ Sprint 5 was the final development sprint, focused on testing, deployment, and s
 This section contains links to the various design and project documents created throughout the lifecycle of the Codepop project.
 
 - **Requirements Document:** [Requirements.md](https://github.com/CS3450-Team-3/codepop/blob/master/documents/Requirements.md)
-- **High-Level Design (HLD):** [HighLevelDesign.md](https://github.com/CS3450-Team-3/codepop/blob/master/documents/FinalProjectReport.md)
+- **High-Level Design (HLD):** [HighLevelDesign.md](https://github.com/CS3450-Team-3/codepop/blob/master/documents/HighLevelDesign.md)
 - **Low-Level Design (LLD):** [LowLevelDesign.md](https://github.com/CS3450-Team-3/codepop/blob/master/documents/LowLevelDesign.md)
 - **Test Design Report:** [TestDesignReport.md](https://github.com/CS3450-Team-3/codepop/blob/master/documents/TestDesignReport.md)
 - **Project Presentation:** [CodePop - Presentation.pdf](https://github.com/CS3450-Team-3/codepop/blob/master/documents/CodePop%20-%20Presentation.pdf)
