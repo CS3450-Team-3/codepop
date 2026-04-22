@@ -1,10 +1,42 @@
 # Codepop High Level Design Documentation
 
-**Version:** 1
+**Version:** 2
 
-**Date:** February 2026
+**Team:** SocialDrinkers (3)
 
-**Author:** Team 3
+---
+
+- [Codepop High Level Design Documentation](#codepop-high-level-design-documentation)
+  - [1. Introduction](#1-introduction)
+    - [1.1 Security \& Compliance First](#11-security--compliance-first)
+      - [Compliance Goals:](#compliance-goals)
+  - [2. Hardware Platforms](#2-hardware-platforms)
+    - [2.1 Mobile \& Touch](#21-mobile--touch)
+    - [2.2 Web / Desktop](#22-web--desktop)
+    - [2.3 IoT \& Future Platforms (Optional)](#23-iot--future-platforms-optional)
+  - [3. User Interface (UI)](#3-user-interface-ui)
+    - [3.1 Concept and Design](#31-concept-and-design)
+    - [3.2 Color Palette](#32-color-palette)
+    - [3.3 Framework and tools (Tech Stack)](#33-framework-and-tools-tech-stack)
+  - [4. Data Classification \& Security](#4-data-classification--security)
+    - [4.1 Definitions](#41-definitions)
+    - [4.2 Data Breakdown by Role](#42-data-breakdown-by-role)
+    - [4.3 Encryption Guidelines](#43-encryption-guidelines)
+      - [Data in Transit](#data-in-transit)
+      - [Data At Rest](#data-at-rest)
+    - [4.4 Secure Code Guidelines](#44-secure-code-guidelines)
+  - [5. System Architecture](#5-system-architecture)
+    - [5.1 Component Definitions](#51-component-definitions)
+    - [5.2 Server Subcomponents](#52-server-subcomponents)
+    - [5.3 Database Schema](#53-database-schema)
+  - [6. Internal Interfaces](#6-internal-interfaces)
+    - [6.1 System Dataflow](#61-system-dataflow)
+    - [6.2 Component Interfaces](#62-component-interfaces)
+  - [7. External Interfaces](#7-external-interfaces)
+  - [8. Deployment and developer workflow](#8-deployment-and-developer-workflow)
+    - [Spin It Up Locally](#spin-it-up-locally)
+    - [Configuration](#configuration)
+    - [Explore the API](#explore-the-api)
 
 ---
 
@@ -62,7 +94,7 @@ Potential extensions include:
 
 ### 3.1 Concept and Design
 
-The UI is component-driven and designed to be easy to use on both moble and web applications
+The UI is component-driven and designed to be easy to use on both mobile and web applications.
 
 - **Reusable Components:** Shared components include `Header`, `Sidebar`, `BottomNav`, `StoreSelector`, `DrinkCard`, `CustomizeModal`, and `CategoryFilter`.
 - **Role-aware Flows:** Customers get order and AI pick pages, while managers and admins access inventory, order queue, revenue, and server registry views.
@@ -92,7 +124,7 @@ The UI is component-driven and designed to be easy to use on both moble and web 
 
 **Intelligence:**
 - **Chatbot:** `microsoft/DialoGPT-medium` for conversational drink advice
-- **Recommendations:** Similarity matching over CSV-based drink attributes (flavor, caffeine, sugar, etc.)
+- **Recommendations:** Similarity matching over CSV-based drink attributes (flavor, caffeine, sugar, etc.) using `scikit-learn` and `pandas`.
 
 ---
 
@@ -113,8 +145,8 @@ Codepop treats data with respect and rigor. Here's how we categorize what we hol
 | **Guest Customer**    | None                    | Stripe token references           | Session drink/cart data                   |
 | **Registered Customer** | Name, email, username | Stripe token references, home server | Preferences, favorites, order history  |
 | **Store Manager**     | Name, employee meta     | Local inventory and machine metrics | Store orders, notifications               |
-| **Logistics Manager** | Name, employee meta     | Regional stock and transfer data  | Inventory reports                         |
-| **Repair Staff**      | Name, employee meta     | Machine health logs               | Repair ticket activity                    |
+| **Logistics Manager** | Name, employee meta     | Regional stock and transfer data  | Inventory reports (Note: Feature non-functional) |
+| **Repair Staff**      | Name, employee meta     | Machine health logs               | Repair ticket activity (Note: Feature cut) |
 | **Admin**             | Name, employee meta     | Access logs, user management data | Local system configuration                |
 | **Super Admin**       | Name, employee meta     | Global registry, peer server data | Global inventory and revenue              |
 
@@ -155,7 +187,7 @@ Codepop's strength comes from **connected independence**: stores operate autonom
 
 - **API Views:** Endpoints are defined in `backend/urls.py` and include authentication, drinks, inventory, orders, revenue, leaderboard, chatbot, AI generation, and P2P sync routes.
 - **Authentication:** `backend.authentication.P2PJWTAuthentication` verifies server-issued JWTs using the public keys stored in `ServerRegistry`.
-- **Payment Processing:** Stripe PaymentIntent and webhook endpoints handle checkout and payment confirmation.
+- **Payment Processing:** Stripe PaymentIntent and webhook endpoints handle checkout and payment confirmation. Supports a Mock Stripe implementation for development.
 - **Peer Sync:** P2P endpoints such as `/p2p/discover/`, `/p2p/join/`, `/p2p/update-peer/`, and `/sync/masterlist/` let servers discover and synchronize across the network.
 
 ### 5.3 Database Schema
@@ -177,11 +209,11 @@ Key models include:
 
 ### 6.1 System Dataflow
 
-1. **Pick a Store:** Frontend detects your location or you choose manually.
+1. **Pick a Store:** Frontend detects your location via local Haversine calculations or you choose manually from the active server list.
 2. **Load Menu:** Browser downloads drinks and inventory from that store's backend.
 3. **Sign In (or Guest):** Stripe tokenizes your payment method; local JWT grants access to your account and history.
 4. **Customize & Order:** Pick a drink, tweak it, tap *Order Now*.
-5. **Payment:** Stripe captures the charge; webhook confirms it instantly.
+5. **Payment:** Stripe (or Mock Stripe) captures the charge; webhook confirms it instantly.
 6. **Fulfillment:** Order queued at the store, inventory adjusted, notification sent ("Your drink is ready").
 7. **You Arrive:** Show the code on your phone; staff hand it over.
 8. **Chat & Rate:** Ask the AI for recommendations next time or rate the drink.
@@ -196,11 +228,11 @@ Key models include:
 
 ## 7. External Interfaces
 
-- **Stripe:** The payment backbone. We hand off card data; they secure it, process charges, handle fraud detection, and send confirmations back.
+- **Stripe:** The payment backbone. We hand off card data; they secure it, process charges, handle fraud detection, and send confirmations back. Includes a local Mock Stripe implementation for seamless development testing without live API keys.
 - **AI Companions:** 
-  - **Chatbot:** DialoGPT-medium runs locally on the backend (no external API calls), so conversations are instant, private, and cheap to scale.
-  - **Recommendations:** Similarity matching (e.g., "find drinks with similar flavor profiles to what you liked") uses CSV data, so no heavy ML infrastructure needed.
-- **Geolocation (Future):** Browser can ask for GPS; fallback to manual store picker for privacy-conscious users.
+  - **Chatbot:** `DialoGPT-medium` runs locally on the backend using `transformers` and `torch` (no external API calls), ensuring conversations are instant, private, and free to scale.
+  - **Recommendations:** Similarity matching (e.g., "find drinks with similar flavor profiles to what you liked") uses local CSV datasets parsed via `scikit-learn` and `pandas`.
+- **Geolocation:** Local Haversine formulas and heuristics are used for distance and drive-time calculations.
 - **SSO (Future):** Easy to bolt on Google/Microsoft/GitHub logins if you want one-click onboarding; today we use local JWT for simplicity and control.
 
 ---
@@ -209,24 +241,23 @@ Key models include:
 
 ### Spin It Up Locally
 
+The entire multi-store network is orchestrated via Docker Compose.
+
 **Frontend:**
-Server starts on `http://localhost:4000`. Hot reload on file change.
+Server starts on `http://localhost:4000` (proxy). Hot reload on file change.
 
 **Backend:**
+Docker Compose launches up to 9 simultaneous store instances on unique ports (e.g., `8000-8008`), each connected to its own isolated PostgreSQL database.
 
-API listens on `http://localhost:9000`.
-
-Both front and back sever will be deployed with a python script that will start a up a docker container for the datbase, the front end and the back end 
+Use the provided scripts (e.g., `run_local.py`) to stand up the Docker containers for the databases, the frontend, and the backend instances.
 
 ### Configuration
 
-The backend reads from environment variables (PostgreSQL, Stripe keys, P2P signing keys). For local dev, it falls back to PEM files at `/data/node_key.pem` (private) and `/data/node_key_pub.pem` (public).
+The backend reads from environment variables (`.env` files) for database connections and Stripe keys. For local dev, P2P signing keys fall back to PEM files at `/data/node_key.pem` (private) and `/data/node_key_pub.pem` (public).
 
 ### Explore the API
 
-Hit the interactive docs:
+Hit the interactive docs for any specific store instance (e.g., store 1 on port 8000):
 - **Swagger UI:** `http://localhost:8000/api/schema/swagger-ui/`  
 - **ReDoc:** `http://localhost:8000/api/schema/redoc/`  
 - **Raw OpenAPI:** `http://localhost:8000/api/schema/`
-
-endpoints can be viewed from the browser.
