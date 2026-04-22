@@ -1,5 +1,11 @@
 # Test Design Report: CodePop
 
+**Version:** 1
+
+**Team:** SocialDrinkers (3)
+
+---
+
 - [Test Design Report: CodePop](#test-design-report-codepop)
   - [1. Introduction: Testing Journey \& Mindset](#1-introduction-testing-journey--mindset)
   - [2. Testing Approach (Draft 1: "How")](#2-testing-approach-draft-1-how)
@@ -20,8 +26,11 @@
     - [6.2 High-Risk Areas and Expected Failure Modes](#62-high-risk-areas-and-expected-failure-modes)
     - [6.3 How We Will Respond to Issues](#63-how-we-will-respond-to-issues)
     - [6.4 Coverage Targets and Final Demo E2E Rehearsal](#64-coverage-targets-and-final-demo-e2e-rehearsal)
+      - [Final Presentation: System-Level (End-to-End) Rehearsal Steps](#final-presentation-system-level-end-to-end-rehearsal-steps)
   - [7. Appendices (Screenshots \& Logs)](#7-appendices-screenshots--logs)
     - [7.1 Automated Multi-Instance Orchestration Log](#71-automated-multi-instance-orchestration-log)
+
+---
 
 ## 1. Introduction: Testing Journey & Mindset
 
@@ -222,4 +231,4 @@ _Screenshots are included in Appendix 7 where available; missing items will be c
 
 ### 7.1 Automated Multi-Instance Orchestration Log
 
-![Integration Suite](/documents/new_docs/images/integration_suite_log.png)
+![Integration Suite](/documents/images/integration_suite_log.png)
