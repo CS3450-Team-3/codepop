@@ -30,7 +30,7 @@ A customer is driving home after work. They want a drink, but they don’t want 
 Behind that simplicity is a complex system consisting of:
 
 - A **customer-facing mobile and web application**
-- A **decentralized store-level operational system** (deployed as 9 simultaneous Docker instances)
+- A **decentralized store-level operational system**
 - A **simulated logistics and inventory network**
 - A **machine interface for robotic drink dispensers** (simulated via backend state management)
 
