@@ -42,6 +42,36 @@ The primary takeaway from Sprint 0 was the successful transition from abstract c
 
 **Team Lead:** Nate Washburn
 
+Sprint 1 was focused on the High-Level Design of the Codepop system. Building on the requirements and user stories established in Sprint 0, this sprint moved the project from conceptual scope into a concrete architectural direction. The team committed to a technology stack, defined the overall system structure, and produced a complete High-Level Design Document along with the first iteration of the UI prototype. This sprint was essential in giving the team a shared technical vocabulary and a clear picture of how the system would be built before any implementation work began.
+
+### Weekly Summary
+
+* **Nate** served as Team Lead for the sprint and drove the UI direction by producing the Figma prototype. He also handled the component and interface modeling and helped shape the decentralized architecture, ensuring the design could scale toward a peer-to-peer model in later sprints.
+* **Dillan** took ownership of the security and encryption policies, contributed to the data classification matrix, and led the UML diagram work in coordination with Michael. He also supported the overall document review and refinement process.
+* **Ethan H.** led the initial drafting of the architecture narrative and the external interface documentation. He also contributed to the data classification matrix and was the primary contributor to producing the first full skeleton of the High-Level Design Document.
+* **Ethan T.** focused on the decentralization model and internal interface planning, working to outline how store-based routing would function. He also contributed to refining the security section of the document.
+* **Michael** defined the hardware platform strategy and documented the web-first Progressive Web App approach. He also contributed significantly to the UML diagrams and supported the component modeling effort.
+
+--- 
+
+### Work Completed
+
+- **Technology Stack Selection:** Finalized the stack as React with Next.js for the frontend, Django for the backend, PostgreSQL for the database, and Stripe for payment processing.
+- **Hardware Platform Strategy:** Committed to a web-first approach using a Progressive Web App, allowing the system to run across desktop and mobile without maintaining separate codebases.
+- **System Architecture:** Drafted the full architecture narrative, including the breakdown of major system components and their responsibilities.
+- **Decentralization Model:** Established the structural approach for a decentralized network based on store selection, with multi-server aggregation reserved for admin-level users.
+- **Interface Definition:** Documented both internal and external interfaces to clarify how system components and third-party services would interact.
+- **Security & Data Classification:** Produced a data classification matrix and documented the encryption and security policies that would guide all future development.
+- **UML Diagrams:** Completed the Class Diagram, Sequence Diagram, and Use Case Diagram to visualize system structure and behavior.
+- **UI Prototype:** Built the first functional Figma prototype, establishing the visual language, color palette, and core user flows.
+- **High-Level Design Document:** Finalized the complete HLD, consolidating all of the above into a single authoritative reference for the team.
+
+---
+
+### Key Takeaways
+
+The biggest win of Sprint 1 was reaching full team alignment on the technology stack and overall system direction. The decision to replace the existing frontend with React and Next.js was made deliberately and with consensus, and the team found that the long-term benefits of maintainability, PWA support, and development velocity outweighed the short-term cost of starting over. The UI prototyping work also turned out to be more valuable than expected, because it gave the team something concrete to anchor abstract architectural discussions around. By the end of the sprint, the team had a shared vocabulary, a documented plan, and a visual target to build toward, which set a strong foundation for the detailed design work that would follow in Sprint 2.
+
 ## Sprint 2 Summary: Low-Level Design
 
 **Team Lead:** Michael Seeley
