@@ -94,8 +94,8 @@ Table of contents:
   - [8. Third-Party Integrations](#8-third-party-integrations)
     - [8.1 Integration Details](#81-integration-details)
       - [**Payments: Stripe**](#payments-stripe)
-      - [**AI Drink Recommendations: OpenAI API**](#ai-drink-recommendations-openai-api)
-      - [**Location Services: Google Maps API**](#location-services-google-maps-api)
+      - [**AI & Machine Learning: Scikit-Learn and DialoGPT**](#ai--machine-learning-scikit-learn-and-dialogpt)
+      - [**Location Services: Haversine & Geohash**](#location-services-haversine--geohash)
   - [9. Deployment Plan and DevOps](#9-deployment-plan-and-devops)
     - [9.1 Deployment Strategy](#91-deployment-strategy)
   - [Deployment Architecture](#deployment-architecture)
@@ -111,7 +111,7 @@ Table of contents:
 
 ### 1.1 Purpose
 
-The purpose of this document is to provide a detailed, technical blueprint for the CodePop system. It outlines the specific classes, database schemas, security protocols, and deployment strategies necessary for the development sprints. It serves as the authoritative reference for developers implementing the system. It covers the full deployment stack — from the ReactJS frontend to the Django backend, from the PostgreSQL database schema to the Google Cloud infrastructure on which all server instances run. Each server instance is packaged as a Docker container, ensuring environment consistency across all deployments. The same application codebase is deployed to every instance; instances are differentiated only by their associated database, which is scoped to the individual store it serves.
+The purpose of this document is to provide a detailed, technical blueprint for the CodePop system. It outlines the specific classes, database schemas, security protocols, and deployment strategies necessary for the development sprints. It serves as the authoritative reference for developers implementing the system. It covers the full deployment stack — from the ReactJS frontend to the Django backend, from the PostgreSQL database schema to the local Docker-based infrastructure on which all server instances run. Each server instance is packaged as a Docker container, ensuring environment consistency across all deployments. The same application codebase is deployed to every instance; instances are differentiated by their associated database and port, which is scoped to the individual store it serves.
 
 ### 1.2 Consistency with High-Level Design
 
@@ -123,15 +123,15 @@ Security considerations outlined in the HLD are expanded upon in this document t
 
 The decentralized peer-to-peer architecture described in the HLD is further operationalized in the LLD through the formal definition of Home and Visiting servers. This includes clearly defined server roles, authentication workflows, data ownership rules, synchronization policies, and fault tolerance mechanisms. These refinements ensure secure and efficient inter-server communication while preserving the original decentralized vision.
 
-Additionally, the LLD supports the HLD’s goals regarding inventory tracking, predictive maintenance, and IoT telemetry by defining the Inventory table, Notification system, order and telemetry logging structures, and scalable REST-based device communication endpoints.
+Additionally, the LLD supports the HLD’s goals regarding inventory tracking and predictive maintenance by defining the Inventory table, Notification system, order logging structures, and scalable REST-based endpoints.
 
-The infrastructure choices made in this document are consistent with the HLD's operational goals. All server instances are hosted on Google Cloud, which provides the geographic distribution and reliability required by the P2P architecture. Each server instance runs inside a Docker container, ensuring reproducible, environment-agnostic deployments that match the HLD's goal of horizontal scalability. Because every instance runs identical application code and differs only in its connected database, new store locations can be onboarded by provisioning a new Google Cloud instance and database without any code changes — directly realizing the HLD's vision of an extensible, decentralized network.
+The infrastructure choices made in this document are consistent with the HLD's operational goals. All server instances are orchestrated via Docker Compose, which provides the distribution and reliability required by the P2P architecture. Each server instance runs inside a Docker container, ensuring reproducible, environment-agnostic deployments. Because every instance runs identical application code and differs only in its connected database and configuration, new store locations can be onboarded by provisioning a new container and database — directly realizing the HLD's vision of an extensible, decentralized network.
 
 ### 1.3 System Architecture
 
 Each client is implemented as a ReactJS Progressive Web App. It is responsible for rendering the user interface, handling user input, and securely communicating with backend services over HTTPS. The client manages session tokens for authenticated users and supports offline capabilities through service workers. It is designed to function on both mobile and desktop platforms.
 
-Every server is responsible for authentication, authorization, and processing orders, including payment handling through Stripe. Business logic and request validation are handled at this level.
+Every server is responsible for authentication, authorization, and processing orders, including payment handling through Stripe (with mock support for development). Business logic and request validation are handled at this level.
 
 Each server operates within a decentralized peer-to-peer network, where any store server can act as either a Home Server or a Visiting Server. Every individual store runs its own dedicated server instance. Sensitive user data remains stored on the user’s Home Server. Communication between servers is secured using TLS to ensure encrypted data exchange.
 
@@ -143,15 +143,15 @@ The database uses PostgreSQL to store system data, including user accounts, orde
 
 **Infrastructure and Deployment**
 
-All server instances are hosted on Google Cloud. Each instance runs inside a Docker container, which packages the full application runtime — the Django backend, its dependencies, and its configuration — into a portable, self-contained unit. This guarantees that every instance runs in an identical environment regardless of the underlying Google Cloud machine, eliminating environment-specific bugs and simplifying deployment.
+All server instances are hosted locally or on private servers via Docker. Each instance runs inside a Docker container, which packages the full application runtime — the Django backend, its dependencies, and its configuration — into a portable, self-contained unit. This guarantees that every instance runs in an identical environment, eliminating environment-specific bugs and simplifying deployment.
 
-Every Google Cloud instance runs the same application code. Instances are differentiated solely by the PostgreSQL database they connect to. Each database is scoped to a specific individual store and holds only the data belonging to that store's user base. This design means:
+Every instance runs the same application code. Instances are differentiated by the PostgreSQL database they connect to and the port they expose. Each database is scoped to a specific individual store and holds only the data belonging to that store's user base. This design means:
 
-- Adding a new store location requires only provisioning a new Google Cloud instance with a new database — no code changes are needed.
+- Adding a new store location requires only adding a new service to the `docker-compose.yml` file with a new database — no code changes are needed.
 - A rolling update to the application (e.g., a new feature or security patch) can be applied uniformly across all instances by updating the shared Docker image.
 - Database isolation ensures that a failure or data issue on one store's instance does not directly affect other stores.
 
-This architecture maps directly onto the P2P model: each Docker container is an independent peer dedicated to a single store, capable of acting as a Home or Visiting Server, while Google Cloud's infrastructure provides the reliability and geographic distribution the system requires.
+This architecture maps directly onto the P2P model: each Docker container is an independent peer dedicated to a single store, capable of acting as a Home or Visiting Server.
 
 ---
 
@@ -162,7 +162,11 @@ This architecture maps directly onto the P2P model: each Docker container is an 
 - **Frontend:** ReactJS (Progressive Web App architecture utilizing functional components and hooks)
 - **Backend:** Django (Python-based framework handling business logic, authentication and API endpoints)
 - **Database:** PostgreSQL (relational database system for persistent data storage)
-- **Other Tools:** Stripe (secure third-party payment processor)
+- **AI/ML:**
+  - `scikit-learn`: Powers the deterministic drink recommendation engine using `CountVectorizer` and cosine similarity.
+  - `transformers` & `torch`: Powers the customer service chatbot using the `DialoGPT-medium` model.
+  - `pandas`: Used for data manipulation and reading ingredient CSV files.
+- **Other Tools:** Stripe (secure third-party payment processor with local mock support)
 
 ### 2.2 Justification
 
@@ -178,17 +182,19 @@ This architecture maps directly onto the P2P model: each Docker container is an 
 
 ### 3.1 Subsystem Breakdown
 
-The CodePop system is divided into nine major subsystems, each responsible for a distinct functional domain:
+The CodePop system was originally designed with nine major subsystems. While the core "Customer Flow" (Subsystems 1-4, 7-8) was fully realized, internal management and logistics features (Subsystems 5, 6, 9) were partially implemented or deferred to ensure MVP stability:
 
 1. **User Authentication & Authorization** — Handles user registration, login, logout, and role-based access control (user, manager, admin, super admin).
-2. **User Preferences** — Stores and manages per-user flavor and drink preferences, which are also consumed by the AI recommendation engine.
-3. **Drink Management** — Manages the catalog of drinks (both standard menu items and user-created recipes), including ingredient definitions, ratings, sizing, and favorite tracking.
-4. **Order Management** — Orchestrates the full order lifecycle from cart creation through fulfillment, including drink assignment, locker combo issuance, and status transitions.
-5. **Inventory Management** — Tracks physical stock levels for sodas, syrups, add-ins, and supplies, and generates threshold alerts for restocking.
-6. **Notification System** — Delivers user-targeted and global alerts (e.g., order ready, low stock, promotional messages).
-7. **Payment & Revenue** — Integrates with Stripe to process payments and refunds, and records per-order financial data in the revenue ledger.
-8. **AI Drink Recommendation Engine** — Generates personalized drink recipes by applying similarity matching against a user's saved preferences and a CSV-backed ingredient dataset.
-9. **Customer Service Chatbot** — Provides a conversational AI interface for handling wrong-drink and refund support flows.
+2. **User Preferences** — Stores and manages per-user flavor and drink preferences, consumed by the similarity engine.
+3. **Drink Management** — Manages the catalog of drinks, including ingredients, pricing, and favorite tracking.
+4. **Order Management** — Orchestrates the full order lifecycle from cart creation through fulfillment.
+5. **Inventory Management** — Tracks physical stock levels and generates alerts. _Note: Automated restocking and inter-store transfers were not fully implemented._
+6. **Notification System** — Delivers user-targeted and global alerts.
+7. **Payment & Revenue** — Integrates with Stripe (and Mock Stripe) to process payments and record financial data.
+8. **AI Drink Recommendation Engine** — Generates personalized recipes using `scikit-learn` and local CSV ingredient datasets.
+9. **Customer Service Chatbot** — Provides a conversational interface for support flows using `microsoft/DialoGPT-medium`. _Note: Frontend integration remains incomplete._
+
+_Note on Roles: While the system architecture supports "Logistics Manager" and "Repair Staff" roles, these features were largely cut or left non-functional in the final implementation to focus on the core customer experience._
 
 ---
 
@@ -352,61 +358,43 @@ FUNCTION check_inventory_threshold(item):
 
 - `GenerateAIDrink` _(extends `APIView`)_: HTTP interface to the recommendation engine; works for both anonymous and authenticated users.
   - _Methods:_ `get(request, user_id=None)` — loads user preferences (or defaults), delegates to `drinkAI.generate_soda()`, and returns a structured drink recipe
-- `generate_soda(user_preferences)` _(module function in `drinkAI.py`)_: Orchestrates the full recommendation pipeline.
-  - _Returns:_ dict with `SyrupsUsed`, `SodaUsed`, `AddIns`, `Size`, `Ice`, `UserCreated`
-- `generate_similar_syrup_preferences(user_preference)` _(module function)_: Uses `CountVectorizer` + cosine similarity to find the top 5 syrups that best match a user's flavor preference string.
-- `generate_best_soda(syrups, prefs)` _(module function)_: Selects a soda whose `best-match-flavors` column overlaps most with the chosen syrups' flavor profiles.
-- `generate_best_addins(syrups, soda, prefs, num)` _(module function)_: Selects add-ins whose `best-match-syrup` and `best-match-soda` columns align with the chosen syrups and soda.
+- `generate_soda(user_preferences)` _(module function in `drinkAI.py`)_: Orchestrates the full recommendation pipeline using local CSV data and similarity scoring.
+  - _Returns:_ dict with `SyrupsUsed`, `SodaUsed`, `AddIns`
+- `generate_similar_syrup_preferences(user_preference)` _(module function)_: Uses `CountVectorizer` + cosine similarity from `scikit-learn` to find the top 5 syrups that best match a user's flavor preference string from `Syrups.csv`.
+- `generate_best_soda(syrups, prefs)` _(module function)_: Selects a soda whose `best-match-flavors` column in `Sodas.csv` overlaps most with the chosen syrups' flavor profiles.
+- `generate_best_addins(syrups, soda, prefs, num)` _(module function)_: Selects add-ins from `AddIns.csv` whose `best-match-syrup` and `best-match-soda` columns align with the chosen syrups and soda.
 - `create_list(csv_file_name)` _(module function)_: Reads a CSV ingredient file and returns an array of ingredient names for lookup operations.
 
 **AI Recommendation — Preference Similarity Algorithm**
 
-The recommendation pipeline runs in two stages: a deterministic scoring step (below) followed by an OpenAI API call for natural-language generation. Keeping the matching logic deterministic makes it auditable and testable independently of the LLM.
+The recommendation pipeline runs using a deterministic scoring step powered by `scikit-learn`. Unlike LLM-based approaches, this is highly efficient, runs entirely locally, and produces consistent, auditable results based on the provided CSV ingredient dataset.
 
 ```
-# Input: user's saved Preference tags, candidate drinks from drink table + CSV dataset
-FUNCTION rank_candidates(user_preferences, candidate_drinks, top_n=5):
-    scored ← []
-    pref_set ← set(user_preferences)   # e.g., {"citrus", "sweet", "berry"}
-
-    FOR drink IN candidate_drinks:
-        tag_set ← set(drink["tags"])
-
-        # Jaccard similarity: |intersection| / |union|
-        intersection ← |pref_set ∩ tag_set|
-        union        ← |pref_set ∪ tag_set|
-        sim_score    ← intersection / union  IF union > 0  ELSE 0.0
-
-        # Blend similarity (85%) with normalized rating (15%)
-        adjusted_score ← sim_score * 0.85 + (drink["rating"] / 5.0) * 0.15
-
-        scored.append((adjusted_score, drink))
-
-    # Sort descending — highest score first
-    scored.sort(key=lambda x: x[0], reverse=True)
-
-    top_candidates ← [drink FOR (score, drink) IN scored[:top_n]]
-    RETURN top_candidates
-
-
+# Input: user's saved Preference tags, candidate ingredients from CSV datasets
 FUNCTION generate_soda(user_preferences):
-    # Step 1: Score and rank candidates
-    candidates     ← load_candidate_drinks()   # drink table + CSV
-    top_candidates ← rank_candidates(user_preferences, candidates)
+    # Step 1: Filter and categorize user preferences into syrups, sodas, and add-ins
+    syrup_prefs, soda_prefs, addin_prefs ← categorize(user_preferences)
 
-    # Step 2: Delegate language generation to OpenAI
-    prompt ← build_prompt(user_preferences, top_candidates)
-    response ← OpenAI.ChatCompletion.create(model="gpt-4", messages=[{role: "user", content: prompt}])
+    # Step 2: Generate best syrups using CountVectorizer and Cosine Similarity
+    chosen_syrups ← []
+    FOR pref IN random_sample(syrup_prefs, 2):
+        top_matches ← scikit_learn_similarity(pref, "Syrups.csv")
+        chosen_syrups.extend(random_sample(top_matches, 2))
 
-    # Step 3: Parse and return structured result
-    RETURN parse_drink_response(response)
+    # Step 3: Select best soda matching the chosen syrups
+    best_soda ← scikit_learn_similarity(chosen_syrups, "Sodas.csv", filter=soda_prefs)
+
+    # Step 4: Select best add-ins matching syrups and soda
+    best_addins ← scikit_learn_similarity(chosen_syrups, best_soda, "AddIns.csv", filter=addin_prefs)
+
+    RETURN {syrups: chosen_syrups, soda: best_soda, addins: best_addins}
 ```
 
-**Complexity:** O(d · p) where d = number of candidate drinks and p = number of user preference tags. At expected scale (hundreds of drinks, dozens of tags per user) this runs in well under a millisecond before the OpenAI call.
+**Complexity:** O(n · log n) for sorting matches where n is the number of ingredients in the CSV. At the current scale (~hundreds of ingredients), this runs in a few milliseconds locally.
 
-- `Chatbot` _(extends `APIView`)_: Manages a multi-turn conversational support session powered by Microsoft DialoGPT-medium.
-  - _Fields (session state):_ `phase` — current conversation stage (`init`, `1`, `collect`); `order_number` — captured order reference; `selected_drinks` — drinks flagged for refund/remake
-  - _Methods:_ `post(request)` — receives user message and conversation history, runs NLP-based intent matching (regex), advances the state machine (wrong-drink flow or refund flow), calls `refund_order()` when appropriate, and returns a structured JSON response with the next bot message and updated state
+- `Chatbot` _(extends `APIView`)_: Manages a multi-turn conversational support session powered by Microsoft DialoGPT-medium (hosted locally via `transformers`).
+  - _Fields (session state):_ `phase` — current conversation stage (`init`, `1`, `2`, `3`, `4`); `order_num` — captured order reference; `drink_nums` — drinks flagged for refund/remake
+  - _Methods:_ `post(request)` — receives user message and session state, runs intent matching for "refund" or "remade" using keyword analysis, advances the state machine (wrong-drink flow or refund flow), calls `refund_order()` when appropriate, and returns a structured JSON response with the next bot message and updated state. If no intent is matched, it delegates message generation to the `DialoGPT-medium` model.
 
 ---
 
@@ -753,6 +741,7 @@ A working prototype for the application can be found [here](https://www.figma.co
 
 - ![Manager](UI_UX/Manager.png)
 - ![Logistics](UI_UX/Logistics.png)
+  - _Note: Logistics Manager dashboard UI was partially developed but backend logic for stock transfers remains non-functional._
 
 ##### Admin
 
@@ -767,23 +756,22 @@ A working prototype for the application can be found [here](https://www.figma.co
 
 #### Account Creation and Profile Setup
 
-1. User navigates to the registration page
-2. User enters email, password, and personal information
-3. System validates input and assigns home server based on geographic region
-4. User account is created in `auth_user` table
-5. User profile is replicated across all servers via hourly sync
-6. User receives confirmation email
-7. User is redirected to login page
+1. User navigates to the registration page.
+2. User enters username, password, and personal information.
+3. User selects their primary/home store location.
+4. User account is created in the selected store's `auth_user` table.
+5. User profile summary is replicated across all servers via periodic sync to allow network-wide discovery.
+6. User is redirected to the login page.
 
 #### Login Process
 
-1. User enters email and password
-2. System queries user registry to locate home server
-3. Home server validates credentials against password hash
-4. Home server generates signed access token
-5. User session is established with expiration time
-6. User is redirected to home screen
-7. Non-sensitive user data (preferences, order history) is cached locally
+1. User enters username and password.
+2. System queries the local `master_list` to identify the user's home server.
+3. If the user is at their home server, credentials are validated locally.
+4. If the user is at a visiting server, the login request is proxied to the home server for authoritative validation.
+5. Home server returns a signed JWT access token.
+6. User session is established with the token stored in the browser.
+7. User is redirected to the home screen.
 
 **Cross-Server Login Workflow Diagram**
 
@@ -1764,7 +1752,7 @@ The registry is replicated across all servers using the same hourly sync mechani
 
 #### New Server Onboarding
 
-When a new Google Cloud instance is provisioned:
+When a new store server instance is provisioned:
 
 1. An administrator manually adds the new server's entry to the registry on one existing server.
 
@@ -1809,103 +1797,77 @@ There are various common security risks potentially involved in the development 
 
 ### 8.1 Integration Details
 
-The CodePop system integrates three key third-party services to enhance functionality and security.
+The CodePop system minimizes external dependencies by implementing key features locally, ensuring reliability and reducing operational costs.
 
-**Stripe** handles all payment processing through tokenization, ensuring raw card data never touches CodePop servers; payment intents are created server-side and processed client-side via Stripe Elements with webhook listeners for status updates, while all payment data is securely stored in Stripe's vault with only transaction IDs retained in the `order` table, maintaining PCI DSS compliance through server-side API authentication and HTTPS/TLS encryption.
+**Stripe** handles all payment processing through tokenization. Payment intents are created server-side and processed client-side via Stripe Elements with webhook listeners for status updates. For development and testing environments where API keys are not provided, a **Mock Stripe** implementation is used to simulate successful transactions and webhook events.
 
-**OpenAI API** powers the AI drink recommendation engine by analyzing user preferences, order history, and flavor profiles to generate custom drink recipe recommendations using dynamically constructed prompts; responses are validated, parsed, and mapped to existing drink recipes in the `drink` table or used to create new entries, with request caching preventing duplicate API calls and fallback to predefined popular drinks if the API fails.
+**AI Drink Recommendations** are powered by a local recommendation engine using `scikit-learn` and `pandas`. By applying `CountVectorizer` and `cosine_similarity` to a curated dataset of syrups, sodas, and add-ins stored in CSV files, the system generates personalized recipes without the need for external LLM APIs like OpenAI. This ensures fast, deterministic, and cost-effective recommendations.
 
-**Google Maps API** provides geographic routing and location services for home server assignment during account creation, store locating functionality on the frontend, and visiting server detection during cross-region logins; Geocoding and Distance Matrix APIs determine user locations and calculate distances to nearby stores with results cached to optimize quota usage, while user location data is not permanently stored unless explicitly requested to prioritize privacy.
+**Location Services** are implemented using local mathematical models. The system uses the **Haversine formula** to calculate the great-circle distance between coordinates and applies custom heuristics to estimate drive times. This removes the dependency on Google Maps API for distance and routing calculations while providing sufficient accuracy for store selection and regional logic.
 
 #### **Payments: Stripe**
 
-Stripe is integrated as the primary payment processor for all transactions within the CodePop system. The implementation follows PCI DSS compliance standards to ensure secure card handling.
+Stripe is integrated as the primary payment processor. The implementation follows PCI DSS compliance standards to ensure secure card handling.
 
 **Integration Details:**
 
-- Stripe's tokenization system ensures that raw card data never touches CodePop servers
-- Payment intent is created on the backend and processed client-side using Stripe Elements
-- Webhook endpoints listen for payment status updates (e.g., `payment_intent.succeeded`, `payment_intent.payment_failed`)
-- Failed payments are logged and users are notified via the `notification` table
-- All payment data is stored in Stripe's secure vault; CodePop only stores the Stripe transaction ID in the `order` table
+- Stripe's tokenization system ensures that raw card data never touches CodePop servers.
+- Payment intent is created on the backend and processed client-side using Stripe Elements.
+- Webhook endpoints listen for payment status updates (e.g., `payment_intent.succeeded`).
+- **Mock Fallback:** If `STRIPE_SECRET_KEY` is not configured, the system automatically switches to a `MockStripe` class that simulates the Stripe API behavior, allowing full testing of the order and revenue flow without live keys.
 
 **Security Measures:**
 
-- No card data is cached or stored locally
-- All Stripe API calls use server-side authentication with secret keys
-- HTTPS/TLS encryption protects all client-server payment communication
-- PCI compliance is maintained through Stripe's hosted infrastructure
+- No card data is cached or stored locally.
+- All Stripe API calls use server-side authentication with secret keys.
+- HTTPS/TLS encryption protects all client-server payment communication.
 
 ---
 
-#### **AI Drink Recommendations: OpenAI API**
+#### **AI & Machine Learning: Scikit-Learn and DialoGPT**
 
-The OpenAI API powers the AI-generated drink recommendation engine. This system analyzes user preferences and flavor profiles to suggest custom drink recipes.
+Instead of relying on third-party LLM APIs, CodePop utilizes local machine learning models and libraries to provide AI features.
 
-**Prompt Construction:**
-The system constructs prompts dynamically based on user data:
+**Drink Recommendation Engine:**
+- Uses `scikit-learn`'s `CountVectorizer` to transform ingredient flavor profiles into vectors.
+- Calculates `cosine_similarity` between user preferences and the ingredient vectors to find the best matches.
+- Operates on local `Syrups.csv`, `Sodas.csv`, and `AddIns.csv` files.
 
-```
-"Given a user with the following preferences: {user_preferences},
-past order history: {order_history},
-and flavor profile: {flavor_analysis},
-suggest a custom soda recipe using available syrups: {available_syrups}.
-Include drink name, syrup combinations, add-ins, and estimated price."
-```
+**Customer Service Chatbot:**
+- Powered by the `microsoft/DialoGPT-medium` model, a pre-trained conversational AI.
+- Hosted locally using the `transformers` and `torch` libraries.
+- Includes a hardcoded logic layer for processing specific customer service intents like refunds and drink remakes based on keyword analysis.
 
-**Response Parsing:**
-
-- OpenAI returns a structured JSON response containing:
-  - Drink name
-  - List of syrup IDs with flavor profiles from the `Flavors` table
-  - Add-in recommendations
-  - Estimated price
-- The response is validated and mapped to existing drink recipes in the `drink` table
-- If the recommended combination doesn't exist, a new drink record is created and added to `drink_favorite`
-
-**Implementation:**
-
-- Requests are made server-side (Django backend) to avoid exposing API keys
-- Response caching prevents duplicate API calls for similar user profiles
-- Fallback to predefined "popular drinks" if API fails
-- Requests will be rate limited to avoid an overly expensive bill from a malicious party accessing the system
+**Implementation Benefits:**
+- **Zero Cost:** No per-request fees associated with external APIs.
+- **Privacy:** User conversation data and preferences never leave the local network.
+- **Reliability:** The system remains fully functional even without an internet connection to external AI services.
 
 ---
 
-#### **Location Services: Google Maps API**
+#### **Location Services: Haversine & Geohash**
 
-Google Maps integration provides geographic routing, store locating, and regional user assignment.
+CodePop implements geographic logic internally, avoiding the need for the Google Maps API.
 
 **Use Cases:**
 
-1. **User Home Server Assignment**
-   - During account creation, user's location is determined via their IP address or explicit location input
-   - Nearest regional server is assigned as their home server
-   - Geographic data is stored but not treated as sensitive information
+1. **Distance Calculation**
+   - The system implements the Haversine formula to calculate the distance between a user's coordinates and store locations.
+   - Coordinates are derived from store metadata and user-provided geohashes.
 
-2. **Store Locator**
-   - Users can search for nearby CodePop locations on the "Find a Store" screen
-   - Map displays all available stores with real-time distance and travel time estimates
-   - Clicking a store shows hours, contact info, and current inventory levels
+2. **Drive Time Estimation**
+   - Uses a heuristic model (e.g., 2 minutes per mile) to estimate arrival times for orders.
+   - Sufficient for providing users with a general expectation of when to pick up their drinks.
 
-3. **Visiting Server Detection**
-   - When a user logs in from a different region, the system calculates geographic distance
-   - If distance exceeds threshold, a nearby visiting server is assigned for reduced latency
-   - User location is updated in cache but not permanently stored on visiting server
+3. **Store Selection**
+   - Users select their preferred store from a list of active servers discovered via the P2P network.
+   - Server selection is managed in the frontend `StoreSelector` component, which maps users to the appropriate backend instance.
 
 **Implementation:**
 
-- Geocoding API converts user addresses to coordinates
-- Distance Matrix API calculates travel distances between user and stores
-- Maps Embed API displays interactive map on storefront pages
-- All API calls are server-side authenticated using API keys
-- Results are cached to reduce API quota usage
-
-**Privacy Considerations:**
-
-- User precise location data is not permanently stored unless explicitly requested
-- Location queries are necessary only for account setup and visiting server assignment
-- Users can manually assign a preferred home server regardless of geography
+- `decodeGeohash`: Decodes standard geohash strings into latitude/longitude.
+- `haversineKm`: Calculates straight-line distance in kilometers.
+- `estimateDriveTimeMinutes`: Provides a simple distance-to-time conversion.
 
 ---
 
@@ -1917,87 +1879,56 @@ Google Maps integration provides geographic routing, store locating, and regiona
 
 **Frontend Deployment (React PWA)**
 
-- Built as a Progressive Web App using React
-- Static assets (HTML, CSS, JS) hosted on Google Cloud Storage or Cloud CDN
-- Service workers enable offline functionality and caching
-- Deployed via CI/CD pipeline; changes trigger automatic builds and distribution to CDN
-- Users access via HTTPS; PWA installs to home screen on mobile/desktop
+- Built as a Progressive Web App using React.
+- Static assets (HTML, CSS, JS) served by the Next.js production server.
+- Service workers enable offline functionality and caching.
+- Users access via a central landing page that allows selecting from the 9 available store instances.
 
 **Backend Deployment (Django)**
 
-- Django application packaged in Docker containers
-- Each container runs on a separate Google Cloud Compute Engine instance
-- Environment configuration (database connection, API keys, secrets) injected at runtime
-- Database: PostgreSQL instance on Google Cloud SQL (separate from each server instance for data isolation)
-- API endpoints exposed over HTTPS; all requests validated and authenticated
+- Django application packaged in a single Docker image used by all store instances.
+- Orchestrated via **Docker Compose**, launching 9 simultaneous store instances on a single host or distributed network.
+- Each instance is assigned a unique port (e.g., 8000-8008) and connects to its own dedicated PostgreSQL database.
+- Environment configuration (database connection, API keys, secrets) injected via `.env` files and Docker Compose environment variables.
+- API endpoints exposed over HTTP/HTTPS; all requests validated and authenticated.
 
 **Inter-Service Communication**
 
-- Frontend communicates with backend via REST API over HTTPS
-- Backend instances communicate securely via TLS for P2P operations
-- API Gateway (optional) routes requests to appropriate backend instance based on region/home server assignment
-
-**Continuous Deployment (CI/CD)**
-
-- Git commits trigger automated testing and linting
-- On merge to main branch, Docker image is built and pushed to Container Registry
-- All running instances pull and deploy the new image with zero-downtime rolling updates
-- Database migrations applied automatically during deployment
+- Frontend communicates with backend via REST API.
+- Backend instances communicate securely via TLS for P2P operations (synching user registries and proxied requests).
+- **P2P Discovery:** Each instance is aware of other peers via a shared `ServerRegistry` table, allowing for seamless cross-store logins and data synchronization.
 
 **Monitoring & Scaling**
 
-- Google Cloud Monitoring tracks CPU, memory, disk, and network metrics across instances
-- Auto-scaling policies adjust instance count based on traffic and resource utilization
-- Logs aggregated to Google Cloud Logging with alerts for errors and anomalies
-- Health checks ensure failed instances are replaced automatically
+- Basic monitoring via Docker stats and container logs.
+- Scaling achieved by adding new service definitions to the `docker-compose.yml` file.
+- Health checks ensure that inactive peers are flagged in the `ServerRegistry`.
 
 ### 9.2 Automated Testing and Monitoring
 
 #### Testing Strategy
 
-The CodePop system employs a multi-layered testing approach to ensure code quality, prevent regressions, and maintain system reliability across all deployment instances.
+The CodePop system employs a multi-layered testing approach to ensure code quality and system reliability across the 9 store instances.
 
 **Unit Testing**
 
-Django unit tests validate individual model methods, serializer validation logic, and API endpoint behavior:
-
-- **Model Tests** (`tests/test_models.py`): Test model methods such as `Drink.addFavorite()`, `Inventory.is_out_of_stock()`, and `Revenue.calculate_total_amount()`. These tests verify that business logic executes correctly in isolation.
-- **Serializer Tests** (`tests/test_serializers.py`): Test validation logic for all serializers (e.g., `PreferenceSerializer.validate_Preference()`, `DrinkSerializer.validate_Size()`, `OrderSerializer.validate_Drinks()`). These ensure invalid data is rejected and valid data is transformed correctly.
-- **View/API Tests** (`tests/test_views.py`): Test each API endpoint with valid and invalid payloads, verifying correct HTTP status codes, response structure, and permission checks. For example:
-  - `CreateUserAPIView` is tested with valid and duplicate usernames
-  - `OrderOperations` is tested for partial updates and drink addition/removal
-  - `InventoryUpdateAPIView` is tested for quantity changes and threshold warnings
-  - Inter-server API endpoints are tested with malformed authentication headers
+Django unit tests validate individual model methods and API endpoint behavior.
 
 **Integration Testing**
 
-Integration tests validate workflows spanning multiple subsystems:
-
-- Cross-subsystem flows such as user registration → preference setting → order creation → payment processing are tested end-to-end.
-- P2P server interactions are tested, including home/visiting server handshakes, session token validation, and data synchronization.
-- Payment workflow integration with Stripe is tested using Stripe's test mode, verifying webhook handling and transaction logging.
-
-**Security Testing**
-
-Security-focused tests validate mitigation of OWASP Top 10 risks:
-
-- **SQL Injection Prevention**: Attempts to inject SQL via user input fields are tested to confirm Django ORM rejects malformed queries.
-- **XSS Prevention**: Attempts to input `<script>` tags in username, preference, and message fields are verified to render as plain text in responses.
-- **CSRF Protection**: State-changing requests (POST, PUT, DELETE) without valid CSRF tokens are rejected.
-- **Authentication/Authorization**: Attempts to access protected endpoints without valid tokens or with insufficient permissions are rejected.
+Integration tests validate workflows spanning multiple subsystems and multiple store instances. This includes simulating cross-store login and order synchronization.
 
 **Continuous Integration (CI)**
 
-All unit and integration tests run automatically on every commit to the main repository branch:
-
-- Tests must pass before code is merged.
-- Test coverage reports are generated to identify untested code paths (target minimum 80% coverage).
-- Linting checks (using `pylint` and `flake8`) enforce code style and detect common errors.
+- Git commits trigger automated testing and linting.
+- Linting checks (using `pylint` and `flake8`) enforce code style.
 - Type checking (using `mypy` for Python) catches type-related bugs early.
 
 ---
 
 #### Monitoring and Observability
+
+Container logs from all 9 instances are aggregated to provide a unified view of the network's health.
 
 The system implements comprehensive monitoring across application, infrastructure, and P2P communication layers.
 
@@ -2036,9 +1967,9 @@ Critical errors are captured and alerted on immediately:
 
 **Infrastructure Monitoring**
 
-Google Cloud monitoring tracks infrastructure health across all deployed instances:
+Docker stats and container engine monitoring track infrastructure health across all deployed instances:
 
-- **CPU and Memory Usage**: Each Docker container's resource utilization is monitored. Alerts fire if CPU exceeds 80% or memory exceeds 85%.
+- **CPU and Memory Usage**: Each Docker container's resource utilization is monitored.
 - **Disk Space**: Storage usage on each instance is monitored; alerts fire if free disk space drops below 10%.
 - **Network I/O**: Incoming and outgoing network traffic is tracked to detect unusual spikes or DDoS-like patterns.
 - **Container Health**: Docker containers are monitored for restart frequency; unexpected restarts trigger alerts.
@@ -2048,9 +1979,8 @@ Google Cloud monitoring tracks infrastructure health across all deployed instanc
 Inter-server communication is monitored to ensure network resilience:
 
 - **Health Check Status**: The result of each peer-to-peer health check (success, timeout, connection refused) is logged with timestamp.
-- **Home Server Availability**: If a home server fails health checks, it is marked as `Inactive` and users are routed to alternative servers; this transition is logged and alerted.
-- **Sync Lag**: The time difference between the last successful hourly sync and current time is monitored. If lag exceeds 2 hours, an alert is triggered.
-- **Inter-Server Latency**: Round-trip time for inter-server API calls is measured and logged. Latency spikes may indicate network congestion or server performance issues.
+- **Home Server Availability**: If a home server fails health checks, it is marked as `Inactive` and users are routed to alternative servers; this transition is logged.
+- **Sync Lag**: The time difference between the last successful sync and current time is monitored. If lag exceeds 2 sync intervals, an alert is triggered.
 
 **Performance Monitoring**
 
@@ -2058,7 +1988,7 @@ API response times are tracked to detect performance regressions:
 
 - Endpoint response times are aggregated and p95, p99 latencies are calculated.
 - Queries taking longer than configurable thresholds (e.g., >1 second) are logged as slow queries.
-- AI recommendation engine API calls to OpenAI are timed; timeouts or rate-limit responses trigger alerts.
+- **AI Recommendation Performance**: Recommendation times are tracked to ensure local similarity scoring remains efficient.
 - Payment processing latency (time from order creation to Stripe success) is tracked.
 
 **User-Facing Metrics**
@@ -2070,21 +2000,18 @@ High-level system health metrics are available via a `/health` endpoint:
   "status": "healthy",
   "database_connection": "ok",
   "home_servers_active": 5,
-  "visiting_servers_active": 12,
+  "visiting_servers_active": 4,
   "orders_pending": 23,
-  "payment_success_rate": 0.989,
   "average_api_latency_ms": 145
 }
 ```
 
 **Log Aggregation and Retention**
 
-All logs from all server instances are aggregated centrally using Google Cloud Logging:
+All logs from all server instances are aggregated centrally using standard Docker log drivers:
 
-- Logs are retained for 90 days for compliance and auditing.
 - Logs are queryable by timestamp, severity, subsystem, user ID, server ID, and custom fields.
-- Dashboards display real-time overview of system health, recent errors, and key metrics.
-- Alerts are configured for critical conditions (payment errors, server unavailability, data corruption indicators).
+- Dashboards display a real-time overview of system health, recent errors, and key metrics.
 
 **Testing of Monitoring Systems**
 
