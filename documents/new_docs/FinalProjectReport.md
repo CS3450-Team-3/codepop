@@ -179,6 +179,47 @@ These tasks are planned to be finalized in the next sprint, which will focus on 
 
 **Team Lead:** Dillan
 
-## Sprint 6 Summary: Maintenance
+Sprint 5 was the final development sprint, focused on testing, deployment, and stabilizing the application for the end-of-semester demo. The primary challenge of the sprint was standing up a true multi-store environment and verifying that all features worked correctly across simultaneously running instances. A significant portion of the sprint was spent recovering from broken frontend code that had accumulated over prior commits.
+### Weekly Summary
 
-**Team Lead:** Dillan
+**Ethan H.** was a primary driver of backend feature completion this sprint. He built the global revenue aggregation view for super admins, automated revenue record generation tied to order completion, and fixed order total calculation bugs. He implemented price calculation logic for drink size and add-on charges, repaired the inventory restocking flow, and added home server details and role editing to user profiles. He also did two rounds of fixes on Stripe webhook handling, audited all frontend server fetch calls to route through the proxy, and enhanced post-order confirmation with JIT tracking logic. He contributed to the User Manual and the Test Design Report documentation.
+
+**Ethan T.** focused primarily on documentation and testing. He updated existing design documents based on feedback received and revised them to more closely reflect the features the team had actually implemented. He reviewed and edited the User Manual and assisted with bug testing when brought in directly during the final stretch of the sprint.
+
+**Michael** contributed to the Test Design Report and reviewing/editing the User Manual. He also performed some software testing.
+
+**Nate** handled frontend UI work throughout the sprint. He reverted several broken frontend commits to restore a clean build state, updated the sidebar with correct navigation and role-based permissions, refreshed background colors across admin and user pages for visual consistency, added a new app icon, and merged in the social pages feature. He also started the User Manual and filled out the majority of its content.
+
+**Dillan** led the multi-store infrastructure effort. He created a `docker-compose` file that launches 9 simultaneous store instances, fixed all inter-instance routing through port 4000, and implemented P2P network info discovery. He built a server switcher UI and a locations page, added randomized seed data per store, and spent multiple days tracking down and fixing multi-store bugs. He also fixed session persistence so users stay signed in when switching stores and implemented proxying of store manager data across servers so a manager signed into any store can access their home store's information.
+
+---
+
+### Work Completed
+
+- **Multi-Store Infrastructure:** Launched 9 simultaneous store instances via Docker Compose, with working inter-instance routing, P2P discovery, a server switcher UI, and randomized per-store seed data.
+- **Session Persistence:** Fixed sign-in persistence across store switches and implemented cross-store authentication proxying for store managers.
+- **Revenue System:** Built a global revenue aggregation view for super admins with automated revenue record generation tied to order completion and accurate reporting alongside inventory changes.
+- **Stripe Webhooks:** Completed two rounds of fixes to stabilize webhook handling for payment intents and revenue records.
+- **Inventory System:** Repaired the broken restocking flow and improved stock-level reporting accuracy.
+- **Drink Pricing:** Implemented price calculation logic accounting for drink size and add-on charges.
+- **User Management:** Added home server details to profiles, implemented admin role editing, and secured the profile editing endpoint.
+- **JIT Order Tracking:** Enhanced post-order confirmation flow with Just-In-Time tracking and estimated arrival logic.
+- **API Proxy Consistency:** Audited and updated all frontend server fetch calls to route through the proxy, resolving cross-origin issues.
+- **Frontend UI & Sidebar:** Restored clean build state from broken commits, updated sidebar navigation with role-based permissions, refreshed page backgrounds, added a new app icon, and merged social pages.
+- **Leaderboard Backend:** Merged the backend leaderboard view.
+- **Documentation:** Completed the User Manual, updated the Test Design Report, and revised existing design documents to reflect the implemented system.
+
+---
+
+### Incomplete / Ongoing Work
+
+- **Logistics Manager:** The scaffolding was merged and some UI was built, but the backend logic for transferring stock between stores was never fully implemented and the feature is not functional.
+- **Multi-Store on Google Cloud:** Deployment to Google Cloud was attempted but took too long and was abandoned in favor of a local Docker-based demo.
+- **Repair Staff View:** This feature was cut entirely and never started.
+
+---
+
+### Key Takeaways
+
+- Individual components that work separately often break in weird and unsuspecting ways when brought together to make a larger piece of software.
+- The authentication proxying system for multi-store sessions was architecturally sound but was only tested on the super admin account, whose elevated permissions masked a real bug in the manager flow. Testing across multiple role types from the start would have caught this earlier.
