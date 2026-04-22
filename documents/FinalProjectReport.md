@@ -32,6 +32,7 @@ Team SocialDrinkers (3)
     - [Work Completed](#work-completed-5)
     - [Incomplete / Ongoing Work](#incomplete--ongoing-work-1)
     - [Key Takeaways](#key-takeaways-5)
+  - [Project Documentation](#project-documentation)
 
 ---
 
@@ -301,3 +302,14 @@ Sprint 5 was the final development sprint, focused on testing, deployment, and s
 - Individual components that work separately often break in weird and unsuspecting ways when brought together to make a larger piece of software.
 - The authentication proxying system for multi-store sessions was architecturally sound but was only tested on the super admin account, whose elevated permissions masked a real bug in the manager flow. Testing across multiple role types from the start would have caught this earlier.
 
+---
+
+## Project Documentation
+
+This section contains links to the various design and project documents created throughout the lifecycle of the Codepop project.
+
+- **Requirements Document:** [Requirements.md](https://github.com/CS3450-Team-3/codepop/blob/master/documents/Requirements.md)
+- **High-Level Design (HLD):** [HighLevelDesign.md](https://github.com/CS3450-Team-3/codepop/blob/master/documents/FinalProjectReport.md)
+- **Low-Level Design (LLD):** [LowLevelDesign.md](https://github.com/CS3450-Team-3/codepop/blob/master/documents/LowLevelDesign.md)
+- **Test Design Report:** [TestDesignReport.md](https://github.com/CS3450-Team-3/codepop/blob/master/documents/TestDesignReport.md)
+- **Project Presentation:** [CodePop - Presentation.pdf](https://github.com/CS3450-Team-3/codepop/blob/master/documents/CodePop%20-%20Presentation.pdf)
