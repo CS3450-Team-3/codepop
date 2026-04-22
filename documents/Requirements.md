@@ -86,10 +86,11 @@ Codepop is designed to redefine how customers interact with beverage services by
 This document defines the **functional, nonfunctional, business, and user requirements** that guide the development of the Codepop ecosystem. Rather than describing how the system will be built, it focuses on what the system must accomplish and why those outcomes matter.
 
 The intention is to ensure that every requirement contributes to a system that is:
-- Clear in purpose  
-- Efficient in operation  
-- Scalable in design  
-- Valuable to all users  
+
+- Clear in purpose
+- Efficient in operation
+- Scalable in design
+- Valuable to all users
 
 ---
 
@@ -111,8 +112,9 @@ Behind that simplicity is a complex system consisting of:
 These components work together to enable **Just-In-Time drink fulfillment**, where drinks are prepared based on estimated arrival times calculated via local coordinate heuristics.
 
 The system manages interactions between:
-- Customers placing orders  
-- Store managers overseeing operations  
+
+- Customers placing orders
+- Store managers overseeing operations
 - Logistics managers (Partial implementation)
 - Repair staff (Conceptual role; UI/UX cut from final MVP)
 
@@ -129,9 +131,10 @@ A **Region** represents a large operational area containing multiple stores.
 Within each region exists a **Supply Hub**, a centralized warehouse responsible for distributing inventory to stores. These hubs can also support nearby regions within a 1000-mile radius when necessary.
 
 To further optimize efficiency, regions may be divided into **Micro-Regions** (A subdivision of a geographic region), which allow:
-- Faster stock transfers  
-- More efficient repair staff routing  
-- Better localized decision-making  
+
+- Faster stock transfers
+- More efficient repair staff routing
+- Better localized decision-making
 
 This structure ensures that the system can scale without relying on a single centralized authority.
 
@@ -150,12 +153,14 @@ The effectiveness of Codepop depends on its ability to serve a diverse set of us
 The Guest Customer interacts with Codepop for immediate needs. They prioritize convenience above all else. Jake is a representative of this class—he is a 24-year-old traveler who just arrived in the city. He is thirsty and wants a quick, refreshing drink before his next tour. He doesn't like downloading new apps or filling out long registration forms for a single purchase.
 
 Jake wants:
+
 - A fast ordering process that requires zero personal data entry.
 - No requirement to create an account to view the full menu and pricing.
 - Minimal friction between decision and checkout (e.g., Apple Pay support).
 - A clear, simple "Most Popular" menu to avoid decision fatigue from thousands of combinations.
 
 However, he accepts limitations:
+
 - No saved preferences; every visit starts from a blank slate.
 - No personalized recommendations based on his flavor profile.
 - No persistent data or order history to revisit a previous creation.
@@ -169,12 +174,14 @@ For this user, success is measured in **seconds and simplicity**.
 The Registered Customer builds a relationship with the system. Sarah represents this class; she is a 32-year-old marketing executive who visits CodePop three times a week. She is highly particular about her caffeine intake and flavor profiles. She uses the app to "roam" between the store near her office and the store near her gym.
 
 Sarah expects:
+
 - Saved drink preferences so her "standard" order is one tap away.
 - Stored payment methods to avoid fumbling for a card at the kiosk.
 - Access to her full order history across the entire P2P network.
 - Personalized drink recommendations that learn her preference for "citrus" and "low sugar."
 
 She also benefits from advanced features such as:
+
 - AI-generated drink suggestions that help her discover new flavor combinations within her taste profile.
 - Optimized order timing based on her location, ensuring her drink is fresh even if she's 5 minutes late.
 - Loyalty rewards and specific seasonal offers tailored to her ordering habits.
@@ -188,18 +195,21 @@ For Sarah, Codepop becomes part of a routine, where each interaction improves th
 The Store Manager ensures that the physical store operates smoothly.
 
 Their responsibilities include:
-- Monitoring inventory (syrups, cups, CO2, etc.)  
-- Tracking revenue and transactions  
-- Observing machine status and alerts  
+
+- Monitoring inventory (syrups, cups, CO2, etc.)
+- Tracking revenue and transactions
+- Observing machine status and alerts
 
 They rely on:
-- Accurate, real-time data  
-- Clear system notifications  
-- Limited but focused access to their own store  
+
+- Accurate, real-time data
+- Clear system notifications
+- Limited but focused access to their own store
 
 Their goal is to prevent disruptions before they affect customers.
 
 **In a complete design:**
+
 - The Store Manager would be able to configure **Automated Restocking**, where the system automatically places an order to the Regional Hub when inventory hits a critical threshold.
 - They would have access to a **Labor Optimization dashboard** that suggests staffing levels based on historical JIT order peaks.
 - They would be able to remotely trigger a "Clean Cycle" for dispensers during off-peak hours.
@@ -211,10 +221,12 @@ Their goal is to prevent disruptions before they affect customers.
 The Logistics Manager operates at a higher level, focusing on **efficiency across the network**.
 
 In the current MVP:
+
 - View stock usage trends.
 - Backend logic for inter-store stock transfers was deferred and remains non-functional.
 
 **In a complete design:**
+
 - The Logistics Manager would use a **Global Inventory Optimizer** to authorize and route stock transfers between stores to prevent expiration waste.
 - They would manage the **Supply Hub fulfillment queue**, ensuring that regional warehouses are optimally stocked based on seasonal demand trends across multiple cities.
 - They would have a **Predictive Logistics map** showing real-time delivery truck locations and estimated arrival times for store restocks.
@@ -223,11 +235,12 @@ In the current MVP:
 
 ### 4.5 Repair Staff (Cut from MVP)
 
-Repair Staff tasked with maintaining robotic drink dispensers to minimize store downtime. 
+Repair Staff tasked with maintaining robotic drink dispensers to minimize store downtime.
 
 - This role was conceptualized in the design phase but the dedicated "Repair Staff View" and routing logic were cut from the final implementation.
 
 **In a complete design:**
+
 - Repair Staff would receive **Push Notifications** with diagnostic codes the moment a dispenser enters an "Error" or "Service Upcoming" state.
 - They would use a **Maintenance Routing app** that optimizes their daily travel path based on the geographic location of all stores needing service in their micro-region.
 - They would be able to **Temporarily Suspend Ordering** for specific machines or ingredients directly from their mobile device while a repair is in progress.
@@ -239,12 +252,14 @@ Repair Staff tasked with maintaining robotic drink dispensers to minimize store 
 Administrative users ensure system integrity.
 
 **Local Admins**: A store-level administrator with elevated permissions compared to the standard Store Manager.
-- Manage store-level users  
-- Maintain account access  
+
+- Manage store-level users
+- Maintain account access
 
 **Super Admins**: The highest level of system access, responsible for the global configuration of the decentralized network.
+
 - View global revenue aggregation (Functional)
-- Manage regional configurations  
+- Manage regional configurations
 - Oversee all system data across the 9-store network
 
 These roles ensure the system remains secure, organized, and scalable.
@@ -409,7 +424,7 @@ The system must provide tailored interfaces for each operational role to ensure 
 
 ## 7. Nonfunctional Requirements (System Quality)
 
-While functional requirements define *what* the system does, nonfunctional requirements define *how* it performs. Codepop’s quality targets are driven by the need for a "near-instant" feel in a decentralized environment.
+While functional requirements define _what_ the system does, nonfunctional requirements define _how_ it performs. Codepop’s quality targets are driven by the need for a "near-instant" feel in a decentralized environment.
 
 ---
 
@@ -547,6 +562,7 @@ The User Stories below describe the functional requirements from the perspective
 ## 9. MoSCoW Prioritization
 
 ## Must Have
+
 ### Region Management
 
 - Stores will belong and act within an assigned region
@@ -620,11 +636,12 @@ The User Stories below describe the functional requirements from the perspective
 
 ### Device Access
 
-- Prioritize access through Application, should be available on both Apple and Android as well as web applications. Web applications should include Google Chrome, Safari, Firefox, and Edge compatibility 
+- Prioritize access through Application, should be available on both Apple and Android as well as web applications. Web applications should include Google Chrome, Safari, Firefox, and Edge compatibility
 
 ---
 
 ## Should Have
+
 ### Regions
 
 - Contain Micro Regions
@@ -676,6 +693,7 @@ The User Stories below describe the functional requirements from the perspective
 ---
 
 ## Could Have
+
 ### Stock
 
 - stock organized within micro regions so stock transfers are faster
@@ -714,7 +732,7 @@ A customer places an order.
 The system calculates timing.  
 The store prepares the drink.  
 Inventory adjusts automatically.  
-Maintenance is predicted before failure.  
+Maintenance is predicted before failure.
 
 What the customer experiences is simple—but what enables it is a tightly coordinated system of requirements working together.
 
@@ -722,7 +740,7 @@ Every requirement in this document exists to support that illusion of simplicity
 
 ---
 
-## 11. Use Case Diagrams 
+## 11. Use Case Diagrams
 
 ### 11.1 Customer Experience
 

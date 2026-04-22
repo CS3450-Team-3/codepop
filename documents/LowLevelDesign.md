@@ -734,23 +734,23 @@ A working prototype for the application can be found [here](https://www.figma.co
 #### User
 
 - ![Home Screen](/UI_UX/Home_Screen.png)
-- ![Drink Order Screen](UI_UX/Drink_Order.png)
-- ![User Profile](UI_UX/User_profile.png)
+- ![Drink Order Screen](/UI_UX/Drink_Order.png)
+- ![User Profile](/UI_UX/User_profile.png)
 
 ##### Manager
 
-- ![Manager](UI_UX/Manager.png)
-- ![Logistics](UI_UX/Logistics.png)
+- ![Manager](/UI_UX/Manager.png)
+- ![Logistics](/UI_UX/Logistics.png)
   - _Note: Logistics Manager dashboard UI was partially developed but backend logic for stock transfers remains non-functional._
 
 ##### Admin
 
-- ![Admin](UI_UX/Admin.png)
+- ![Admin](/UI_UX/Admin.png)
 
 ##### Super Admin
 
-- ![Super Admin](UI_UX/Super_Admin.png)
-- ![Super Admin Modules](UI_UX/Super_Admin_Modules.png)
+- ![Super Admin](/UI_UX/Super_Admin.png)
+- ![Super Admin Modules](/UI_UX/Super_Admin_Modules.png)
 
 ### 5.2 User Flow
 

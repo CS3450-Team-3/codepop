@@ -2,6 +2,39 @@
 
 Team SocialDrinkers (3)
 
+---
+
+- [Final Project Report](#final-project-report)
+  - [Sprint 0 Summary: Requirement Gathering](#sprint-0-summary-requirement-gathering)
+    - [Weekly Summary](#weekly-summary)
+    - [Work Completed](#work-completed)
+    - [Key Takeaways](#key-takeaways)
+  - [Sprint 1 Summary: Design](#sprint-1-summary-design)
+    - [Weekly Summary](#weekly-summary-1)
+    - [Work Completed](#work-completed-1)
+    - [Key Takeaways](#key-takeaways-1)
+  - [Sprint 2 Summary: Low-Level Design](#sprint-2-summary-low-level-design)
+    - [Weekly Summary](#weekly-summary-2)
+    - [Work Completed](#work-completed-2)
+    - [Key Takeaways](#key-takeaways-2)
+  - [Sprint 3 Summary: Development](#sprint-3-summary-development)
+    - [Weekly Summary](#weekly-summary-3)
+    - [Work Completed](#work-completed-3)
+    - [Incomplete Work](#incomplete-work)
+    - [Key Takeaways](#key-takeaways-3)
+  - [Sprint 4 Summary: Development](#sprint-4-summary-development)
+    - [Weekly Summary](#weekly-summary-4)
+    - [Work Completed](#work-completed-4)
+    - [Incomplete / Ongoing Work](#incomplete--ongoing-work)
+    - [Key Takeaways](#key-takeaways-4)
+  - [Sprint 5 Summary: Testing and Deployment](#sprint-5-summary-testing-and-deployment)
+    - [Weekly Summary](#weekly-summary-5)
+    - [Work Completed](#work-completed-5)
+    - [Incomplete / Ongoing Work](#incomplete--ongoing-work-1)
+    - [Key Takeaways](#key-takeaways-5)
+
+---
+
 ## Sprint 0 Summary: Requirement Gathering
 
 **Team Lead: Dillan**
@@ -267,3 +300,4 @@ Sprint 5 was the final development sprint, focused on testing, deployment, and s
 
 - Individual components that work separately often break in weird and unsuspecting ways when brought together to make a larger piece of software.
 - The authentication proxying system for multi-store sessions was architecturally sound but was only tested on the super admin account, whose elevated permissions masked a real bug in the manager flow. Testing across multiple role types from the start would have caught this earlier.
+

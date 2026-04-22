@@ -231,4 +231,4 @@ _Screenshots are included in Appendix 7 where available; missing items will be c
 
 ### 7.1 Automated Multi-Instance Orchestration Log
 
-![Integration Suite](/documents/new_docs/images/integration_suite_log.png)
+![Integration Suite](/documents/images/integration_suite_log.png)
